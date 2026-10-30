@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Fleet24",
+    "slug": "fleet24",
+    "scheme": "fleet24",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fleet24.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"],
+        "NSLocationWhenInUseUsageDescription": "Fleet24 needs your location to track deliveries in real time.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Fleet24 requires background location to dispatch and track active delivery operations.",
+        "NSLocationAlwaysUsageDescription": "Fleet24 requires background location to track active delivery routes."
+      }
+    },
+    "android": {
+      "package": "com.fleet24.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9af987cb-73e3-4223-bdfd-506adda80909"
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+export const DRIZZLE_CONNECTION = Symbol('DRIZZLE_CONNECTION');
+export const DATABASE_POOL = Symbol('DATABASE_POOL');

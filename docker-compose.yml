@@ -1,0 +1,23 @@
+services:
+  fleet24-postgres:
+    image: postgres:16-alpine
+    container_name: fleet24-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fleet24_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-fleet24_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fleet24_local_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - fleet24_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleet24_user} -d ${POSTGRES_DB:-fleet24_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  fleet24_postgres_data:
+    name: fleet24_postgres_data

@@ -1,0 +1,631 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Image,
+  TextInput,
+} from 'react-native';
+import { colors, spacing, typography, borderRadius } from '../theme/tokens';
+import { Ionicons } from '@expo/vector-icons';
+import { apiRequest } from '../api/client';
+import { MenuItemCard, MenuItemData } from '../components/MenuItemCard';
+import { OutletSummary } from '../components/RestaurantCard';
+import { CartSummaryBar } from '../components/CartSummaryBar';
+import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { USE_MOCK_DATA, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+interface RestaurantDetailScreenProps {
+  outlet: OutletSummary;
+  onBack: () => void;
+  onViewCart: () => void;
+  onRequireAuth: () => void;
+}
+
+export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
+  outlet,
+  onBack,
+  onViewCart,
+  onRequireAuth,
+}) => {
+  const insets = useSafeAreaInsets();
+  const { cart, addItem, updateQuantity, removeItem, clearCart } = useCart();
+  const { isAuthenticated } = useAuth();
+  const [items, setItems] = useState<MenuItemData[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMenu = async () => {
+      if (USE_MOCK_DATA) {
+        const mockItems = MOCK_MENUS[outlet.id] || DEFAULT_MOCK_MENU;
+        setItems(mockItems);
+        const catSet = new Set<string>();
+        mockItems.forEach((i) => {
+          if (i.categoryName) catSet.add(i.categoryName);
+        });
+        setCategories(['All', ...Array.from(catSet)]);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const data = await apiRequest<MenuItemData[]>(`/public/outlets/${outlet.id}/menu`);
+        setItems(data);
+
+        // Extract unique categories
+        const catSet = new Set<string>();
+        data.forEach((i) => {
+          if (i.categoryName) catSet.add(i.categoryName);
+        });
+        setCategories(['All', ...Array.from(catSet)]);
+      } catch {
+        setItems([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMenu();
+  }, [outlet.id]);
+
+  const handleAddItem = async (item: MenuItemData) => {
+    if (!isAuthenticated) {
+      onRequireAuth();
+      return;
+    }
+
+    try {
+      await addItem(outlet.id, item.id, 1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('another outlet')) {
+        Alert.alert(
+          'Replace Cart?',
+          'Your cart has items from another outlet. Do you want to clear your cart and add this item?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Clear & Add',
+              style: 'destructive',
+              onPress: async () => {
+                await clearCart();
+                await addItem(outlet.id, item.id, 1);
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Unable to add item', msg || 'Please try again.');
+      }
+    }
+  };
+
+  const getQuantityForMenu = (menuItemId: string): number => {
+    if (!cart || cart.outletId !== outlet.id) return 0;
+    const found = cart.items.find((i) => i.menuItemId === menuItemId);
+    return found ? found.quantity : 0;
+  };
+
+  const handleIncrement = (menuItemId: string) => {
+    if (!cart) return;
+    const cartItem = cart.items.find((i) => i.menuItemId === menuItemId);
+    if (cartItem) {
+      updateQuantity(cartItem.id, cartItem.quantity + 1);
+    }
+  };
+
+  const handleDecrement = (menuItemId: string) => {
+    if (!cart) return;
+    const cartItem = cart.items.find((i) => i.menuItemId === menuItemId);
+    if (cartItem) {
+      if (cartItem.quantity <= 1) {
+        removeItem(cartItem.id);
+      } else {
+        updateQuantity(cartItem.id, cartItem.quantity - 1);
+      }
+    }
+  };
+
+  const filteredItems = items.filter((item) => {
+    const matchesCat =
+      selectedCategory === 'All' || item.categoryName === selectedCategory;
+    const matchesSearch =
+      !searchQuery.trim() ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description &&
+        item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCat && matchesSearch;
+  });
+
+  const heroImage =
+    outlet.logoUrl ||
+    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80';
+
+  const renderHeader = () => (
+    <View style={styles.headerWrapper}>
+      {/* Restaurant Hero Card */}
+      <View style={styles.heroCard}>
+        <View style={styles.imageBox}>
+          <Image source={{ uri: heroImage }} style={styles.heroImage} resizeMode="cover" />
+          <View style={styles.imageGradientOverlay} />
+
+          {/* Floating Status Pill */}
+          <View
+            style={[
+              styles.floatingStatusPill,
+              outlet.isAcceptingOrders ? styles.statusOpen : styles.statusClosed,
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                outlet.isAcceptingOrders ? styles.dotOpen : styles.dotClosed,
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                { color: outlet.isAcceptingOrders ? colors.primaryDark : colors.error },
+              ]}
+            >
+              {outlet.isAcceptingOrders ? 'Open Now' : 'Closed'}
+            </Text>
+          </View>
+
+          {/* Floating Rating Pill */}
+          <View style={styles.floatingRatingPill}>
+            <Ionicons name="star" size={12} color="#D99058" />
+            <Text style={styles.ratingText}>4.8</Text>
+            <Text style={styles.ratingCount}>(850+)</Text>
+          </View>
+        </View>
+
+        {/* Info Area */}
+        <View style={styles.heroInfoContent}>
+          <Text style={styles.restaurantName}>{outlet.restaurantName}</Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+            <Text style={styles.outletAddress} numberOfLines={1}>
+              {outlet.outletName} • {outlet.address}
+            </Text>
+          </View>
+
+          {/* Delivery Details Pills */}
+          <View style={styles.metaPillsRow}>
+            <View style={styles.metaPill}>
+              <Ionicons name="time-outline" size={12} color={colors.primary} />
+              <Text style={styles.metaPillText}>25-35 min</Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Ionicons name="bicycle-outline" size={12} color={colors.primary} />
+              <Text style={styles.metaPillText}>Up to {outlet.deliveryRadiusKm} km</Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Ionicons name="shield-checkmark-outline" size={12} color={colors.primary} />
+              <Text style={styles.metaPillText}>Hygiene Verified</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Menu Search Box */}
+      <View style={styles.searchRow}>
+        <Ionicons name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
+        <TextInput
+          placeholder="Search items in this menu..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.searchInput}
+          returnKeyType="search"
+        />
+        {searchQuery ? (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {/* Category Pills Slider */}
+      {categories.length > 1 && (
+        <View style={styles.categoryContainer}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={categories}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.categoryList}
+            renderItem={({ item }) => {
+              const isSelected = selectedCategory === item;
+              return (
+                <TouchableOpacity
+                  style={[styles.catChip, isSelected && styles.catChipActive]}
+                  onPress={() => setSelectedCategory(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.catChipText, isSelected && styles.catChipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {/* Section Headline */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === 'All' ? 'Recommended Menu' : selectedCategory}
+        </Text>
+        <Text style={styles.sectionCount}>
+          {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
+        </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* Top Floating App Bar */}
+      <View style={[styles.navBar, { paddingTop: Math.max(insets.top, 14) }]}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.navIconButton}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
+
+        <Text style={styles.navBarTitle} numberOfLines={1}>
+          {outlet.restaurantName}
+        </Text>
+
+        <TouchableOpacity
+          onPress={onViewCart}
+          style={styles.navIconButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="cart-outline" size={20} color={colors.textPrimary} />
+          {cart && cart.itemCount > 0 ? (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      </View>
+
+      {/* Content List */}
+      {isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.loadingText}>Loading delicious menu...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredItems}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <MenuItemCard
+              item={item}
+              isOutletOpen={outlet.isAcceptingOrders}
+              quantityInCart={getQuantityForMenu(item.id)}
+              onAdd={() => handleAddItem(item)}
+              onIncrement={() => handleIncrement(item.id)}
+              onDecrement={() => handleDecrement(item.id)}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="fast-food-outline" size={44} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No items match your search</Text>
+              <Text style={styles.emptySub}>
+                Try searching for another dish or clear category filters.
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* Floating Bottom Cart Bar */}
+      <CartSummaryBar onPress={onViewCart} />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm + 4,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    zIndex: 10,
+  },
+  navIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  navBarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: spacing.sm,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.accent,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  listContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 110,
+  },
+  headerWrapper: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  heroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: spacing.md,
+  },
+  imageBox: {
+    width: '100%',
+    height: 170,
+    position: 'relative',
+    backgroundColor: '#EAE7DD',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageGradientOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  },
+  floatingStatusPill: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  statusOpen: {
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderLight,
+  },
+  statusClosed: {
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderLight,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  dotOpen: {
+    backgroundColor: colors.success,
+  },
+  dotClosed: {
+    backgroundColor: colors.error,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  floatingRatingPill: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  ratingCount: {
+    fontSize: 10.5,
+    color: colors.textSecondary,
+  },
+  heroInfoContent: {
+    padding: spacing.md + 2,
+  },
+  restaurantName: {
+    fontSize: 21,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  outletAddress: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  metaPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surfaceGreen,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: borderRadius.sm,
+  },
+  metaPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primaryDark,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    height: 44,
+    marginBottom: spacing.md,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: colors.textPrimary,
+  },
+  categoryContainer: {
+    marginBottom: spacing.md,
+  },
+  categoryList: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  catChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  catChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  catChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  catChipTextActive: {
+    color: '#FFFFFF',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm + 2,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  sectionCount: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  loadingText: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: 13.5,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
+});
