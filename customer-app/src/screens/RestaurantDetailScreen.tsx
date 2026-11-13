@@ -77,13 +77,16 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
   }, [outlet.id]);
 
   const handleAddItem = async (item: MenuItemData) => {
-    if (!isAuthenticated) {
-      onRequireAuth();
-      return;
-    }
+    const itemDetails = {
+      name: item.name,
+      unitPrice: parseFloat(item.effectivePrice),
+      imageUrl: item.imageUrl,
+      outletName: outlet.outletName,
+      restaurantName: outlet.restaurantName,
+    };
 
     try {
-      await addItem(outlet.id, item.id, 1);
+      await addItem(outlet.id, item.id, 1, itemDetails);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('another outlet')) {
@@ -97,7 +100,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
               style: 'destructive',
               onPress: async () => {
                 await clearCart();
-                await addItem(outlet.id, item.id, 1);
+                await addItem(outlet.id, item.id, 1, itemDetails);
               },
             },
           ],
@@ -410,20 +413,20 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.xl,
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: colors.borderLight,
+    shadowColor: colors.charcoal,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: spacing.md,
+    shadowRadius: 12,
+    elevation: 3,
+    marginBottom: 16,
   },
   imageBox: {
     width: '100%',
-    height: 170,
+    height: 180,
     position: 'relative',
     backgroundColor: '#EAE7DD',
   },
@@ -433,18 +436,18 @@ const styles = StyleSheet.create({
   },
   imageGradientOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
   },
   floatingStatusPill: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 14,
+    left: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: borderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
   },
   statusOpen: {
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
   },
   dotOpen: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
   },
   dotClosed: {
     backgroundColor: colors.error,
@@ -473,35 +476,35 @@ const styles = StyleSheet.create({
   },
   floatingRatingPill: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 14,
+    right: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: borderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   ratingText: {
     fontSize: 12,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: colors.charcoal,
   },
   ratingCount: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: colors.textSecondary,
   },
   heroInfoContent: {
-    padding: spacing.md + 2,
+    padding: 18,
   },
   restaurantName: {
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
+    color: colors.charcoal,
+    letterSpacing: -0.4,
   },
   locationRow: {
     flexDirection: 'row',
@@ -510,7 +513,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   outletAddress: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: colors.textSecondary,
     flex: 1,
   },
@@ -519,32 +522,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: spacing.md,
+    marginTop: 14,
   },
   metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     backgroundColor: colors.surfaceGreen,
-    paddingHorizontal: 9,
-    paddingVertical: 4.5,
-    borderRadius: borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   metaPillText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: colors.primary,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.lg,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    height: 44,
-    marginBottom: spacing.md,
+    borderColor: colors.borderLight,
+    paddingHorizontal: 16,
+    height: 48,
+    marginBottom: 14,
   },
   searchIcon: {
     marginRight: 8,
@@ -552,10 +555,10 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13.5,
-    color: colors.textPrimary,
+    color: colors.charcoal,
   },
   categoryContainer: {
-    marginBottom: spacing.md,
+    marginBottom: 14,
   },
   categoryList: {
     gap: 8,
@@ -564,19 +567,19 @@ const styles = StyleSheet.create({
   catChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: borderRadius.full,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
   },
   catChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.charcoal,
+    borderColor: colors.charcoal,
   },
   catChipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: colors.charcoal,
   },
   catChipTextActive: {
     color: '#FFFFFF',
@@ -585,14 +588,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm + 2,
+    marginBottom: 12,
     marginTop: 4,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.2,
+    color: colors.charcoal,
+    letterSpacing: -0.3,
   },
   sectionCount: {
     fontSize: 12.5,

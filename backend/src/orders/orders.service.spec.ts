@@ -6,6 +6,7 @@ import { OrdersService } from './orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
+import { RiderOffersService } from '../riders/rider-offers.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 
 describe('Cart & Orders Management (Unit Tests)', () => {
@@ -109,6 +110,12 @@ describe('Cart & Orders Management (Unit Tests)', () => {
         {
           provide: FinancialSettingsService,
           useValue: mockFinancialSettingsService,
+        },
+        {
+          provide: RiderOffersService,
+          useValue: {
+            cleanupDeliveryForCancelledOrder: jest.fn().mockResolvedValue({}),
+          },
         },
       ],
     }).compile();

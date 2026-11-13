@@ -1,4 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
 import { AdminDashboardController } from './admin-dashboard.controller';
 import { AdminDashboardService } from './admin-dashboard.service';
@@ -18,6 +20,8 @@ import { TrackingModule } from '../tracking/tracking.module';
 @Module({
   imports: [
     DatabaseModule,
+    JwtModule,
+    ConfigModule,
     forwardRef(() => RidersModule),
     forwardRef(() => PaymentsModule),
     forwardRef(() => TrackingModule),

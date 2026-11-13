@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { RefundReconciliationService } from './refund-reconciliation.service';
+import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 
 describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
@@ -92,6 +93,10 @@ describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
         {
           provide: JwtService,
           useValue: mockJwtService,
+        },
+        {
+          provide: TrackingPublisherService,
+          useValue: { publishOrderCreated: jest.fn() },
         },
       ],
     }).compile();

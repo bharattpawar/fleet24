@@ -81,8 +81,9 @@ export const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({
         landmark: landmark.trim() || undefined,
         city: city.trim() || 'Greater Noida',
         postalCode: postalCode.trim(),
-        latitude: '28.4744000',
-        longitude: '77.5040000',
+        // Realistic Greater Noida residential coordinates (Sector Alpha 1, ~1.8km from KP III)
+        latitude: '28.4855000',
+        longitude: '77.5135000',
         isDefault: addresses.length === 0,
       });
       resetForm();

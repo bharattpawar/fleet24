@@ -284,6 +284,8 @@ describe('RiderAssignmentService', () => {
       orderNumber: 'FL-20261030-1001',
       status: 'confirmed',
       outletId: 'outlet-uuid-1',
+      deliveryLatitude: '28.4720000',
+      deliveryLongitude: '77.5150000',
     };
 
     const validOutlet = {

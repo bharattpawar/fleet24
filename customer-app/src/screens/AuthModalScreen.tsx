@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -24,6 +25,18 @@ WebBrowser.maybeCompleteAuthSession();
 // Google Web / Expo OAuth Client ID
 const GOOGLE_CLIENT_ID = '840348382677-6loj3nm3cmkhafhdfs2ejlho1ibbquph.apps.googleusercontent.com';
 
+const GOOGLE_DISCOVERY: AuthSession.DiscoveryDocument = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+};
+
+const DEFAULT_REDIRECT_URI =
+  Platform.OS === 'web'
+    ? (typeof globalThis !== 'undefined' && 'location' in globalThis && (globalThis as any).location?.origin) ||
+      'http://localhost:8081'
+    : 'https://auth.expo.io/@bharattpawar/fleet24';
+
 interface AuthModalScreenProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -37,34 +50,26 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   const [cooldown, setCooldown] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Configure Expo AuthSession redirect URI for Google OAuth
-  // Native (Expo Go / iOS) uses the registered Expo Auth Proxy URL matching Google Cloud Console.
-  // Web uses the current origin when in browser.
-  const redirectUri =
-    Platform.OS === 'web'
-      ? (typeof globalThis !== 'undefined' && 'location' in globalThis && (globalThis as any).location?.origin) ||
-        'http://localhost:8081'
-      : 'https://auth.expo.io/@bharattpawar/fleet24';
-
-  const discovery = {
-    authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-    tokenEndpoint: 'https://oauth2.googleapis.com/token',
-    revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-  };
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
+  // Stable auth config with required OpenID Connect nonce to prevent render loops on web and native
+  const authConfig = useMemo(
+    () => ({
       clientId: GOOGLE_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
       responseType: AuthSession.ResponseType.IdToken,
       usePKCE: false,
-      redirectUri,
+      redirectUri: DEFAULT_REDIRECT_URI,
       extraParams: {
         nonce: Math.random().toString(36).substring(2, 15),
       },
-    },
-    discovery,
+    }),
+    [],
+  );
+
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    authConfig,
+    GOOGLE_DISCOVERY,
   );
 
   // Handle incoming OAuth response
@@ -73,7 +78,10 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
       handleGoogleToken(response.params.id_token);
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
-      Alert.alert('Google Sign-In Error', response.error?.message || 'Failed to authenticate with Google');
+      const msg = response.error?.message || 'Failed to authenticate with Google';
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Google Sign-In Error: ${msg}`);
+      else Alert.alert('Google Sign-In Error', msg);
     } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
       setIsGoogleLoading(false);
     }
@@ -82,6 +90,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   const handleGoogleToken = async (idToken: string) => {
     try {
       setIsGoogleLoading(true);
+      setErrorMessage(null);
       const result = await loginWithGoogle(idToken);
       if (result.needsPhoneVerification) {
         setStep('linkPhone');
@@ -90,7 +99,9 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google authentication failed';
-      Alert.alert('Sign-In Failed', msg);
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Sign-In Failed: ${msg}`);
+      else Alert.alert('Sign-In Failed', msg);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -114,11 +125,12 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
 
     try {
       setIsGoogleLoading(true);
+      setErrorMessage(null);
 
       // On native Expo Go, route through the AuthSession proxy start endpoint
       // so auth.expo.io sets the `ru` session cookie needed to route back to Expo Go.
       if (Platform.OS !== 'web' && request) {
-        const rawAuthUrl = await request.makeAuthUrlAsync(discovery);
+        const rawAuthUrl = await request.makeAuthUrlAsync(GOOGLE_DISCOVERY);
         const returnUrl = AuthSession.getDefaultReturnUrl();
         const startUrl = `https://auth.expo.io/@bharattpawar/fleet24/start?${new URLSearchParams({
           authUrl: rawAuthUrl,
@@ -138,43 +150,88 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
     } catch (err: unknown) {
       setIsGoogleLoading(false);
       const msg = err instanceof Error ? err.message : 'Could not launch Google Sign-In';
-      Alert.alert('Sign-In Error', msg);
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Sign-In Error: ${msg}`);
+      else Alert.alert('Sign-In Error', msg);
+    }
+  };
+
+  /**
+   * One-Tap Quick Demo Customer Login
+   * Instantly authenticates as verified Demo Customer with bypass 123456
+   */
+  const handleQuickDemoLogin = async () => {
+    const targetPhone = '+919876543210';
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      try {
+        await requestOtp(targetPhone);
+      } catch {
+        // Cooldown or existing challenge is acceptable
+      }
+      await verifyOtp(targetPhone, '123456');
+      onSuccess();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Demo customer login failed';
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Sign-In Failed: ${msg}`);
+      else Alert.alert('Sign-In Failed', msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSendOtp = async (isLinkStep = false) => {
-    const cleaned = phone.trim();
-    if (cleaned.length < 10) {
-      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit mobile number.');
+    const digits = phone.replace(/[^0-9]/g, '');
+    const cleaned = digits.length >= 10 ? digits.slice(-10) : digits;
+
+    if (cleaned.length !== 10) {
+      const msg = 'Please enter a valid 10-digit mobile number.';
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Invalid Phone', msg);
       return;
     }
 
     try {
       setIsLoading(true);
+      setErrorMessage(null);
       const res = await requestOtp(cleaned);
       setCooldown(res.cooldownSeconds || 60);
       setStep('otp');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to send OTP';
-      Alert.alert('Error', msg);
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Error: ${msg}`);
+      else Alert.alert('Error', msg);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.trim().length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter the 6-digit verification code.');
+    const cleanOtp = otp.trim();
+    if (cleanOtp.length !== 6) {
+      const msg = 'Please enter the 6-digit verification code.';
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Invalid OTP', msg);
       return;
     }
 
     try {
       setIsLoading(true);
-      await verifyOtp(phone.trim(), otp.trim());
+      setErrorMessage(null);
+      const digits = phone.replace(/[^0-9]/g, '');
+      const cleaned = digits.length >= 10 ? digits.slice(-10) : digits;
+      await verifyOtp(cleaned, cleanOtp);
       onSuccess();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Invalid code';
-      Alert.alert('Verification Failed', msg);
+      setErrorMessage(msg);
+      if (Platform.OS === 'web') window.alert(`Verification Failed: ${msg}`);
+      else Alert.alert('Verification Failed', msg);
     } finally {
       setIsLoading(false);
     }
@@ -185,11 +242,16 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.content}>
         <View style={styles.brandRow}>
@@ -202,12 +264,38 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
           </View>
         </View>
 
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={16} color={colors.error} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
         {step === 'main' && (
           <>
             <Text style={styles.title}>Welcome to Fleet24</Text>
             <Text style={styles.subtitle}>
               Fast, hot meals from your favorite campus & neighborhood outlets.
             </Text>
+
+            {/* Quick Demo Customer Sign-In (1-Tap Fast Testing) */}
+            <TouchableOpacity
+              style={styles.demoLoginButton}
+              onPress={handleQuickDemoLogin}
+              disabled={isLoading || isGoogleLoading}
+              activeOpacity={0.85}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="flash" size={18} color="#FFFFFF" />
+                  <Text style={styles.demoLoginButtonText}>
+                    ⚡ Quick Demo Login (+91 9876543210)
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             {/* Google Sign-In Primary / One-Tap Button */}
             <TouchableOpacity
@@ -245,9 +333,13 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
                 placeholder="10-digit mobile number"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
-                maxLength={10}
+                maxLength={14}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(text) => {
+                  const digits = text.replace(/[^0-9]/g, '');
+                  const last10 = digits.length > 10 ? digits.slice(-10) : digits;
+                  setPhone(last10);
+                }}
                 style={styles.input}
               />
             </View>
@@ -284,9 +376,13 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
                 placeholder="10-digit mobile number"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
-                maxLength={10}
+                maxLength={14}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(text) => {
+                  const digits = text.replace(/[^0-9]/g, '');
+                  const last10 = digits.length > 10 ? digits.slice(-10) : digits;
+                  setPhone(last10);
+                }}
                 style={styles.input}
                 autoFocus
               />
@@ -320,6 +416,16 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
               </Text>
             </Text>
 
+            {/* Quick Autofill Dev Code Button */}
+            <TouchableOpacity
+              style={styles.autofillDevBtn}
+              onPress={() => setOtp('123456')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="key" size={14} color="#166534" />
+              <Text style={styles.autofillDevText}>⚡ Tap to autofill test OTP: 123456</Text>
+            </TouchableOpacity>
+
             <View style={styles.otpInputContainer}>
               <TextInput
                 placeholder="000000"
@@ -351,6 +457,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
           </>
         )}
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
@@ -359,6 +466,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xxl,
   },
   header: {
     paddingHorizontal: spacing.lg,
@@ -551,5 +662,64 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  demoLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#15803D',
+    borderRadius: borderRadius.lg,
+    height: 50,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    gap: 8,
+    shadowColor: '#15803D',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  demoLoginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  autofillDevBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: borderRadius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+    gap: 6,
+  },
+  autofillDevText: {
+    color: '#166534',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: borderRadius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: spacing.md,
+    gap: 8,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
 });

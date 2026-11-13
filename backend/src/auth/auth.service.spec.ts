@@ -155,8 +155,8 @@ describe('AuthService (Unit Tests)', () => {
     });
 
     it('should increment attemptsCount on incorrect OTP', async () => {
-      const plainOtp = '123456';
-      const actualHash = service.hashValue('654321'); // Mismatched
+      const plainOtp = '987654';
+      const actualHash = service.hashValue('654321'); // Mismatched and not a dev bypass OTP
 
       mockDb.query.phoneOtpChallenges.findFirst.mockResolvedValueOnce({
         id: 'challenge-id-1',

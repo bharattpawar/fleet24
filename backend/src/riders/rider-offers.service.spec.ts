@@ -651,9 +651,16 @@ describe('RiderOffersService', () => {
         deliveryAddressSnapshot: { address: 'Flat 101' },
       });
 
+      const plainOtp = '999888';
+      const encKey = 'mock-delivery-otp-secret';
+      const encryptedOtp = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
+
       mockDb.query.deliveries.findFirst.mockResolvedValueOnce({
         ...mockDelivery,
+        status: 'picked_up',
         deliveryOtpHash: 'valid-hash',
+        encryptedDeliveryOtp: encryptedOtp,
+        otpExpiresAt: new Date(Date.now() + 1800 * 1000),
         rider: {
           id: 'rider-uuid-1',
           fullName: 'Ravi Rider',
@@ -661,9 +668,6 @@ describe('RiderOffersService', () => {
           vehicleNumber: 'KA-01-AB-1234',
         },
       });
-
-      // Mock otpCache
-      (service as any).otpCache.set('order-uuid-1', '999888');
 
       const res = await service.getDeliveryForCustomer('customer-user-uuid', 'order-uuid-1');
       expect(res.orderId).toBe('order-uuid-1');

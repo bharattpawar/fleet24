@@ -74,6 +74,14 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   RAZORPAY_MODE: string = 'test';
+
+  /**
+   * 256-bit (32-byte) hex-encoded key for AES-256-GCM delivery OTP encryption.
+   * If not explicitly provided, a default dev key is used in development/test.
+   */
+  @IsString()
+  @IsOptional()
+  DELIVERY_OTP_ENCRYPTION_KEY?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

@@ -8,9 +8,10 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql, gte, lte } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { getIstParts } from '../common/utils/ist-date.util';
 import {
   RestaurantUpdatableStatus,
   UpdateRestaurantOrderStatusDto,
@@ -18,6 +19,7 @@ import {
 } from './dto/restaurant-order.dto';
 import { PaymentsService } from '../payments/payments.service';
 import { RiderAssignmentService } from '../riders/rider-assignment.service';
+import { RiderOffersService } from '../riders/rider-offers.service';
 
 @Injectable()
 export class RestaurantOrdersService {
@@ -30,6 +32,8 @@ export class RestaurantOrdersService {
     private readonly paymentsService: PaymentsService,
     @Inject(forwardRef(() => RiderAssignmentService))
     private readonly riderAssignmentService: RiderAssignmentService,
+    @Inject(forwardRef(() => RiderOffersService))
+    private readonly riderOffersService: RiderOffersService,
   ) {}
 
   /**
@@ -42,14 +46,19 @@ export class RestaurantOrdersService {
     roles: string[],
     requestedOutletId?: string,
   ): Promise<string[]> {
-    if (roles.includes('admin')) {
-      if (requestedOutletId) return [requestedOutletId];
-      const allOutlets = await this.db.query.restaurantOutlets.findMany({
-        columns: { id: true },
-      });
-      return allOutlets.map((o) => o.id);
-    }
+    // 1. Direct Restaurant Ownership: Outlets belonging to restaurants owned by user
+    const ownedRestaurants = await this.db.query.restaurants.findMany({
+      where: eq(schema.restaurants.ownerId, userId),
+      with: {
+        outlets: {
+          columns: { id: true },
+        },
+      },
+    });
 
+    const ownedOutletIds = ownedRestaurants.flatMap((r) => r.outlets.map((o) => o.id));
+
+    // 2. Active Staff Assignments
     const staffAssignments = await this.db.query.restaurantStaff.findMany({
       where: and(
         eq(schema.restaurantStaff.userId, userId),
@@ -58,24 +67,34 @@ export class RestaurantOrdersService {
       columns: { outletId: true },
     });
 
-    const authorizedOutletIds = staffAssignments.map((s) => s.outletId);
+    const staffOutletIds = staffAssignments.map((s) => s.outletId);
 
-    if (authorizedOutletIds.length === 0) {
-      throw new ForbiddenException(
-        'You are not assigned as active staff to any restaurant outlet.',
-      );
-    }
+    const combinedOutletIds = Array.from(new Set([...ownedOutletIds, ...staffOutletIds]));
 
-    if (requestedOutletId) {
-      if (!authorizedOutletIds.includes(requestedOutletId)) {
-        throw new ForbiddenException(
-          'You are not authorized to manage orders for this outlet.',
-        );
+    if (combinedOutletIds.length > 0) {
+      if (requestedOutletId) {
+        if (!combinedOutletIds.includes(requestedOutletId)) {
+          throw new ForbiddenException(
+            'You are not authorized to manage orders for this outlet.',
+          );
+        }
+        return [requestedOutletId];
       }
-      return [requestedOutletId];
+      return combinedOutletIds;
     }
 
-    return authorizedOutletIds;
+    // 3. Fallback for root admin if user possesses admin role
+    if (roles.includes('admin')) {
+      if (requestedOutletId) return [requestedOutletId];
+      const allOutlets = await this.db.query.restaurantOutlets.findMany({
+        columns: { id: true },
+      });
+      return allOutlets.map((o) => o.id);
+    }
+
+    throw new ForbiddenException(
+      'Access denied. You are neither a registered restaurant owner nor assigned staff to any active outlet.',
+    );
   }
 
   /**
@@ -280,6 +299,16 @@ export class RestaurantOrdersService {
         reason: reasonText,
       });
 
+      // 7A. If rejected by restaurant, clean up any associated delivery assignment and release rider capacity
+      if (dto.status === RestaurantUpdatableStatus.REJECTED) {
+        await this.riderOffersService.cleanupDeliveryForCancelledOrder(
+          order.id,
+          userId,
+          reasonText,
+          tx,
+        );
+      }
+
       this.logger.log(
         `Order ${order.orderNumber} transitioned from ${order.status} to ${dto.status} by user ${userId}`,
       );
@@ -350,6 +379,102 @@ export class RestaurantOrdersService {
       reason: result.reason,
       refund: refundResult,
       assignment: assignmentResult,
+    };
+  }
+
+  /**
+   * Operational dashboard overview for a specific authorized outlet.
+   * Uses SQL aggregation to count active and completed orders for the current IST day.
+   */
+  async getOrdersOverview(
+    userId: string,
+    roles: string[],
+    outletId: string,
+  ) {
+    // Verify outlet access
+    await this.getAuthorizedOutletIds(userId, roles, outletId);
+
+    // Calculate IST calendar day boundaries in UTC
+    const istParts = getIstParts(new Date());
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const startOfDayUtc = new Date(
+      Date.UTC(istParts.year, istParts.month - 1, istParts.day, 0, 0, 0, 0) -
+        IST_OFFSET_MS,
+    );
+    const endOfDayUtc = new Date(
+      Date.UTC(istParts.year, istParts.month - 1, istParts.day + 1, 0, 0, 0, 0) -
+        IST_OFFSET_MS -
+        1,
+    );
+
+    // 1. Aggregate status counts
+    const statusCountsRaw = await this.db
+      .select({
+        status: schema.orders.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.orders)
+      .where(eq(schema.orders.outletId, outletId))
+      .groupBy(schema.orders.status);
+
+    const countsMap: Record<string, number> = {};
+    for (const row of statusCountsRaw) {
+      countsMap[row.status] = row.count;
+    }
+
+    // 2. Count orders completed/delivered today in IST
+    const [completedTodayResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.outletId, outletId),
+          eq(schema.orders.status, 'delivered'),
+          gte(schema.orders.deliveredAt, startOfDayUtc),
+          lte(schema.orders.deliveredAt, endOfDayUtc),
+        ),
+      );
+
+    // 3. Fetch recent 5 orders for operational activity
+    const recentOrders = await this.db.query.orders.findMany({
+      where: eq(schema.orders.outletId, outletId),
+      orderBy: [desc(schema.orders.createdAt)],
+      limit: 5,
+      with: {
+        items: true,
+        customer: {
+          columns: {
+            id: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    return {
+      outletId,
+      timestamp: new Date().toISOString(),
+      counts: {
+        newOrders: countsMap['placed'] || 0,
+        confirmed: countsMap['confirmed'] || 0,
+        preparing: countsMap['preparing'] || 0,
+        readyForPickup: countsMap['ready_for_pickup'] || 0,
+        outForDelivery: countsMap['out_for_delivery'] || 0,
+        completedToday: completedTodayResult?.count || 0,
+      },
+      recentOrders: recentOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        itemTotal: o.itemTotal,
+        totalPayable: o.totalPayable,
+        itemCount: o.items.reduce((acc, it) => acc + it.quantity, 0),
+        itemsSummary: o.items.map((it) => `${it.quantity}x ${it.itemName}`).join(', '),
+        customerName: o.customer?.fullName || 'Customer',
+        createdAt: o.createdAt,
+      })),
     };
   }
 }

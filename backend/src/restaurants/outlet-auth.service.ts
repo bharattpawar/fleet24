@@ -27,18 +27,29 @@ export class OutletAuthorizationService {
   ): Promise<typeof schema.restaurantOutlets.$inferSelect> {
     const outlet = await this.db.query.restaurantOutlets.findFirst({
       where: eq(schema.restaurantOutlets.id, outletId),
+      with: {
+        restaurant: true,
+      },
     });
 
     if (!outlet) {
       throw new NotFoundException(`Outlet with ID '${outletId}' not found.`);
     }
 
-    // Admins bypass outlet assignment restrictions
+    // 1. Check if user is the direct Owner of this outlet's restaurant
+    const isOwner = Boolean(
+      outlet.restaurant?.ownerId && outlet.restaurant.ownerId === user.userId,
+    );
+    if (isOwner) {
+      return outlet;
+    }
+
+    // 2. Admins bypass outlet assignment restrictions
     if (user.roles && user.roles.includes('admin')) {
       return outlet;
     }
 
-    // For restaurant staff, verify active assignment in restaurant_staff table
+    // 3. For restaurant staff, verify active assignment in restaurant_staff table
     if (user.roles && user.roles.includes('restaurant_staff')) {
       const assignment = await this.db.query.restaurantStaff.findFirst({
         where: and(

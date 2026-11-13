@@ -5,7 +5,33 @@ import {
   Text,
   TouchableOpacity,
   Modal,
+  Alert,
+  Platform,
 } from 'react-native';
+
+// Polyfill Alert.alert on Web for cross-platform prompt/confirm consistency
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  Alert.alert = ((
+    title?: string | null,
+    message?: string | null,
+    buttons?: Array<{ text?: string; onPress?: () => void; style?: string }>,
+  ) => {
+    const text = [title, message].filter(Boolean).join('\n\n');
+    if (buttons && buttons.length > 1) {
+      const confirmBtn = buttons.find((b) => b.style !== 'cancel') || buttons[1];
+      const cancelBtn = buttons.find((b) => b.style === 'cancel') || buttons[0];
+      const confirmed = window.confirm(text);
+      if (confirmed) {
+        confirmBtn?.onPress?.();
+      } else {
+        cancelBtn?.onPress?.();
+      }
+    } else {
+      window.alert(text);
+      buttons?.[0]?.onPress?.();
+    }
+  }) as any;
+}
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -99,7 +125,9 @@ function MainApp() {
           <HomeScreen
             onSelectOutlet={(outlet) => setSelectedOutlet(outlet)}
             onViewCart={() => setIsCartVisible(true)}
-            bottomOffset={10}
+            onRequireAuth={() => setIsAuthModalVisible(true)}
+            onOpenProfile={() => handleTabChange('profile')}
+            bottomOffset={62 + Math.max(insets.bottom, 6)}
           />
         );
       }
@@ -128,38 +156,38 @@ function MainApp() {
       {/* Screen Body */}
       <View style={styles.body}>{renderContent()}</View>
 
-      {/* Floating Bottom Navigation Tab Bar respecting iOS safe area */}
+      {/* Integrated Bottom Navigation Bar */}
       {!isCartVisible && !selectedOutlet && (
         <View
           style={[
-            styles.tabBar,
+            styles.bottomNavBar,
             {
               paddingBottom: Math.max(insets.bottom, 6),
-              height: 52 + Math.max(insets.bottom, 6),
+              height: 54 + Math.max(insets.bottom, 6),
             },
           ]}
         >
           <TouchableOpacity
-            style={styles.tabItem}
+            style={styles.navTab}
             onPress={() => handleTabChange('home')}
             activeOpacity={0.7}
           >
             <View
               style={[
-                styles.tabIconWrapper,
-                activeTab === 'home' && styles.tabIconWrapperActive,
+                styles.navIconContainer,
+                activeTab === 'home' && styles.navIconContainerActive,
               ]}
             >
               <Ionicons
                 name={activeTab === 'home' ? 'compass' : 'compass-outline'}
-                size={20}
-                color={activeTab === 'home' ? colors.primary : colors.textMuted}
+                size={21}
+                color={activeTab === 'home' ? colors.primary : colors.textSecondary}
               />
             </View>
             <Text
               style={[
-                styles.tabLabel,
-                activeTab === 'home' && styles.tabLabelActive,
+                styles.navLabel,
+                activeTab === 'home' && styles.navLabelActive,
               ]}
             >
               Explore
@@ -167,26 +195,26 @@ function MainApp() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.tabItem}
+            style={styles.navTab}
             onPress={() => handleTabChange('orders')}
             activeOpacity={0.7}
           >
             <View
               style={[
-                styles.tabIconWrapper,
-                activeTab === 'orders' && styles.tabIconWrapperActive,
+                styles.navIconContainer,
+                activeTab === 'orders' && styles.navIconContainerActive,
               ]}
             >
               <Ionicons
                 name={activeTab === 'orders' ? 'receipt' : 'receipt-outline'}
-                size={19}
-                color={activeTab === 'orders' ? colors.primary : colors.textMuted}
+                size={20}
+                color={activeTab === 'orders' ? colors.primary : colors.textSecondary}
               />
             </View>
             <Text
               style={[
-                styles.tabLabel,
-                activeTab === 'orders' && styles.tabLabelActive,
+                styles.navLabel,
+                activeTab === 'orders' && styles.navLabelActive,
               ]}
             >
               Orders
@@ -194,26 +222,26 @@ function MainApp() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.tabItem}
+            style={styles.navTab}
             onPress={() => handleTabChange('profile')}
             activeOpacity={0.7}
           >
             <View
               style={[
-                styles.tabIconWrapper,
-                activeTab === 'profile' && styles.tabIconWrapperActive,
+                styles.navIconContainer,
+                activeTab === 'profile' && styles.navIconContainerActive,
               ]}
             >
               <Ionicons
                 name={activeTab === 'profile' ? 'person' : 'person-outline'}
-                size={19}
-                color={activeTab === 'profile' ? colors.primary : colors.textMuted}
+                size={20}
+                color={activeTab === 'profile' ? colors.primary : colors.textSecondary}
               />
             </View>
             <Text
               style={[
-                styles.tabLabel,
-                activeTab === 'profile' && styles.tabLabelActive,
+                styles.navLabel,
+                activeTab === 'profile' && styles.navLabelActive,
               ]}
             >
               Profile
@@ -258,40 +286,42 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
-  tabBar: {
+  bottomNavBar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    paddingTop: 8,
+    paddingTop: 6,
     justifyContent: 'space-around',
     alignItems: 'center',
-    shadowColor: '#202923',
-    shadowOffset: { width: 0, height: -3 },
+    shadowColor: colors.charcoal,
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 8,
   },
-  tabItem: {
+  navTab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabIconWrapper: {
-    paddingVertical: 5,
+  navIconContainer: {
+    paddingVertical: 4,
     paddingHorizontal: 16,
-    borderRadius: borderRadius.full,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tabIconWrapperActive: {
+  navIconContainerActive: {
     backgroundColor: colors.surfaceGreen,
   },
-  tabLabel: {
+  navLabel: {
     fontSize: 11,
     fontWeight: '500',
     color: colors.textSecondary,
-    marginTop: 3,
+    marginTop: 2,
   },
-  tabLabelActive: {
+  navLabelActive: {
     color: colors.primary,
     fontWeight: '700',
   },

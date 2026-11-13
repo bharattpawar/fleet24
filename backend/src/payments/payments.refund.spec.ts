@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
+import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 
 describe('PaymentsService - Automated Refunds & Concurrency / Reliability (Unit Tests)', () => {
@@ -70,6 +71,10 @@ describe('PaymentsService - Automated Refunds & Concurrency / Reliability (Unit 
         PaymentsService,
         { provide: DRIZZLE_CONNECTION, useValue: mockDb },
         { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: TrackingPublisherService,
+          useValue: { publishOrderCreated: jest.fn() },
+        },
       ],
     }).compile();
 

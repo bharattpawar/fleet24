@@ -25,6 +25,16 @@ describe('TrackingGateway & TrackingPublisherService', () => {
         deliveries: {
           findFirst: jest.fn(),
         },
+        riders: {
+          findFirst: jest.fn(),
+        },
+        restaurantStaff: {
+          findMany: jest.fn(),
+          findFirst: jest.fn(),
+        },
+        restaurantOutlets: {
+          findFirst: jest.fn(),
+        },
       },
     };
 
@@ -341,22 +351,145 @@ describe('TrackingGateway & TrackingPublisherService', () => {
       expect(mockServer.socketsLeave).toHaveBeenCalledWith('delivery:order-100');
     });
 
-    it('broadcasts cancellation and clears room sockets', () => {
-      publisher.publishDeliveryCancelled({
+    it('broadcasts order.created to restaurant outlet kitchen room', () => {
+      publisher.publishOrderCreated('outlet-uuid-99', {
         orderId: 'order-100',
-        deliveryId: 'delivery-200',
-        reason: 'Customer cancelled',
-        cancelledAt: new Date().toISOString(),
+        orderNumber: 'F24-1001',
+        outletId: 'outlet-uuid-99',
+        createdAt: new Date().toISOString(),
+        itemCount: 3,
+        totalAmount: '450.00',
+        currency: 'INR',
+        status: 'placed',
+        items: [{ name: 'Butter Chicken', quantity: 1 }],
       });
 
-      expect(mockServer.to).toHaveBeenCalledWith('delivery:order-100');
+      expect(mockServer.to).toHaveBeenCalledWith('outlet:outlet-uuid-99');
       expect(mockServer.emit).toHaveBeenCalledWith(
-        DELIVERY_WS_EVENTS.CANCELLED,
-        expect.objectContaining({ orderId: 'order-100' }),
+        DELIVERY_WS_EVENTS.ORDER_CREATED,
+        expect.objectContaining({
+          orderId: 'order-100',
+          orderNumber: 'F24-1001',
+          outletId: 'outlet-uuid-99',
+          status: 'placed',
+          totalAmount: '450.00',
+        }),
       );
-      expect(mockServer.in).toHaveBeenCalledWith('delivery:order-100');
-      expect(mockServer.socketsLeave).toHaveBeenCalledWith('delivery:order-100');
+    });
+  });
+
+  describe('Restaurant Outlet Subscriptions (handleSubscribeOutlet)', () => {
+    let mockClient: any;
+
+    beforeEach(() => {
+      mockClient = {
+        id: 'client-staff-1',
+        user: {
+          userId: 'user-staff-1',
+          roles: ['restaurant_staff'],
+        },
+        join: jest.fn(),
+        leave: jest.fn(),
+        emit: jest.fn(),
+      };
+    });
+
+    it('auto-joins restaurant staff to all assigned active outlet rooms on connection', async () => {
+      const client: any = {
+        id: 'staff-socket-1',
+        handshake: {
+          auth: { token: 'valid-token' },
+          headers: {},
+        },
+        join: jest.fn(),
+        emit: jest.fn(),
+        disconnect: jest.fn(),
+      };
+
+      mockJwtService.verifyAsync.mockResolvedValue({
+        userId: 'staff-user-1',
+        roles: ['restaurant_staff'],
+      });
+
+      mockDb.query.restaurantStaff.findMany.mockResolvedValue([
+        { outletId: 'outlet-alpha' },
+        { outletId: 'outlet-beta' },
+      ]);
+
+      await gateway.handleConnection(client);
+
+      expect(client.join).toHaveBeenCalledWith('outlet:outlet-alpha');
+      expect(client.join).toHaveBeenCalledWith('outlet:outlet-beta');
+    });
+
+    it('allows authorized restaurant staff to subscribe to their outlet kitchen room', async () => {
+      mockDb.query.restaurantOutlets.findFirst.mockResolvedValue({
+        id: 'outlet-1',
+        name: 'Burger Point Sector Alpha',
+        isActive: true,
+      });
+
+      mockDb.query.restaurantStaff.findFirst.mockResolvedValue({
+        id: 'staff-assignment-1',
+        userId: 'user-staff-1',
+        outletId: 'outlet-1',
+        isActive: true,
+      });
+
+      await gateway.handleSubscribeOutlet(mockClient, { outletId: 'outlet-1' });
+
+      expect(mockClient.join).toHaveBeenCalledWith('outlet:outlet-1');
+      expect(mockClient.emit).toHaveBeenCalledWith(
+        DELIVERY_WS_EVENTS.OUTLET_SUBSCRIBED,
+        expect.objectContaining({
+          outletId: 'outlet-1',
+          room: 'outlet:outlet-1',
+          outletName: 'Burger Point Sector Alpha',
+        }),
+      );
+    });
+
+    it('rejects subscription if restaurant staff is not assigned to the requested outlet', async () => {
+      mockDb.query.restaurantOutlets.findFirst.mockResolvedValue({
+        id: 'outlet-2',
+        name: 'Another Kitchen',
+        isActive: true,
+      });
+
+      mockDb.query.restaurantStaff.findFirst.mockResolvedValue(null); // Not assigned
+
+      await gateway.handleSubscribeOutlet(mockClient, { outletId: 'outlet-2' });
+
+      expect(mockClient.join).not.toHaveBeenCalled();
+      expect(mockClient.emit).toHaveBeenCalledWith(
+        DELIVERY_WS_EVENTS.ERROR,
+        expect.objectContaining({
+          code: 'UNAUTHORIZED_OUTLET_ACCESS',
+        }),
+      );
+    });
+
+    it('allows admin users to subscribe to any outlet room', async () => {
+      mockClient.user.roles = ['admin'];
+
+      mockDb.query.restaurantOutlets.findFirst.mockResolvedValue({
+        id: 'outlet-2',
+        name: 'Another Kitchen',
+        isActive: true,
+      });
+
+      await gateway.handleSubscribeOutlet(mockClient, { outletId: 'outlet-2' });
+
+      expect(mockClient.join).toHaveBeenCalledWith('outlet:outlet-2');
+      expect(mockClient.emit).toHaveBeenCalledWith(
+        DELIVERY_WS_EVENTS.OUTLET_SUBSCRIBED,
+        expect.objectContaining({
+          outletId: 'outlet-2',
+          room: 'outlet:outlet-2',
+        }),
+      );
     });
   });
 });
+
 

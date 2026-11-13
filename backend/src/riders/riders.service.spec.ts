@@ -60,7 +60,7 @@ describe('RidersService', () => {
       insert: jest.fn(),
       update: jest.fn(),
       select: jest.fn(),
-      transaction: jest.fn(),
+      transaction: jest.fn((callback) => callback(mockDb)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -149,8 +149,19 @@ describe('RidersService', () => {
   });
 
   describe('updateAvailability', () => {
+    const mockRiderSelect = (riderData: any, activeDeliveries: any[] = []) => {
+      mockDb.select.mockImplementation(() => ({
+        from: jest.fn().mockImplementation(() => ({
+          where: jest.fn().mockImplementation(() => ({
+            for: jest.fn().mockResolvedValue([riderData]),
+            then: (resolve: any) => Promise.resolve(activeDeliveries).then(resolve),
+          })),
+        })),
+      }));
+    };
+
     it('should throw ForbiddenException if an unverified rider tries to go available', async () => {
-      mockDb.query.riders.findFirst.mockResolvedValueOnce({
+      mockRiderSelect({
         ...mockRiderRecord,
         verificationStatus: 'pending',
       });
@@ -163,7 +174,7 @@ describe('RidersService', () => {
     });
 
     it('should throw ForbiddenException if a rejected rider tries to go available', async () => {
-      mockDb.query.riders.findFirst.mockResolvedValueOnce({
+      mockRiderSelect({
         ...mockRiderRecord,
         verificationStatus: 'rejected',
       });
@@ -176,7 +187,7 @@ describe('RidersService', () => {
     });
 
     it('should throw ForbiddenException if a suspended rider tries to go available', async () => {
-      mockDb.query.riders.findFirst.mockResolvedValueOnce({
+      mockRiderSelect({
         ...mockRiderRecord,
         verificationStatus: 'approved',
         suspensionReason: 'Traffic violation under review',
@@ -189,8 +200,25 @@ describe('RidersService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('should throw BadRequestException if rider tries to go offline while active deliveries exist', async () => {
+      mockRiderSelect(
+        {
+          ...mockRiderRecord,
+          verificationStatus: 'approved',
+          currentActiveOrdersCount: 1,
+        },
+        [{ id: 'del-1', status: 'picked_up' }],
+      );
+
+      await expect(
+        service.updateAvailability('user-uuid-1', {
+          availabilityStatus: 'offline',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should successfully toggle availability to available if approved and not suspended', async () => {
-      mockDb.query.riders.findFirst.mockResolvedValueOnce({
+      mockRiderSelect({
         ...mockRiderRecord,
         verificationStatus: 'approved',
         suspensionReason: null,
@@ -220,11 +248,15 @@ describe('RidersService', () => {
       expect(res.isOnline).toBe(true);
     });
 
-    it('should allow going offline at any time even if unverified', async () => {
-      mockDb.query.riders.findFirst.mockResolvedValueOnce({
-        ...mockRiderRecord,
-        verificationStatus: 'pending',
-      });
+    it('should allow going offline when no active deliveries exist', async () => {
+      mockRiderSelect(
+        {
+          ...mockRiderRecord,
+          verificationStatus: 'approved',
+          currentActiveOrdersCount: 0,
+        },
+        [],
+      );
 
       mockDb.update.mockReturnValue({
         set: jest.fn().mockReturnValue({

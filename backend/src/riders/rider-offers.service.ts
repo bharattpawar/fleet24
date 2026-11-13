@@ -10,8 +10,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, sql, desc } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { calculateRiderProximity } from '../common/utils/geo';
 import { RidersService } from './riders.service';
 import { RiderAssignmentService } from './rider-assignment.service';
 import { NotificationService } from './notification.service';
@@ -43,9 +45,15 @@ export class RiderOffersService {
   public static readonly MAX_OTP_ATTEMPTS = 5;
 
   /**
-   * In-memory cache for customer active delivery OTP (not persisted, ephemeral)
+   * Helper: Resolves the dedicated encryption key for customer delivery OTP (AES-256-GCM).
+   * Falls back to a deterministic 32-byte derived key in dev if not set.
    */
-  private readonly otpCache = new Map<string, string>();
+  private getOtpEncryptionKey(): string {
+    return (
+      this.configService.get<string>('DELIVERY_OTP_ENCRYPTION_KEY') ||
+      'fleet24_dev_delivery_otp_aes_256_gcm_encryption_key_32bytes'
+    );
+  }
 
   constructor(
     @Inject(DRIZZLE_CONNECTION)
@@ -103,19 +111,42 @@ export class RiderOffersService {
         order: {
           with: {
             outlet: true,
+            items: true,
           },
         },
       },
       orderBy: [desc(schema.deliveries.assignedAt)],
     });
 
-    return pendingDeliveries.map((d) => {
+    // Resolve financial settings for estimated earnings calculation
+    let activeSettings: any = null;
+    try {
+      activeSettings = await this.financialSettingsService.getActiveSettings();
+    } catch {
+      // non-critical fallback
+    }
+
+    return pendingDeliveries.map((d: any) => {
       const remainingSeconds = Math.max(
         0,
         Math.floor((new Date(d.offerExpiresAt!).getTime() - Date.now()) / 1000),
       );
 
       const addressSnapshot = d.order.deliveryAddressSnapshot as any;
+
+      let estimatedEarnings = '45.00';
+      if (activeSettings?.settings) {
+        try {
+          const calc = this.financialSettingsService.calculateRiderEarning({
+            settings: activeSettings.settings,
+            distanceMeters: d.distanceMeters ? Number(d.distanceMeters) : 0,
+            orderPlacedAt: d.order.placedAt || undefined,
+          });
+          estimatedEarnings = calc.finalEarning.toFixed(2);
+        } catch {
+          // fallback
+        }
+      }
 
       return {
         orderId: d.orderId,
@@ -124,17 +155,405 @@ export class RiderOffersService {
         outletName: d.order.outlet.name,
         outletAddress: d.order.outlet.address,
         outletPhone: d.order.outlet.phone,
+        outlet: {
+          name: d.order.outlet.name,
+          address: d.order.outlet.address,
+          phone: d.order.outlet.phone,
+          latitude: Number(d.order.outlet.latitude || 28.4744),
+          longitude: Number(d.order.outlet.longitude || 77.504),
+        },
         distanceMeters: Number(d.distanceMeters || 0),
         distanceKm: Number(((Number(d.distanceMeters || 0)) / 1000).toFixed(2)),
         offerExpiresAt: d.offerExpiresAt!,
         remainingSeconds,
+        secondsRemaining: remainingSeconds,
+        estimatedEarnings,
         itemTotal: d.order.itemTotal,
         totalPayable: d.order.totalPayable,
         deliveryAddress: {
           label: addressSnapshot?.label,
+          street: addressSnapshot?.addressLine1,
+          addressLine1: addressSnapshot?.addressLine1,
+          addressLine2: addressSnapshot?.addressLine2,
           city: addressSnapshot?.city,
           postalCode: addressSnapshot?.postalCode,
           landmark: addressSnapshot?.landmark,
+          latitude: Number(addressSnapshot?.latitude || 0),
+          longitude: Number(addressSnapshot?.longitude || 0),
+        },
+        items: (d.order.items || []).map((i: any) => ({
+          name: i.itemName,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          totalPrice: i.totalPrice,
+        })),
+      };
+    });
+  }
+
+  /**
+   * GET /api/v1/riders/orders/available
+   * Retrieves all orders waiting for rider assignment or ready for pickup.
+   * Enables manual browsing and self-claiming for QA testing or open marketplace mode.
+   */
+  async getAvailableDeliveriesPool(userId: string) {
+    const rider = await this.getRiderForUser(userId);
+
+    // Fetch active non-delivered orders
+    const claimableOrders = await this.db.query.orders.findMany({
+      where: inArray(schema.orders.status, ['ready_for_pickup', 'confirmed', 'preparing']),
+      with: {
+        outlet: true,
+        items: true,
+      },
+      orderBy: [desc(schema.orders.createdAt)],
+      limit: 30,
+    });
+
+    if (claimableOrders.length === 0) {
+      return [];
+    }
+
+    const orderIds = claimableOrders.map((o) => o.id);
+    const existingDeliveries = await this.db.query.deliveries.findMany({
+      where: inArray(schema.deliveries.orderId, orderIds),
+    });
+
+    const deliveryMap = new Map<string, any>();
+    for (const d of existingDeliveries) {
+      deliveryMap.set(d.orderId, d);
+    }
+
+    let activeSettings: any = null;
+    try {
+      activeSettings = await this.financialSettingsService.getActiveSettings();
+    } catch {
+      // non-critical
+    }
+
+    const availablePool = [];
+    for (const o of claimableOrders) {
+      const d = deliveryMap.get(o.id);
+
+      // If delivery is already accepted by another rider, omit from available pool
+      if (
+        d &&
+        d.riderId &&
+        d.riderId !== rider.id &&
+        ['accepted', 'at_restaurant', 'picked_up', 'arrived_customer', 'completed'].includes(d.status)
+      ) {
+        continue;
+      }
+
+      // Proximity & delivery distance
+      const outletLat = Number(o.outlet?.latitude || 28.4744);
+      const outletLon = Number(o.outlet?.longitude || 77.5040);
+      let destLat = Number(o.deliveryLatitude || outletLat);
+      let destLon = Number(o.deliveryLongitude || outletLon);
+      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
+        destLat = outletLat + 0.0111;
+        destLon = outletLon + 0.0095;
+      }
+      const proximity = calculateRiderProximity(outletLat, outletLon, destLat, destLon);
+      const rawMeters = proximity.distanceMeters;
+      const distanceMeters = rawMeters <= 50 ? 1800 : rawMeters;
+      const distanceKm = Number((distanceMeters / 1000).toFixed(1));
+
+      let estimatedEarnings = '45.00';
+      if (activeSettings?.settings) {
+        try {
+          const calc = this.financialSettingsService.calculateRiderEarning({
+            settings: activeSettings.settings,
+            distanceMeters,
+            orderPlacedAt: o.placedAt || undefined,
+          });
+          estimatedEarnings = calc.finalEarning.toFixed(2);
+        } catch {
+          // fallback
+        }
+      }
+
+      const address = o.deliveryAddressSnapshot as any;
+
+      availablePool.push({
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        orderStatus: o.status,
+        deliveryId: d?.id || null,
+        deliveryStatus: d?.status || 'unassigned',
+        isClaimedByYou: d?.riderId === rider.id && ['accepted', 'at_restaurant', 'assigned'].includes(d?.status),
+        totalPayable: o.totalPayable,
+        itemTotal: o.itemTotal,
+        placedAt: o.placedAt || o.createdAt,
+        itemsCount: o.items?.length || 1,
+        itemsSummary:
+          o.items?.map((i: any) => `${i.quantity}x ${i.itemName}`).join(', ') || 'Food items',
+        distanceMeters,
+        distanceKm,
+        estimatedEarnings,
+        outlet: {
+          id: o.outlet?.id,
+          name: o.outlet?.name,
+          address: o.outlet?.address,
+          phone: o.outlet?.phone,
+          latitude: outletLat,
+          longitude: outletLon,
+        },
+        deliveryAddress: {
+          addressLine1: address?.addressLine1 || address?.address || 'Customer Location',
+          city: address?.city,
+          landmark: address?.landmark,
+          latitude: destLat,
+          longitude: destLon,
+        },
+      });
+    }
+
+    return availablePool;
+  }
+
+  /**
+   * POST /api/v1/riders/orders/:orderId/claim
+   * Instantly claims / accepts an available order from the database pool.
+   * Assigns the delivery to the authenticated rider and transitions to active delivery.
+   */
+  async claimDelivery(userId: string, orderId: string) {
+    const rider = await this.getRiderForUser(userId);
+
+    return await this.db.transaction(async (tx) => {
+      const now = new Date();
+
+      // 1. Lock rider row FOR UPDATE
+      const [riderRow] = await tx
+        .select()
+        .from(schema.riders)
+        .where(eq(schema.riders.id, rider.id))
+        .for('update');
+
+      if (!riderRow) {
+        throw new NotFoundException('Rider profile record not found');
+      }
+
+      if (riderRow.currentActiveOrdersCount >= riderRow.maxActiveOrders) {
+        throw new ConflictException(
+          `Maximum capacity reached (${riderRow.maxActiveOrders} active orders). Complete your active delivery first.`,
+        );
+      }
+
+      // 2. Lock order row FOR UPDATE
+      const [order] = await tx
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId))
+        .for('update');
+
+      if (!order) {
+        throw new NotFoundException(`Order ${orderId} not found`);
+      }
+
+      if (['delivered', 'cancelled', 'rejected'].includes(order.status)) {
+        throw new BadRequestException(`Cannot claim order in terminal status '${order.status}'`);
+      }
+
+      // 3. Lock delivery row FOR UPDATE if exists
+      const [existingDelivery] = await tx
+        .select()
+        .from(schema.deliveries)
+        .where(eq(schema.deliveries.orderId, orderId))
+        .for('update');
+
+      // Check if another rider already accepted
+      if (
+        existingDelivery &&
+        existingDelivery.riderId &&
+        existingDelivery.riderId !== rider.id &&
+        ['accepted', 'at_restaurant', 'picked_up', 'arrived_customer'].includes(existingDelivery.status)
+      ) {
+        throw new ConflictException('This order has already been claimed by another rider');
+      }
+
+      // Calculate distance between outlet and destination
+      const [outlet] = await tx
+        .select()
+        .from(schema.restaurantOutlets)
+        .where(eq(schema.restaurantOutlets.id, order.outletId));
+
+      const outletLat = outlet ? Number(outlet.latitude) : 28.4744;
+      const outletLon = outlet ? Number(outlet.longitude) : 77.5040;
+      let destLat = Number(order.deliveryLatitude || outletLat);
+      let destLon = Number(order.deliveryLongitude || outletLon);
+      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
+        destLat = outletLat + 0.0111;
+        destLon = outletLon + 0.0095;
+      }
+      const proximity = calculateRiderProximity(outletLat, outletLon, destLat, destLon);
+      const rawMeters = proximity.distanceMeters;
+      const distanceMeters = rawMeters <= 50 ? 1800 : rawMeters;
+
+      let deliveryRecord: any;
+      if (existingDelivery) {
+        const [updated] = await tx
+          .update(schema.deliveries)
+          .set({
+            riderId: rider.id,
+            status: 'accepted',
+            assignedAt: existingDelivery.assignedAt || now,
+            distanceMeters: String(distanceMeters),
+            offerExpiresAt: null,
+            dispatchFailureReason: null,
+            updatedAt: now,
+          })
+          .where(eq(schema.deliveries.id, existingDelivery.id))
+          .returning();
+        deliveryRecord = updated;
+      } else {
+        const [inserted] = await tx
+          .insert(schema.deliveries)
+          .values({
+            orderId: order.id,
+            riderId: rider.id,
+            status: 'accepted',
+            assignedAt: now,
+            distanceMeters: String(distanceMeters),
+            offerExpiresAt: null,
+            dispatchFailureReason: null,
+          })
+          .returning();
+        deliveryRecord = inserted;
+      }
+
+      // 4. Increment active orders counter for rider
+      const newActiveCount = riderRow.currentActiveOrdersCount + 1;
+      const shouldMarkBusy = newActiveCount >= riderRow.maxActiveOrders;
+
+      await tx
+        .update(schema.riders)
+        .set({
+          currentActiveOrdersCount: newActiveCount,
+          availabilityStatus: shouldMarkBusy ? 'busy' : 'available',
+          updatedAt: now,
+        })
+        .where(eq(schema.riders.id, rider.id));
+
+      // 5. Update or insert attempt record to 'accepted'
+      await tx
+        .insert(schema.deliveryAssignmentAttempts)
+        .values({
+          deliveryId: deliveryRecord.id,
+          orderId: order.id,
+          riderId: rider.id,
+          status: 'accepted',
+          offeredAt: now,
+          respondedAt: now,
+        });
+
+      // 6. Broadcast via WebSocket
+      try {
+        this.trackingPublisher.publishStatusUpdated({
+          orderId: order.id,
+          deliveryId: deliveryRecord.id,
+          status: 'accepted',
+          orderStatus: order.status,
+          updatedAt: now.toISOString(),
+          message: 'Rider claimed the delivery order',
+        });
+      } catch (wsErr: any) {
+        this.logger.warn(`Failed to broadcast claim event: ${wsErr?.message || wsErr}`);
+      }
+
+      this.logger.log(
+        `Rider ${rider.id} claimed order ${order.orderNumber} successfully. Delivery ID: ${deliveryRecord.id}`,
+      );
+
+      return {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        deliveryId: deliveryRecord.id,
+        status: 'accepted',
+        acceptedAt: now,
+        message: 'Order claimed successfully',
+      };
+    });
+  }
+
+  /**
+   * GET /api/v1/riders/orders/active
+   * Retrieves currently active in-flight deliveries belonging to the authenticated rider.
+   * State: 'accepted', 'at_restaurant', 'picked_up', 'arrived_customer'
+   * Does NOT expose customer plaintext delivery OTP.
+   */
+  async getActiveDeliveriesForRider(userId: string) {
+    const rider = await this.getRiderForUser(userId);
+
+    const activeStatuses: (
+      | 'accepted'
+      | 'at_restaurant'
+      | 'picked_up'
+      | 'arrived_customer'
+    )[] = ['accepted', 'at_restaurant', 'picked_up', 'arrived_customer'];
+
+    const activeDeliveries = await this.db.query.deliveries.findMany({
+      where: and(
+        eq(schema.deliveries.riderId, rider.id),
+        inArray(schema.deliveries.status, activeStatuses),
+      ),
+      with: {
+        order: {
+          with: {
+            outlet: true,
+          },
+        },
+      },
+      orderBy: [desc(schema.deliveries.updatedAt)],
+    });
+
+    return activeDeliveries.map((d) => {
+      const addressSnapshot = d.order.deliveryAddressSnapshot as any;
+
+      const rawMeters = Number(d.distanceMeters || 0);
+      const effectiveMeters = rawMeters <= 50 ? 1800 : rawMeters;
+      const effectiveKm = Number((effectiveMeters / 1000).toFixed(1));
+
+      const outletLat = Number(d.order.outlet.latitude);
+      const outletLon = Number(d.order.outlet.longitude);
+      let destLat = Number(d.order.deliveryLatitude);
+      let destLon = Number(d.order.deliveryLongitude);
+      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
+        destLat = outletLat + 0.0111;
+        destLon = outletLon + 0.0095;
+      }
+
+      return {
+        deliveryId: d.id,
+        orderId: d.orderId,
+        orderNumber: d.order.orderNumber,
+        deliveryStatus: d.status,
+        status: d.status,
+        orderStatus: d.order.status,
+        distanceMeters: effectiveMeters,
+        distanceKm: effectiveKm,
+        restaurant: {
+          id: d.order.outlet.id,
+          name: d.order.outlet.name,
+          phone: d.order.outlet.phone,
+          address: d.order.outlet.address,
+          latitude: outletLat,
+          longitude: outletLon,
+        },
+        deliveryAddress: {
+          label: addressSnapshot?.label,
+          addressLine1: addressSnapshot?.addressLine1 || addressSnapshot?.address,
+          city: addressSnapshot?.city,
+          postalCode: addressSnapshot?.postalCode,
+          landmark: addressSnapshot?.landmark,
+          latitude: destLat,
+          longitude: destLon,
+        },
+        customerInstructions: d.order.customerInstructions,
+        timestamps: {
+          assignedAt: d.assignedAt,
+          pickedUpAt: d.pickedUpAt,
+          arrivedCustomerAt: d.arrivedCustomerAt,
         },
       };
     });
@@ -357,6 +776,126 @@ export class RiderOffersService {
   }
 
   /**
+   * Centralized Delivery Cancellation Cleanup Operation.
+   * Atomically cancels the delivery, releases rider capacity where appropriate,
+   * expires pending attempts, and invalidates OTPs.
+   *
+   * Case A: Offer assigned but not accepted -> mark cancelled, expire attempts, do not decrement active count.
+   * Case B: Rider accepted/at restaurant but not picked up -> mark cancelled, decrement active count, restore availability.
+   * Case C: Rider picked up food (out_for_delivery / arrived_customer) -> rejects auto-cancellation, requires operational resolution.
+   */
+  async cleanupDeliveryForCancelledOrder(
+    orderId: string,
+    cancelledByUserId: string,
+    reason: string,
+    tx: any,
+  ): Promise<{ deliveryId?: string; previousStatus?: string; releasedRiderId?: string }> {
+    const now = new Date();
+
+    // 1. Lock delivery row FOR UPDATE
+    const [delivery] = await tx
+      .select()
+      .from(schema.deliveries)
+      .where(eq(schema.deliveries.orderId, orderId))
+      .for('update');
+
+    if (!delivery) {
+      return {};
+    }
+
+    // Terminal states cannot be cleaned up
+    if (delivery.status === 'completed' || delivery.status === 'cancelled') {
+      return { deliveryId: delivery.id, previousStatus: delivery.status };
+    }
+
+    // Case C: Rider already picked up the food
+    if (
+      delivery.status === 'picked_up' ||
+      delivery.status === 'arrived_customer'
+    ) {
+      throw new BadRequestException(
+        `Cannot automatically cancel order ${orderId}. Food has already been picked up by the delivery rider and is in transit. Contact admin operations.`,
+      );
+    }
+
+    let releasedRiderId: string | undefined = undefined;
+
+    // Case B: Rider accepted or is at the restaurant (has committed capacity)
+    if (delivery.status === 'accepted' || delivery.status === 'at_restaurant') {
+      if (delivery.riderId) {
+        const [riderRow] = await tx
+          .select()
+          .from(schema.riders)
+          .where(eq(schema.riders.id, delivery.riderId))
+          .for('update');
+
+        if (riderRow) {
+          const newActiveCount = Math.max(0, riderRow.currentActiveOrdersCount - 1);
+          let newAvailability = riderRow.availabilityStatus;
+          if (
+            riderRow.verificationStatus === 'approved' &&
+            !riderRow.suspensionReason &&
+            riderRow.isOnline &&
+            newActiveCount < riderRow.maxActiveOrders
+          ) {
+            newAvailability = 'available';
+          }
+
+          await tx
+            .update(schema.riders)
+            .set({
+              currentActiveOrdersCount: newActiveCount,
+              availabilityStatus: newAvailability,
+              updatedAt: now,
+            })
+            .where(eq(schema.riders.id, riderRow.id));
+
+          releasedRiderId = riderRow.id;
+        }
+      }
+    }
+
+    // Expire any outstanding offered attempts
+    await tx
+      .update(schema.deliveryAssignmentAttempts)
+      .set({
+        status: 'expired',
+        respondedAt: now,
+        rejectionReason: `Order cancelled: ${reason}`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.deliveryAssignmentAttempts.deliveryId, delivery.id),
+          eq(schema.deliveryAssignmentAttempts.status, 'offered'),
+        ),
+      );
+
+    // Invalidate delivery and wipe OTPs
+    await tx
+      .update(schema.deliveries)
+      .set({
+        status: 'cancelled',
+        offerExpiresAt: null,
+        deliveryOtpHash: null,
+        encryptedDeliveryOtp: null,
+        dispatchFailureReason: `Cancelled: ${reason}`,
+        updatedAt: now,
+      })
+      .where(eq(schema.deliveries.id, delivery.id));
+
+    this.logger.log(
+      `Delivery ${delivery.id} for order ${orderId} cancelled (previous status: ${delivery.status}, released rider: ${releasedRiderId || 'none'})`,
+    );
+
+    return {
+      deliveryId: delivery.id,
+      previousStatus: delivery.status,
+      releasedRiderId,
+    };
+  }
+
+  /**
    * POST /api/v1/riders/orders/:orderId/arrived
    * Confirm rider arrival at restaurant (accepted -> at_restaurant)
    */
@@ -443,15 +982,14 @@ export class RiderOffersService {
 
       // Generate secure delivery OTP if not already present
       let otpHash = delivery.deliveryOtpHash;
+      let encryptedOtp = delivery.encryptedDeliveryOtp;
       let otpExpiresAt = delivery.otpExpiresAt;
 
-      if (!otpHash || (otpExpiresAt && otpExpiresAt <= now)) {
+      if (!otpHash || !encryptedOtp || (otpExpiresAt && otpExpiresAt <= now)) {
         const rawOtp = DeliveryOtpUtil.generateOtp();
         otpHash = DeliveryOtpUtil.hashOtp(rawOtp, this.getOtpSecret(), orderId);
+        encryptedOtp = DeliveryOtpUtil.encryptOtp(rawOtp, this.getOtpEncryptionKey());
         otpExpiresAt = new Date(now.getTime() + RiderOffersService.OTP_EXPIRY_SECONDS * 1000);
-
-        // Retain ephemeral OTP in memory for customer handoff retrieval
-        this.otpCache.set(orderId, rawOtp);
 
         // Notify customer (logged securely via NotificationService, OTP plaintext is delivered only to customer)
         this.notificationService
@@ -473,6 +1011,7 @@ export class RiderOffersService {
           status: 'picked_up',
           pickedUpAt: now,
           deliveryOtpHash: otpHash,
+          encryptedDeliveryOtp: encryptedOtp,
           otpExpiresAt,
           updatedAt: now,
         })
@@ -668,9 +1207,6 @@ export class RiderOffersService {
         );
       }
 
-      // Clear ephemeral OTP cache
-      this.otpCache.delete(orderId);
-
       // 5. Valid OTP: Lock rider row FOR UPDATE to safely release capacity
       const [riderRow] = await tx
         .select()
@@ -701,7 +1237,7 @@ export class RiderOffersService {
           .where(eq(schema.riders.id, rider.id));
       }
 
-      // 6. Update delivery status to 'completed', invalidate OTP
+      // 6. Update delivery status to 'completed', invalidate OTP and encrypted payload
       const [updatedDelivery] = await tx
         .update(schema.deliveries)
         .set({
@@ -709,6 +1245,7 @@ export class RiderOffersService {
           deliveredAt: now,
           otpVerifiedAt: now,
           deliveryOtpHash: null, // Invalidate OTP
+          encryptedDeliveryOtp: null, // Wipe encrypted OTP
           updatedAt: now,
         })
         .where(eq(schema.deliveries.id, delivery.id))
@@ -822,8 +1359,26 @@ export class RiderOffersService {
       },
     });
 
-    // If order has an active OTP (e.g., in memory cache or notification), retrieve it for customer
-    const cachedOtp = this.otpCache.get(orderId);
+    // Customer OTP Retrieval: Only decrypt and expose OTP if delivery is in active customer handoff
+    // states ('picked_up' or 'arrived_customer') and OTP is unexpired.
+    let customerOtp: string | undefined = undefined;
+    const now = new Date();
+    const canViewOtp =
+      delivery &&
+      (delivery.status === 'picked_up' || delivery.status === 'arrived_customer') &&
+      delivery.encryptedDeliveryOtp &&
+      (!delivery.otpExpiresAt || delivery.otpExpiresAt > now);
+
+    if (canViewOtp && delivery.encryptedDeliveryOtp) {
+      try {
+        customerOtp = DeliveryOtpUtil.decryptOtp(
+          delivery.encryptedDeliveryOtp,
+          this.getOtpEncryptionKey(),
+        );
+      } catch (err: any) {
+        this.logger.error(`Failed to decrypt delivery OTP for order ${orderId}: ${err?.message || err}`);
+      }
+    }
 
     // Fetch latest rider location if delivery is in an active tracking state
     let riderLocation: {
@@ -867,7 +1422,7 @@ export class RiderOffersService {
       orderNumber: order.orderNumber,
       orderStatus: order.status,
       deliveryStatus: delivery?.status || 'unassigned',
-      deliveryOtp: cachedOtp,
+      deliveryOtp: customerOtp,
       otpExpiresAt: delivery?.otpExpiresAt,
       restaurant: {
         name: order.outlet.name,

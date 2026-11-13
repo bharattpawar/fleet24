@@ -6,6 +6,7 @@ import { RestaurantUpdatableStatus } from './dto/restaurant-order.dto';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import { PaymentsService } from '../payments/payments.service';
 import { RiderAssignmentService } from '../riders/rider-assignment.service';
+import { RiderOffersService } from '../riders/rider-offers.service';
 
 describe('RestaurantOrdersService (Unit Tests)', () => {
   let service: RestaurantOrdersService;
@@ -18,12 +19,16 @@ describe('RestaurantOrdersService (Unit Tests)', () => {
 
   beforeEach(async () => {
     mockDb = {
+      select: jest.fn(),
       query: {
+        restaurants: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
         restaurantOutlets: {
-          findMany: jest.fn(),
+          findMany: jest.fn().mockResolvedValue([]),
         },
         restaurantStaff: {
-          findMany: jest.fn(),
+          findMany: jest.fn().mockResolvedValue([]),
         },
         orders: {
           findFirst: jest.fn(),
@@ -67,6 +72,12 @@ describe('RestaurantOrdersService (Unit Tests)', () => {
         { provide: DRIZZLE_CONNECTION, useValue: mockDb },
         { provide: PaymentsService, useValue: mockPaymentsService },
         { provide: RiderAssignmentService, useValue: mockRiderAssignmentService },
+        {
+          provide: RiderOffersService,
+          useValue: {
+            cleanupDeliveryForCancelledOrder: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -319,6 +330,87 @@ describe('RestaurantOrdersService (Unit Tests)', () => {
           { status: RestaurantUpdatableStatus.CONFIRMED },
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getOrdersOverview', () => {
+    it('aggregates status counts and recent orders for authorized outlet', async () => {
+      mockDb.query.restaurantStaff.findMany.mockResolvedValueOnce([
+        { outletId: authorizedOutletId },
+      ]);
+
+      // Mock aggregate query 1: status counts
+      mockDb.select.mockReturnValueOnce({
+        from: jest.fn().mockReturnValueOnce({
+          where: jest.fn().mockReturnValueOnce({
+            groupBy: jest.fn().mockResolvedValueOnce([
+              { status: 'placed', count: 3 },
+              { status: 'confirmed', count: 2 },
+              { status: 'preparing', count: 4 },
+              { status: 'ready_for_pickup', count: 1 },
+              { status: 'delivered', count: 12 },
+            ]),
+          }),
+        }),
+      });
+
+      // Mock aggregate query 2: completed today count
+      mockDb.select.mockReturnValueOnce({
+        from: jest.fn().mockReturnValueOnce({
+          where: jest.fn().mockResolvedValueOnce([
+            { count: 5 },
+          ]),
+        }),
+      });
+
+      // Mock recent 5 orders query
+      mockDb.query.orders.findMany.mockResolvedValueOnce([
+        {
+          id: 'ord-101',
+          orderNumber: 'FL-20261031-101',
+          status: 'placed',
+          itemTotal: '450.00',
+          totalPayable: '480.00',
+          createdAt: new Date(),
+          items: [
+            { itemName: 'Paneer Butter Masala', quantity: 1 },
+            { itemName: 'Garlic Naan', quantity: 2 },
+          ],
+          customer: { fullName: 'Aman Sharma' },
+        },
+      ]);
+
+      const overview = await service.getOrdersOverview(
+        staffUserId,
+        ['restaurant_staff'],
+        authorizedOutletId,
+      );
+
+      expect(overview).toBeDefined();
+      expect(overview.outletId).toBe(authorizedOutletId);
+      expect(overview.counts.newOrders).toBe(3);
+      expect(overview.counts.confirmed).toBe(2);
+      expect(overview.counts.preparing).toBe(4);
+      expect(overview.counts.readyForPickup).toBe(1);
+      expect(overview.counts.completedToday).toBe(5);
+      expect(overview.recentOrders).toHaveLength(1);
+      expect(overview.recentOrders[0].orderNumber).toBe('FL-20261031-101');
+      expect(overview.recentOrders[0].itemCount).toBe(3);
+      expect(overview.recentOrders[0].customerName).toBe('Aman Sharma');
+    });
+
+    it('rejects overview request if user is not authorized for the requested outlet', async () => {
+      mockDb.query.restaurantStaff.findMany.mockResolvedValueOnce([
+        { outletId: authorizedOutletId },
+      ]);
+
+      await expect(
+        service.getOrdersOverview(
+          staffUserId,
+          ['restaurant_staff'],
+          unauthorizedOutletId,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

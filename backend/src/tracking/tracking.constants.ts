@@ -1,15 +1,21 @@
 /**
- * WebSocket Delivery Tracking Event Constants & Interfaces
+ * WebSocket Delivery Tracking & Kitchen Notification Event Constants & Interfaces
  */
 
 export const DELIVERY_WS_EVENTS = {
-  // Client -> Server
+  // Client -> Server (Customer / Rider Tracking)
   SUBSCRIBE: 'subscribe:delivery',
   UNSUBSCRIBE: 'unsubscribe:delivery',
+
+  // Client -> Server (Restaurant Kitchen Outlet Channel)
+  SUBSCRIBE_OUTLET: 'subscribe:outlet',
+  UNSUBSCRIBE_OUTLET: 'unsubscribe:outlet',
 
   // Server -> Client
   SUBSCRIBED: 'delivery.subscribed',
   UNSUBSCRIBED: 'delivery.unsubscribed',
+  OUTLET_SUBSCRIBED: 'outlet.subscribed',
+  OUTLET_UNSUBSCRIBED: 'outlet.unsubscribed',
   ERROR: 'delivery.error',
 
   // Lifecycle Events (Server -> Client)
@@ -18,10 +24,43 @@ export const DELIVERY_WS_EVENTS = {
   LOCATION_UPDATED: 'delivery.location.updated',
   COMPLETED: 'delivery.completed',
   CANCELLED: 'delivery.cancelled',
+  OFFER_CREATED: 'delivery.offer.created',
+
+  // Restaurant Kitchen Notification Events
+  ORDER_CREATED: 'order.created',
 } as const;
+
+export interface DeliveryOfferCreatedPayload {
+  orderId: string;
+  orderNumber: string;
+  deliveryId: string;
+  riderId: string;
+  distanceMeters: number;
+  offerExpiresAt: string;
+  expiresInSeconds: number;
+}
 
 export interface SubscribeDeliveryPayload {
   orderId: string;
+}
+
+export interface SubscribeOutletPayload {
+  outletId: string;
+}
+
+export interface OrderCreatedPayload {
+  orderId: string;
+  orderNumber: string;
+  outletId: string;
+  createdAt: string;
+  itemCount: number;
+  totalAmount: string;
+  currency: string;
+  status: 'placed';
+  items?: Array<{
+    name: string;
+    quantity: number;
+  }>;
 }
 
 export interface DeliveryLocationPayload {
@@ -77,4 +116,3 @@ export interface DeliveryErrorPayload {
   message: string;
   orderId?: string;
 }
-

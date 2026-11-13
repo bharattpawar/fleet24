@@ -1,0 +1,178 @@
+import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { restaurantsApi } from '@/lib/api/restaurants';
+import type { RestaurantOutlet } from '@/types/restaurants';
+import { Settings, AlertCircle } from 'lucide-react';
+
+interface OutletDeliverySettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  outlet: RestaurantOutlet;
+  restaurantId: string;
+}
+
+export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalProps> = ({
+  isOpen,
+  onClose,
+  outlet,
+  restaurantId,
+}) => {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(outlet.name);
+  const [phone, setPhone] = useState(outlet.phone);
+  const [address, setAddress] = useState(outlet.address);
+  const [latitude, setLatitude] = useState(outlet.latitude);
+  const [longitude, setLongitude] = useState(outlet.longitude);
+  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState(outlet.deliveryRadiusKm || '5.0');
+  const [error, setError] = useState<string | null>(null);
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      restaurantsApi.updateOutlet(outlet.id, {
+        name: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        deliveryRadiusKm: parseFloat(deliveryRadiusKm),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'restaurant', restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'restaurants'] });
+      onClose();
+    },
+    onError: (err: any) => {
+      setError(err?.response?.data?.message || err?.message || 'Failed to update outlet delivery settings.');
+    },
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-60">
+      <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center gap-2 text-[#D9F078]">
+          <Settings className="w-5 h-5" />
+          <h3 className="text-sm font-bold text-[#F7F6F0]">Outlet & Delivery Configuration</h3>
+        </div>
+
+        {error && (
+          <div className="p-3 bg-[#E98755]/15 border border-[#E98755]/30 rounded-xl text-xs text-[#E98755] flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateMutation.mutate();
+          }}
+          className="space-y-3"
+        >
+          <div>
+            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              Outlet Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              Contact Phone *
+            </label>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              Address *
+            </label>
+            <textarea
+              rows={2}
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                Latitude *
+              </label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                Longitude *
+              </label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                Delivery Radius (km) *
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                max="25"
+                required
+                value={deliveryRadiusKm}
+                onChange={(e) => setDeliveryRadiusKm(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateMutation.isPending || !name.trim() || !phone.trim() || !address.trim()}
+              className="px-4 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 disabled:opacity-50 cursor-pointer"
+            >
+              {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

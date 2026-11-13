@@ -45,8 +45,14 @@ export class RestaurantsController {
   // ==========================================
 
   @Get('public/outlets')
-  async getPublicOutlets() {
-    return this.menusService.getPublicActiveOutlets();
+  async getPublicOutlets(
+    @Query('latitude') lat?: string,
+    @Query('longitude') lon?: string,
+  ) {
+    return this.menusService.getPublicActiveOutlets(
+      lat ? parseFloat(lat) : undefined,
+      lon ? parseFloat(lon) : undefined,
+    );
   }
 
   @Get('public/outlets/:outletId/menu')

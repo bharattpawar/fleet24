@@ -5,10 +5,13 @@ import * as crypto from 'crypto';
 import { PaymentsService } from './payments.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 
+import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
+
 describe('PaymentsService - Step 1 Verification', () => {
   let service: PaymentsService;
   let mockDb: any;
   let mockConfigService: any;
+  let mockTrackingPublisher: any;
 
   const TEST_SECRET = 'test_razorpay_secret_12345';
   const TEST_WEBHOOK_SECRET = 'test_webhook_secret_67890';
@@ -38,6 +41,10 @@ describe('PaymentsService - Step 1 Verification', () => {
       }),
     };
 
+    mockTrackingPublisher = {
+      publishOrderCreated: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
@@ -49,10 +56,21 @@ describe('PaymentsService - Step 1 Verification', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: TrackingPublisherService,
+          useValue: mockTrackingPublisher,
+        },
       ],
     }).compile();
 
     service = module.get<PaymentsService>(PaymentsService);
+    // Mock internal razorpayClient orders.fetch
+    (service as any).razorpayClient = {
+      orders: {
+        fetch: jest.fn().mockResolvedValue({ status: 'created' }),
+        create: jest.fn(),
+      },
+    };
   });
 
   describe('Amount Conversion to Paise', () => {

@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Fleet24 Rider",
+    "slug": "fleet24-rider",
+    "scheme": "fleet24rider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fleet24.rider",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"],
+        "NSLocationWhenInUseUsageDescription": "Fleet24 Rider needs your location to dispatch nearby delivery offers and track active deliveries.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Fleet24 Rider requires location access while delivering orders to provide customers and dispatch with accurate ETAs.",
+        "NSLocationAlwaysUsageDescription": "Fleet24 Rider tracks your location during active deliveries."
+      }
+    },
+    "android": {
+      "package": "com.fleet24.rider",
+      "adaptiveIcon": {
+        "backgroundColor": "#193B2C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Fleet24 Rider requires background location access to provide customers and dispatch with accurate ETAs during active delivery.",
+          "locationAlwaysPermission": "Fleet24 Rider tracks your location in the background during active deliveries.",
+          "locationWhenInUsePermission": "Fleet24 Rider needs your location to dispatch nearby delivery offers.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#193B2C"
+        }
+      ]
+    ]
+  }
+}
+

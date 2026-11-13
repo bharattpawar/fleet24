@@ -1,29 +1,33 @@
-// Fleet24 Design Tokens: "Premium Neighbourhood Food Delivery"
-// Inspired by editorial, image-rich coffee & food experience ("Brew & Bliss" reference)
+// Fleet24 Design Tokens: "Premium Clean Fleet24 Brand System"
 export const colors = {
-  background: '#F7F6F0',      // Warm cream/ivory background
+  background: '#F7F6F0',      // Warm Ivory / Cream background
   surface: '#FFFFFF',         // Cards, sheets, inputs
   surfaceElevated: '#FFFFFF', // Elevated cards
   surfaceMuted: '#EFEFE8',    // Very soft neutral container
   surfaceGreen: '#EAF2EC',    // Soft pale forest green pill/badge background
-  primary: '#28543F',         // Signature deep forest green
+  surfaceLime: '#F3FCD0',     // Soft lime tint for highlights
+  primary: '#24533F',         // Signature Forest Green
   primaryDark: '#193B2C',     // Dark forest green for active/pressed states
-  primaryPressed: '#193B2C',  // Deep forest green for press state
-  accent: '#D99058',          // Warm terracotta / promotional accent
-  accentLight: '#F5EEE6',     // Muted warm status background
-  textPrimary: '#202923',     // Rich dark charcoal heading/body text
-  textSecondary: '#747B74',   // Refined slate secondary text
-  textMuted: '#9BA39D',       // Light secondary
-  border: '#E7E5DB',          // Subtle divider/outline
-  borderLight: '#F0EFE8',
-  foodAccent: '#D99058',      // Warm terracotta / food badge
-  success: '#28543F',         // Forest green success
-  warning: '#D99058',         // Amber/terracotta pending
-  error: '#C74740',           // Crimson error / cancellation
-  veg: '#28543F',             // Veg indicator green
-  nonVeg: '#C74740',          // Non-veg indicator red
-  cardShadow: 'rgba(32, 41, 35, 0.05)',
-  cardShadowMedium: 'rgba(32, 41, 35, 0.08)',
+  primaryPressed: '#132C21',  // Deep forest green for press state
+  citrusLime: '#D9F078',      // Fleet24 Citrus Lime
+  limeAccent: '#D9F078',      // Fleet24 Lime accent
+  accent: '#E98755',          // Warm Terracotta / food accent
+  accentLight: '#FDF3EC',     // Soft terracotta tint
+  charcoal: '#17211B',        // Signature Charcoal
+  textPrimary: '#17211B',     // Signature Charcoal text
+  textSecondary: '#6B7280',   // Refined slate secondary text
+  textMuted: '#9CA3AF',       // Light secondary
+  border: '#E8E6DD',          // Subtle divider/outline
+  borderLight: '#F2F1EA',
+  foodAccent: '#E98755',      // Warm terracotta / food badge
+  success: '#24533F',         // Forest green success
+  warning: '#E98755',         // Terracotta / amber pending
+  error: '#DC2626',           // Crimson error / cancellation
+  veg: '#24533F',             // Veg indicator forest green
+  nonVeg: '#DC2626',          // Non-veg indicator red
+  dockDark: '#17211B',        // Floating dark navigation dock
+  cardShadow: 'rgba(23, 33, 27, 0.05)',
+  cardShadowMedium: 'rgba(23, 33, 27, 0.08)',
 };
 
 export const typography = {

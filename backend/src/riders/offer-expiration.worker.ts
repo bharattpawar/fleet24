@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { RiderAssignmentService } from './rider-assignment.service';
@@ -21,9 +21,10 @@ export class OfferExpirationWorker {
   ) {}
 
   /**
-   * Runs every 15 seconds to check for expired rider delivery offers.
+   * Runs every 10 seconds to check for expired rider delivery offers
+   * and retry dispatching unassigned active orders to newly available riders.
    */
-  @Cron('*/15 * * * * *')
+  @Cron('*/10 * * * * *')
   async handleCron() {
     if (this.isRunning) {
       return;
@@ -32,11 +33,46 @@ export class OfferExpirationWorker {
     this.isRunning = true;
     try {
       await this.processExpiredOffers();
+      await this.processUnassignedDeliveries();
     } catch (err: any) {
-      this.logger.error(`Error processing expired offers: ${err?.message || err}`);
+      this.logger.error(`Error in dispatch worker: ${err?.message || err}`);
     } finally {
       this.isRunning = false;
     }
+  }
+
+  /**
+   * Scans for orders awaiting rider assignment and dispatches them to available nearby riders.
+   * Ensures orders confirmed or prepared while riders were offline get dispatched immediately
+   * once a rider comes online.
+   */
+  async processUnassignedDeliveries(): Promise<number> {
+    const cooldownThreshold = new Date(Date.now() - 10000); // 10s retry cooldown
+
+    const unassignedDeliveries = await this.db
+      .select({
+        orderId: schema.deliveries.orderId,
+      })
+      .from(schema.deliveries)
+      .innerJoin(schema.orders, eq(schema.deliveries.orderId, schema.orders.id))
+      .where(
+        and(
+          eq(schema.deliveries.status, 'unassigned'),
+          inArray(schema.orders.status, ['confirmed', 'preparing', 'ready_for_pickup']),
+          sql`(${schema.deliveries.lastDispatchAttemptAt} IS NULL OR ${schema.deliveries.lastDispatchAttemptAt} <= ${cooldownThreshold})`,
+        ),
+      )
+      .limit(10);
+
+    for (const item of unassignedDeliveries) {
+      try {
+        await this.riderAssignmentService.assignOrder(item.orderId);
+      } catch (err: any) {
+        // Dispatch attempts record failure reasons directly on the delivery row
+      }
+    }
+
+    return unassignedDeliveries.length;
   }
 
   /**

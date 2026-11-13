@@ -549,7 +549,11 @@ export const CartScreen: React.FC<CartScreenProps> = ({
           ) : (
             <>
               <Text style={styles.checkoutBtnText}>
-                {selectedAddress ? 'Proceed to Pay' : 'Select Address'}
+                {!isAuthenticated
+                  ? 'Sign In to Order'
+                  : selectedAddress
+                  ? 'Proceed to Pay'
+                  : 'Select Address'}
               </Text>
               <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
             </>
@@ -638,31 +642,31 @@ const styles = StyleSheet.create({
   outletBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm + 2,
+    gap: 12,
     backgroundColor: '#FFFFFF',
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.charcoal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 2,
   },
   outletIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surfaceGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   outletName: {
-    fontSize: 15.5,
+    fontSize: 16,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: colors.charcoal,
   },
   outletAddress: {
     fontSize: 12,
@@ -674,26 +678,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.surfaceGreen,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: borderRadius.sm,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: 12,
   },
   etaPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: colors.primary,
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.xl,
-    padding: spacing.md + 2,
-    marginBottom: spacing.md,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.charcoal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 2,
   },
   sectionHeader: {

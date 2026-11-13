@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  forwardRef,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -8,7 +9,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, or, ilike, sql, desc } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { inArray } from 'drizzle-orm';
@@ -34,7 +35,7 @@ export class RidersService {
   constructor(
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
-    @Inject(TrackingPublisherService)
+    @Inject(forwardRef(() => TrackingPublisherService))
     private readonly trackingPublisher: TrackingPublisherService,
   ) {}
 
@@ -187,50 +188,82 @@ export class RidersService {
   /**
    * Update rider availability status (online/available vs offline).
    * Enforces that rider must be approved and NOT suspended to go 'available'.
+   * Enforces that rider cannot go 'offline' while they have active, in-flight deliveries.
    */
   async updateAvailability(userId: string, dto: UpdateRiderAvailabilityDto) {
-    const rider = await this.db.query.riders.findFirst({
-      where: eq(schema.riders.userId, userId),
+    return await this.db.transaction(async (tx) => {
+      const [rider] = await tx
+        .select()
+        .from(schema.riders)
+        .where(eq(schema.riders.userId, userId))
+        .for('update');
+
+      if (!rider) {
+        throw new NotFoundException('Rider profile not found');
+      }
+
+      if (dto.availabilityStatus === 'available') {
+        // Must be approved
+        if (rider.verificationStatus !== 'approved') {
+          throw new ForbiddenException(
+            `Cannot go available. Rider profile verification status is '${rider.verificationStatus}'. Must be approved.`,
+          );
+        }
+
+        // Must not be suspended
+        if (rider.suspensionReason) {
+          throw new ForbiddenException(
+            `Cannot go available. Rider is currently suspended: ${rider.suspensionReason}`,
+          );
+        }
+      }
+
+      if (dto.availabilityStatus === 'offline') {
+        // Must not have active in-flight deliveries
+        const activeStatuses: (
+          | 'assigned'
+          | 'accepted'
+          | 'at_restaurant'
+          | 'picked_up'
+          | 'arrived_customer'
+        )[] = ['assigned', 'accepted', 'at_restaurant', 'picked_up', 'arrived_customer'];
+
+        const activeDeliveries = await tx
+          .select({ id: schema.deliveries.id, status: schema.deliveries.status })
+          .from(schema.deliveries)
+          .where(
+            and(
+              eq(schema.deliveries.riderId, rider.id),
+              inArray(schema.deliveries.status, activeStatuses),
+            ),
+          );
+
+        if (activeDeliveries.length > 0 || rider.currentActiveOrdersCount > 0) {
+          throw new BadRequestException(
+            `Cannot go offline with active deliveries in progress (${activeDeliveries.length} active delivery record(s)). Please complete or reassign active orders first.`,
+          );
+        }
+      }
+
+      const [updated] = await tx
+        .update(schema.riders)
+        .set({
+          availabilityStatus: dto.availabilityStatus,
+          isOnline: dto.availabilityStatus === 'available',
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.riders.id, rider.id))
+        .returning();
+
+      this.logger.log(`Rider ${rider.id} availability updated to ${dto.availabilityStatus}`);
+
+      return {
+        riderId: updated.id,
+        availabilityStatus: updated.availabilityStatus,
+        isOnline: updated.isOnline,
+        updatedAt: updated.updatedAt,
+      };
     });
-
-    if (!rider) {
-      throw new NotFoundException('Rider profile not found');
-    }
-
-    if (dto.availabilityStatus === 'available') {
-      // Must be approved
-      if (rider.verificationStatus !== 'approved') {
-        throw new ForbiddenException(
-          `Cannot go available. Rider profile verification status is '${rider.verificationStatus}'. Must be approved.`,
-        );
-      }
-
-      // Must not be suspended
-      if (rider.suspensionReason) {
-        throw new ForbiddenException(
-          `Cannot go available. Rider is currently suspended: ${rider.suspensionReason}`,
-        );
-      }
-    }
-
-    const [updated] = await this.db
-      .update(schema.riders)
-      .set({
-        availabilityStatus: dto.availabilityStatus,
-        isOnline: dto.availabilityStatus === 'available',
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.riders.id, rider.id))
-      .returning();
-
-    this.logger.log(`Rider ${rider.id} availability updated to ${dto.availabilityStatus}`);
-
-    return {
-      riderId: updated.id,
-      availabilityStatus: updated.availabilityStatus,
-      isOnline: updated.isOnline,
-      updatedAt: updated.updatedAt,
-    };
   }
 
   // ================= ADMIN WORKFLOWS =================
@@ -247,6 +280,17 @@ export class RidersService {
 
     if (query.availabilityStatus) {
       conditions.push(eq(schema.riders.availabilityStatus, query.availabilityStatus));
+    }
+
+    if (query.search && query.search.trim()) {
+      const s = `%${query.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(schema.riders.fullName, s),
+          ilike(schema.riders.vehicleNumber, s),
+          ilike(schema.riders.licenseNumber, s),
+        ),
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

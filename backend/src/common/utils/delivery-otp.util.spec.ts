@@ -61,4 +61,41 @@ describe('DeliveryOtpUtil', () => {
       expect(DeliveryOtpUtil.verifyOtp('123456', secret, orderId, 'short-hash')).toBe(false);
     });
   });
+
+  describe('encryptOtp and decryptOtp (AES-256-GCM)', () => {
+    const encKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+    it('should encrypt and decrypt OTP successfully with authenticated integrity', () => {
+      const plainOtp = '654321';
+      const encrypted = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
+
+      expect(typeof encrypted).toBe('string');
+      const parts = encrypted.split(':');
+      expect(parts).toHaveLength(3); // iv:tag:ciphertext
+
+      const decrypted = DeliveryOtpUtil.decryptOtp(encrypted, encKey);
+      expect(decrypted).toBe(plainOtp);
+    });
+
+    it('should fail decryption if wrong key is used', () => {
+      const plainOtp = '123456';
+      const encrypted = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
+      const wrongKey = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+
+      expect(() => DeliveryOtpUtil.decryptOtp(encrypted, wrongKey)).toThrow();
+    });
+
+    it('should detect ciphertext tampering and fail authentication', () => {
+      const plainOtp = '987654';
+      const encrypted = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
+      const [iv, tag, ciphertext] = encrypted.split(':');
+
+      // Tamper with ciphertext by flipping last char
+      const tamperedCiphertext =
+        ciphertext.slice(0, -1) + (ciphertext.slice(-1) === 'a' ? 'b' : 'a');
+      const tamperedPayload = `${iv}:${tag}:${tamperedCiphertext}`;
+
+      expect(() => DeliveryOtpUtil.decryptOtp(tamperedPayload, encKey)).toThrow();
+    });
+  });
 });

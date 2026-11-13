@@ -8,6 +8,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, desc, and } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { isWithinDeliveryRadius } from '../common/utils/geo';
 import {
   CreateMenuCategoryDto,
   UpdateMenuCategoryDto,
@@ -224,16 +225,25 @@ export class MenusService {
 
     // Verify ownership
     if (!user.roles.includes('admin')) {
-      const staff = await this.db.query.restaurantStaff.findFirst({
+      const isOwner = await this.db.query.restaurants.findFirst({
         where: and(
-          eq(schema.restaurantStaff.userId, user.userId),
-          eq(schema.restaurantStaff.isActive, true),
+          eq(schema.restaurants.id, item.restaurantId),
+          eq(schema.restaurants.ownerId, user.userId),
         ),
-        with: { outlet: true },
       });
 
-      if (!staff || staff.outlet.restaurantId !== item.restaurantId) {
-        throw new BadRequestException('Unauthorized to modify menu item for this restaurant.');
+      if (!isOwner) {
+        const staff = await this.db.query.restaurantStaff.findFirst({
+          where: and(
+            eq(schema.restaurantStaff.userId, user.userId),
+            eq(schema.restaurantStaff.isActive, true),
+          ),
+          with: { outlet: true },
+        });
+
+        if (!staff || staff.outlet.restaurantId !== item.restaurantId) {
+          throw new BadRequestException('Unauthorized to modify menu item for this restaurant.');
+        }
       }
     }
 
@@ -311,7 +321,7 @@ export class MenusService {
   // PUBLIC CUSTOMER DISCOVERY (Read-Only)
   // ==========================================
 
-  async getPublicActiveOutlets() {
+  async getPublicActiveOutlets(userLat?: number, userLon?: number) {
     // Only return outlets where both restaurant and outlet are active
     const outlets = await this.db.query.restaurantOutlets.findMany({
       where: eq(schema.restaurantOutlets.isActive, true),
@@ -322,7 +332,30 @@ export class MenusService {
     });
 
     return outlets
-      .filter((o) => o.restaurant.isActive)
+      .filter((o) => {
+        if (!o.restaurant.isActive) return false;
+        // If customer coordinates provided, enforce delivery radius eligibility
+        if (
+          userLat !== undefined &&
+          !isNaN(userLat) &&
+          userLon !== undefined &&
+          !isNaN(userLon) &&
+          o.latitude &&
+          o.longitude
+        ) {
+          try {
+            const { isEligible } = isWithinDeliveryRadius(
+              { latitude: o.latitude, longitude: o.longitude },
+              { latitude: userLat, longitude: userLon },
+              o.deliveryRadiusKm,
+            );
+            return isEligible;
+          } catch {
+            return false;
+          }
+        }
+        return true;
+      })
       .map((o) => ({
         id: o.id,
         restaurantName: o.restaurant.name,

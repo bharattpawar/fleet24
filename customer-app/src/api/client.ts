@@ -2,15 +2,17 @@ import { Platform } from 'react-native';
 import { authStorage } from './storage';
 
 /**
- * Development Network Configuration
- * - Android Emulator connects to host machine via 10.0.2.2.
- * - Web and local simulator connect to localhost.
- * - Physical iPhone running Expo Go connects to host workstation Wi-Fi IP (172.20.10.2).
+ * Environment & Network Configuration
+ * - EXPO_PUBLIC_API_URL takes precedence in Staging & Production builds.
+ * - Falls back to local development network endpoints when not set.
  */
 export const DEV_LAN_IP = '172.20.10.2';
 export const DEV_PORT = 4000;
 
 export const API_BASE_URL = (() => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
   if (Platform.OS === 'android') {
     return `http://10.0.2.2:${DEV_PORT}/api/v1`;
   }

@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Fleet24 Restaurant",
+    "slug": "fleet24-restaurant",
+    "scheme": "fleet24restaurant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fleet24.restaurant"
+    },
+    "android": {
+      "package": "com.fleet24.restaurant",
+      "adaptiveIcon": {
+        "backgroundColor": "#193B2C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
+

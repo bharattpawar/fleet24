@@ -100,6 +100,10 @@ export class AdminSuspendRiderDto {
 
 export class AdminRidersQueryDto {
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @IsIn(['pending', 'approved', 'rejected'])
   verificationStatus?: RiderVerificationStatus;
 

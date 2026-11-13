@@ -6,6 +6,7 @@ import {
   DeliveryStatusUpdatedPayload,
   DeliveryCompletedPayload,
   DeliveryCancelledPayload,
+  OrderCreatedPayload,
 } from './tracking.constants';
 
 @Injectable()
@@ -33,6 +34,14 @@ export class TrackingPublisherService {
   }
 
   /**
+   * Publish new delivery offer to the assigned rider's private room.
+   */
+  publishOfferCreated(riderId: string, payload: any) {
+    this.logger.log(`Publishing delivery offer to rider ${riderId} for order ${payload.orderId}`);
+    this.trackingGateway.broadcastOfferCreated(riderId, payload);
+  }
+
+  /**
    * Publish delivery lifecycle status update.
    */
   publishStatusUpdated(payload: DeliveryStatusUpdatedPayload) {
@@ -56,6 +65,16 @@ export class TrackingPublisherService {
   publishDeliveryCancelled(payload: DeliveryCancelledPayload) {
     this.logger.log(`Publishing delivery cancelled event for order ${payload.orderId}`);
     this.trackingGateway.broadcastCancelled(payload);
+  }
+
+  /**
+   * Publish newly placed order notification to the assigned restaurant kitchen outlet.
+   */
+  publishOrderCreated(outletId: string, payload: OrderCreatedPayload) {
+    this.logger.log(
+      `Publishing order created notification for order ${payload.orderNumber} to outlet ${outletId}`,
+    );
+    this.trackingGateway.broadcastOrderCreated(outletId, payload);
   }
 }
 

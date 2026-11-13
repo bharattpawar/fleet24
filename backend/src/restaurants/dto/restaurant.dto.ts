@@ -48,6 +48,10 @@ export class CreateRestaurantDto {
   @IsOptional()
   @IsUrl()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
 }
 
 export class UpdateRestaurantDto {
@@ -63,6 +67,10 @@ export class UpdateRestaurantDto {
   @IsOptional()
   @IsUrl()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
 }
 
 export class UpdateRestaurantStatusDto {

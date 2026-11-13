@@ -14,6 +14,20 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
+  // Global uncaught exception protection against transient network drops (e.g. Supabase connection resets)
+  process.on('uncaughtException', (err: any) => {
+    if (
+      err?.code === 'ECONNRESET' ||
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ENOTFOUND' ||
+      err?.message?.includes('ECONNRESET')
+    ) {
+      logger.warn(`[TransientNetworkError] Handled socket drop gracefully: ${err.message}`);
+      return;
+    }
+    logger.error('[FatalUncaughtException]', err);
+  });
+
   // Global API routing prefix
   app.setGlobalPrefix('api/v1');
 
@@ -45,7 +59,13 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
-      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (
+        allowedOrigins.length === 0 ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.startsWith('http://172.20.10.2:')
+      ) {
         return callback(null, true);
       }
       callback(new Error(`Origin '${origin}' is not allowed by CORS policy.`));

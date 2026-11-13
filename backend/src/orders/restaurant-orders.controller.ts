@@ -48,6 +48,23 @@ export class RestaurantOrdersController {
   }
 
   /**
+   * GET /api/v1/restaurant/orders/overview
+   * Real-time operational overview counts (new, confirmed, preparing, ready, completed today)
+   * and recent order activity for a selected authorized outlet.
+   */
+  @Get('overview')
+  async getOverview(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Query('outletId', new ParseUUIDPipe({ version: '4' })) outletId: string,
+  ) {
+    return this.restaurantOrdersService.getOrdersOverview(
+      user.userId,
+      user.roles,
+      outletId,
+    );
+  }
+
+  /**
    * GET /api/v1/restaurant/orders/:orderId
    * Gets specific order details for the authorized kitchen staff
    */

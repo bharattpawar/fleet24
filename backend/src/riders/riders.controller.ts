@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -20,6 +21,7 @@ import {
 } from '../auth/decorators/auth.decorators';
 import { RidersService } from './riders.service';
 import { RiderOffersService } from './rider-offers.service';
+import { NotificationService } from './notification.service';
 import { AdminFinanceService } from '../admin/admin-finance.service';
 import { CreateRiderPayoutRequestDto, AdminRiderEarningsQueryDto } from '../admin/dto/admin-finance.dto';
 import {
@@ -36,6 +38,7 @@ import {
   DeliveryOfferDetails,
 } from './dto/delivery-offer.dto';
 import { CompleteDeliveryDto } from './dto/delivery-completion.dto';
+import { RegisterDeviceTokenDto } from './dto/register-device-token.dto';
 
 @Controller('riders')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -43,6 +46,7 @@ export class RidersController {
   constructor(
     private readonly ridersService: RidersService,
     private readonly riderOffersService: RiderOffersService,
+    private readonly notificationService: NotificationService,
     private readonly financeService: AdminFinanceService,
   ) {}
 
@@ -110,6 +114,20 @@ export class RidersController {
   }
 
   /**
+   * POST /api/v1/riders/location
+   * HTTP POST alias for location update (shares identical validation & logic)
+   */
+  @Post('location')
+  @Roles('rider')
+  @HttpCode(HttpStatus.OK)
+  async postLocation(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Body() dto: UpdateRiderLocationDto,
+  ): Promise<RiderLocationResponse> {
+    return this.ridersService.updateLocation(user.userId, dto);
+  }
+
+  /**
    * GET /api/v1/riders/location
    * Retrieve latest recorded GPS location and freshness status for authenticated rider
    */
@@ -124,6 +142,17 @@ export class RidersController {
   // ================= RIDER OFFER LIFECYCLE (PHASE 4.4) =================
 
   /**
+   * GET /api/v1/riders/orders/active
+   * Get currently active/in-flight deliveries belonging to authenticated rider
+   * Restores active order tracking when rider app opens
+   */
+  @Get('orders/active')
+  @Roles('rider')
+  async getActiveOrders(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.riderOffersService.getActiveDeliveriesForRider(user.userId);
+  }
+
+  /**
    * GET /api/v1/riders/orders/offers
    * Get active, unexpired delivery offers belonging to authenticated rider
    */
@@ -133,6 +162,30 @@ export class RidersController {
     @CurrentUser() user: AuthenticatedUserPayload,
   ): Promise<DeliveryOfferDetails[]> {
     return this.riderOffersService.getPendingOffers(user.userId);
+  }
+
+  /**
+   * GET /api/v1/riders/orders/available
+   * View all open/ready orders in the system that can be claimed or picked up
+   */
+  @Get('orders/available')
+  @Roles('rider')
+  async getAvailableOrders(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.riderOffersService.getAvailableDeliveriesPool(user.userId);
+  }
+
+  /**
+   * POST /api/v1/riders/orders/:orderId/claim
+   * Instantly claim and accept an available order
+   */
+  @Post('orders/:orderId/claim')
+  @Roles('rider')
+  @HttpCode(HttpStatus.OK)
+  async claimOrder(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.riderOffersService.claimDelivery(user.userId, orderId);
   }
 
   /**
@@ -221,6 +274,35 @@ export class RidersController {
     @Body() dto: CompleteDeliveryDto,
   ) {
     return this.riderOffersService.completeDelivery(user.userId, orderId, dto);
+  }
+
+  // ================= PUSH NOTIFICATIONS & DEVICE TOKENS =================
+
+  /**
+   * POST /api/v1/riders/device-token
+   * Register or refresh device push notification token for authenticated rider
+   */
+  @Post('device-token')
+  @Roles('rider')
+  @HttpCode(HttpStatus.OK)
+  async registerDeviceToken(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Body() dto: RegisterDeviceTokenDto,
+  ) {
+    const rider = await this.riderOffersService.getRiderForUser(user.userId);
+    return this.notificationService.registerDeviceToken(rider.id, dto.token, dto.platform);
+  }
+
+  /**
+   * DELETE /api/v1/riders/device-token
+   * Invalidate and unregister device push token upon rider logout
+   */
+  @Delete('device-token')
+  @Roles('rider')
+  @HttpCode(HttpStatus.OK)
+  async unregisterDeviceToken(@CurrentUser() user: AuthenticatedUserPayload) {
+    const rider = await this.riderOffersService.getRiderForUser(user.userId);
+    return this.notificationService.unregisterDeviceToken(rider.id);
   }
 
   // ================= RIDER FINANCIAL & PAYOUT OPERATIONS =================

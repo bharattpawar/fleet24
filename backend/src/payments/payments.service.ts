@@ -16,6 +16,7 @@ import * as https from 'https';
 const Razorpay = require('razorpay');
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { VerifyPaymentDto } from './dto/payment.dto';
 
 export interface PaymentSessionResult {
@@ -52,6 +53,8 @@ export class PaymentsService {
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly configService: ConfigService,
+    @Inject(TrackingPublisherService)
+    private readonly trackingPublisher?: TrackingPublisherService,
   ) {
     this.keyId = this.configService.get<string>('RAZORPAY_KEY_ID', '');
     this.keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET', '');
@@ -341,12 +344,13 @@ export class PaymentsService {
       throw new BadRequestException('Invalid payment signature. Payment verification rejected.');
     }
 
-    // 3. Optional gateway verification if client initialized
+    // 3. Mandatory gateway verification if client initialized
     if (this.razorpayClient) {
       try {
         const fetchedPayment = await this.razorpayClient.payments.fetch(dto.razorpayPaymentId);
         const expectedPaise = this.convertRupeesToPaise(payment.amount);
 
+        // A. Verify amount & currency match
         if (fetchedPayment.amount !== expectedPaise || fetchedPayment.currency !== payment.currency) {
           this.logger.error(
             `Payment amount mismatch! Expected ${expectedPaise} ${payment.currency}, got ${fetchedPayment.amount} ${fetchedPayment.currency}`,
@@ -354,21 +358,46 @@ export class PaymentsService {
           throw new BadRequestException('Payment amount or currency mismatch.');
         }
 
+        // B. Verify payment entity belongs to the requested Razorpay order ID
         if (fetchedPayment.order_id !== dto.razorpayOrderId) {
           throw new BadRequestException('Payment was not made for the associated order.');
+        }
+
+        // C. Verify payment is in captured (or authorized) status at gateway
+        if (fetchedPayment.status !== 'captured' && fetchedPayment.status !== 'authorized') {
+          this.logger.error(`Payment ${dto.razorpayPaymentId} is not captured or authorized (status: ${fetchedPayment.status})`);
+          throw new BadRequestException(`Payment is not in captured status at gateway (current: ${fetchedPayment.status}).`);
         }
       } catch (err: unknown) {
         if (err instanceof BadRequestException) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn(`Could not fetch payment directly from Razorpay: ${msg}`);
+        // In test mode or when mock gateway responses are active during unit testing, fallback to cryptographic signature check
+        if (this.configService.get<string>('RAZORPAY_MODE') !== 'test') {
+          throw new BadRequestException(`Razorpay payment fetch verification failed: ${msg}`);
+        }
       }
     }
 
     // 4. Transactionally mark order as placed and payment as captured
-    return this.db.transaction(async (tx) => {
+    let orderToNotify: {
+      orderId: string;
+      orderNumber: string;
+      outletId: string;
+      createdAt: string;
+      itemCount: number;
+      totalAmount: string;
+      currency: string;
+      items?: Array<{ name: string; quantity: number }>;
+    } | null = null;
+
+    const result = await this.db.transaction(async (tx) => {
       // Re-query with row-level safety
       const currentOrder = await tx.query.orders.findFirst({
         where: eq(schema.orders.id, payment.orderId),
+        with: {
+          items: true,
+        },
       });
 
       if (!currentOrder) {
@@ -410,23 +439,44 @@ export class PaymentsService {
         })
         .where(eq(schema.payments.id, payment.id));
 
-      // Advance order status from pending_payment -> placed
-      await tx
-        .update(schema.orders)
-        .set({
-          status: 'placed',
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.orders.id, currentOrder.id));
+      // Advance order status from pending_payment -> placed only if in pending_payment
+      if (currentOrder.status === 'pending_payment') {
+        await tx
+          .update(schema.orders)
+          .set({
+            status: 'placed',
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.orders.id, currentOrder.id));
 
-      // Log status transition
-      await tx.insert(schema.orderStatusHistory).values({
-        orderId: currentOrder.id,
-        previousStatus: currentOrder.status,
-        newStatus: 'placed',
-        changedByUserId: customerId,
-        reason: 'Payment verified via Razorpay Checkout signature',
-      });
+        // Log status transition
+        await tx.insert(schema.orderStatusHistory).values({
+          orderId: currentOrder.id,
+          previousStatus: currentOrder.status,
+          newStatus: 'placed',
+          changedByUserId: customerId,
+          reason: 'Payment verified via Razorpay Checkout signature',
+        });
+
+        // Set post-commit notification payload
+        const safeItems = currentOrder.items
+          ? currentOrder.items.map((i: any) => ({
+              name: i.nameSnapshot || i.name || 'Item',
+              quantity: i.quantity || 1,
+            }))
+          : [];
+
+        orderToNotify = {
+          orderId: currentOrder.id,
+          orderNumber: currentOrder.orderNumber,
+          outletId: currentOrder.outletId,
+          createdAt: currentOrder.createdAt ? new Date(currentOrder.createdAt).toISOString() : new Date().toISOString(),
+          itemCount: safeItems.reduce((acc: number, curr: any) => acc + curr.quantity, 0) || safeItems.length,
+          totalAmount: currentOrder.totalPayable,
+          currency: 'INR',
+          items: safeItems,
+        };
+      }
 
       return {
         verified: true,
@@ -438,6 +488,20 @@ export class PaymentsService {
         amount: payment.amount,
       };
     });
+
+    // 5. Post-commit notification dispatch (Guaranteed only after DB transaction commits successfully)
+    if (orderToNotify && this.trackingPublisher) {
+      try {
+        this.trackingPublisher.publishOrderCreated((orderToNotify as any).outletId, {
+          ...(orderToNotify as any),
+          status: 'placed',
+        });
+      } catch (err: any) {
+        this.logger.error(`Failed to publish order.created event for ${(orderToNotify as any).orderNumber}: ${err.message}`);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -478,6 +542,8 @@ export class PaymentsService {
         });
 
         if (payment && payment.status !== 'captured') {
+          let webhookOrderToNotify: any = null;
+
           await this.db.transaction(async (tx) => {
             await tx
               .update(schema.payments)
@@ -506,8 +572,43 @@ export class PaymentsService {
                 changedByUserId: payment.order.customerId,
                 reason: `Payment confirmed via webhook (${eventType})`,
               });
+
+              // Fetch order items for notification summary
+              const fullOrder = await tx.query.orders.findFirst({
+                where: eq(schema.orders.id, payment.order.id),
+                with: { items: true },
+              });
+
+              const safeItems = fullOrder?.items
+                ? fullOrder.items.map((i: any) => ({
+                    name: i.nameSnapshot || i.name || 'Item',
+                    quantity: i.quantity || 1,
+                  }))
+                : [];
+
+              webhookOrderToNotify = {
+                orderId: payment.order.id,
+                orderNumber: payment.order.orderNumber,
+                outletId: payment.order.outletId,
+                createdAt: fullOrder?.createdAt ? new Date(fullOrder.createdAt).toISOString() : new Date().toISOString(),
+                itemCount: safeItems.reduce((acc: number, curr: any) => acc + curr.quantity, 0) || safeItems.length,
+                totalAmount: payment.order.totalPayable,
+                currency: 'INR',
+                status: 'placed',
+                items: safeItems,
+              };
             }
           });
+
+          // Post-commit notification for webhook reconciliation
+          if (webhookOrderToNotify && this.trackingPublisher) {
+            try {
+              this.trackingPublisher.publishOrderCreated(webhookOrderToNotify.outletId, webhookOrderToNotify);
+            } catch (err: any) {
+              this.logger.error(`Webhook: Failed to publish order.created event: ${err.message}`);
+            }
+          }
+
           this.logger.log(`Successfully reconciled payment and order via webhook: ${rzpOrderId}`);
         }
       }

@@ -1152,11 +1152,18 @@ export class AdminFinanceService {
     // 1. Total payments captured
     const [paymentsResult] = await this.db
       .select({
-        totalCaptured: sql<string>`coalesce(sum(amount), 0.00)::text`,
-        totalRefunded: sql<string>`coalesce(sum(refund_amount), 0.00)::text`,
+        totalCaptured: sql<string>`coalesce(sum(${schema.payments.amount}), 0.00)::text`,
       })
       .from(schema.payments)
       .where(inArray(schema.payments.status, ['captured', 'refunded', 'partially_refunded']));
+
+    // 1b. Total refunds processed
+    const [refundsResult] = await this.db
+      .select({
+        totalRefunded: sql<string>`coalesce(sum(${schema.refunds.amount}), 0.00)::text`,
+      })
+      .from(schema.refunds)
+      .where(eq(schema.refunds.status, 'processed'));
 
     // 2. Total rider earnings credited
     const [riderCreditsResult] = await this.db
@@ -1188,7 +1195,7 @@ export class AdminFinanceService {
       .where(eq(schema.restaurantSettlements.status, 'settled'));
 
     const totalCaptured = parseFloat(paymentsResult?.totalCaptured || '0.00');
-    const totalRefunded = parseFloat(paymentsResult?.totalRefunded || '0.00');
+    const totalRefunded = parseFloat(refundsResult?.totalRefunded || '0.00');
     const totalRiderEarned = parseFloat(riderCreditsResult?.totalRiderEarned || '0.00');
     const totalRiderPaid = parseFloat(riderPayoutsResult?.totalRiderPaid || '0.00');
     const totalRestaurantSettled = parseFloat(settlementsResult?.totalSettled || '0.00');

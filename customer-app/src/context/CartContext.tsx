@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { apiRequest } from '../api/client';
 import { useAuth } from './AuthContext';
 import { USE_MOCK_DATA, MOCK_CART, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
@@ -34,13 +36,62 @@ interface CartContextType {
   isLoading: boolean;
   error: string | null;
   fetchCart: () => Promise<void>;
-  addItem: (outletId: string, menuItemId: string, quantity?: number) => Promise<void>;
+  addItem: (
+    outletId: string,
+    menuItemId: string,
+    quantity?: number,
+    itemDetails?: {
+      name?: string;
+      unitPrice?: number;
+      imageUrl?: string | null;
+      outletName?: string;
+      restaurantName?: string;
+    },
+  ) => Promise<void>;
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
   removeItem: (cartItemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+const GUEST_CART_STORAGE_KEY = 'fleet24_guest_cart';
+
+// Helper to safely persist guest cart
+const saveGuestCartToStorage = async (guestCart: CartData | null): Promise<void> => {
+  try {
+    if (guestCart) {
+      const serialized = JSON.stringify(guestCart);
+      if (Platform.OS === 'web') {
+        localStorage.setItem(GUEST_CART_STORAGE_KEY, serialized);
+      } else {
+        await SecureStore.setItemAsync(GUEST_CART_STORAGE_KEY, serialized);
+      }
+    } else {
+      if (Platform.OS === 'web') {
+        localStorage.removeItem(GUEST_CART_STORAGE_KEY);
+      } else {
+        await SecureStore.deleteItemAsync(GUEST_CART_STORAGE_KEY);
+      }
+    }
+  } catch {
+    // Non-fatal fallback
+  }
+};
+
+// Helper to safely load guest cart
+const getGuestCartFromStorage = async (): Promise<CartData | null> => {
+  try {
+    if (Platform.OS === 'web') {
+      const data = localStorage.getItem(GUEST_CART_STORAGE_KEY);
+      return data ? JSON.parse(data) : null;
+    }
+    const data = await SecureStore.getItemAsync(GUEST_CART_STORAGE_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
+};
 
 // Helper to recalculate cart totals
 const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => {
@@ -76,12 +127,35 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!isAuthenticated) {
-      setCart(null);
+      const stored = await getGuestCartFromStorage();
+      setCart(stored);
       return;
     }
+
     try {
       setIsLoading(true);
       setError(null);
+
+      // Check if there was a guest cart waiting to be synced to backend
+      const storedGuestCart = await getGuestCartFromStorage();
+      if (storedGuestCart && storedGuestCart.items.length > 0) {
+        for (const item of storedGuestCart.items) {
+          try {
+            await apiRequest('/cart/items', {
+              method: 'POST',
+              body: JSON.stringify({
+                outletId: storedGuestCart.outletId,
+                menuItemId: item.menuItemId,
+                quantity: item.quantity,
+              }),
+            });
+          } catch (syncErr) {
+            console.warn('Guest cart item sync notice:', syncErr);
+          }
+        }
+        await saveGuestCartToStorage(null);
+      }
+
       const data = await apiRequest<CartData | null>('/cart');
       setCart(data);
     } catch (err: unknown) {
@@ -96,18 +170,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchCart();
   }, [isAuthenticated]);
 
-  const addItem = async (outletId: string, menuItemId: string, quantity: number = 1) => {
+  const addItem = async (
+    outletId: string,
+    menuItemId: string,
+    quantity: number = 1,
+    itemDetails?: {
+      name?: string;
+      unitPrice?: number;
+      imageUrl?: string | null;
+      outletName?: string;
+      restaurantName?: string;
+    },
+  ) => {
     if (USE_MOCK_DATA) {
       setCart((prev) => {
         const activeCart = prev || { ...MOCK_CART, outletId, items: [] };
-        // Check for cross-outlet conflict in mock mode too
         if (activeCart.outletId && activeCart.outletId !== outletId && activeCart.items.length > 0) {
           const err = new Error('Cart already contains items from another outlet');
           setError(err.message);
           throw err;
         }
 
-        // Find item in mock menus
         const allItems = Object.values(MOCK_MENUS).flat();
         const found = allItems.find((i) => i.id === menuItemId) || DEFAULT_MOCK_MENU[0];
         const unitPrice = parseFloat(found.effectivePrice);
@@ -146,6 +229,69 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    if (!isAuthenticated) {
+      // Guest Cart Mode: allows adding and adjusting food items before login
+      if (cart && cart.outletId && cart.outletId !== outletId && cart.items.length > 0) {
+        const err = new Error('Cart already contains items from another outlet');
+        setError(err.message);
+        throw err;
+      }
+
+      const activeCart: CartData =
+        cart && cart.outletId === outletId
+          ? cart
+          : {
+              cartId: `guest-cart-${Date.now()}`,
+              outletId,
+              restaurantName: itemDetails?.restaurantName || 'Restaurant',
+              outletName: itemDetails?.outletName || 'Outlet',
+              isOutletOperational: true,
+              items: [],
+              itemCount: 0,
+              itemTotal: 0,
+              deliveryFee: 0,
+              taxAmount: 0,
+              discountAmount: 0,
+              totalPayable: 0,
+            };
+
+      const existingIndex = activeCart.items.findIndex((i) => i.menuItemId === menuItemId);
+      const unitPrice = itemDetails?.unitPrice ?? 0;
+      let newItems: CartItem[];
+
+      if (existingIndex >= 0) {
+        newItems = activeCart.items.map((item, idx) =>
+          idx === existingIndex
+            ? {
+                ...item,
+                quantity: item.quantity + quantity,
+                totalPrice: (item.quantity + quantity) * item.unitPrice,
+              }
+            : item,
+        );
+      } else {
+        newItems = [
+          ...activeCart.items,
+          {
+            id: `guest-ci-${Date.now()}-${Math.random().toString(36).substring(5)}`,
+            menuItemId,
+            name: itemDetails?.name || 'Item',
+            quantity,
+            unitPrice,
+            totalPrice: unitPrice * quantity,
+            isAvailable: true,
+            imageUrl: itemDetails?.imageUrl || null,
+          },
+        ];
+      }
+
+      const updated = recalculateCart(activeCart, newItems);
+      setCart(updated);
+      await saveGuestCartToStorage(updated);
+      return;
+    }
+
+    // Authenticated Mode: persistent backend DB cart
     try {
       setIsLoading(true);
       setError(null);
@@ -164,7 +310,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateQuantity = async (cartItemId: string, quantity: number) => {
-    if (USE_MOCK_DATA && cart) {
+    if ((USE_MOCK_DATA || !isAuthenticated) && cart) {
       if (quantity <= 0) {
         return removeItem(cartItemId);
       }
@@ -173,7 +319,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? { ...i, quantity, totalPrice: quantity * i.unitPrice }
           : i,
       );
-      setCart(recalculateCart(cart, newItems));
+      const updated = recalculateCart(cart, newItems);
+      setCart(updated);
+      if (!isAuthenticated && !USE_MOCK_DATA) {
+        await saveGuestCartToStorage(updated);
+      }
       return;
     }
 
@@ -195,12 +345,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const removeItem = async (cartItemId: string) => {
-    if (USE_MOCK_DATA && cart) {
+    if ((USE_MOCK_DATA || !isAuthenticated) && cart) {
       const newItems = cart.items.filter((i) => i.id !== cartItemId);
       if (newItems.length === 0) {
         setCart(null);
+        if (!isAuthenticated && !USE_MOCK_DATA) {
+          await saveGuestCartToStorage(null);
+        }
       } else {
-        setCart(recalculateCart(cart, newItems));
+        const updated = recalculateCart(cart, newItems);
+        setCart(updated);
+        if (!isAuthenticated && !USE_MOCK_DATA) {
+          await saveGuestCartToStorage(updated);
+        }
       }
       return;
     }
@@ -222,8 +379,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const clearCart = async () => {
-    if (USE_MOCK_DATA) {
+    if (USE_MOCK_DATA || !isAuthenticated) {
       setCart(null);
+      if (!isAuthenticated && !USE_MOCK_DATA) {
+        await saveGuestCartToStorage(null);
+      }
       return;
     }
 
@@ -239,8 +399,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
-
-
 
   return (
     <CartContext.Provider

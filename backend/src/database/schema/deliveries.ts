@@ -95,6 +95,7 @@ export const deliveries = pgTable(
     lastDispatchAttemptAt: timestamp('last_dispatch_attempt_at', { withTimezone: true }),
     dispatchFailureReason: text('dispatch_failure_reason'),
     deliveryOtpHash: varchar('delivery_otp_hash', { length: 128 }), // Server-secret HMAC-SHA256 hash of delivery OTP
+    encryptedDeliveryOtp: text('encrypted_delivery_otp'), // Authenticated AES-256-GCM encrypted OTP payload for customer retrieval (iv:authTag:ciphertext)
     otpExpiresAt: timestamp('otp_expires_at', { withTimezone: true }),
     otpAttemptsCount: integer('otp_attempts_count').default(0).notNull(),
     otpVerifiedAt: timestamp('otp_verified_at', { withTimezone: true }),

@@ -19,11 +19,13 @@ import { AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
 import {
   DELIVERY_WS_EVENTS,
   SubscribeDeliveryPayload,
+  SubscribeOutletPayload,
   DeliveryLocationPayload,
   DeliveryRiderAssignedPayload,
   DeliveryStatusUpdatedPayload,
   DeliveryCompletedPayload,
   DeliveryCancelledPayload,
+  OrderCreatedPayload,
 } from './tracking.constants';
 import { RidersService } from '../riders/riders.service';
 
@@ -80,17 +82,33 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   /**
+   * Room name convention for a rider's private dispatch & offer channel
+   */
+  static getRiderRoom(riderId: string): string {
+    return `rider:${riderId}`;
+  }
+
+  /**
+   * Room name convention for a restaurant outlet's live kitchen order channel
+   */
+  static getOutletRoom(outletId: string): string {
+    return `outlet:${outletId}`;
+  }
+
+  /**
    * Authenticate socket during initial handshake.
    * Token can be supplied in socket.handshake.auth.token or Authorization header.
    */
   async handleConnection(client: AuthenticatedSocket) {
     try {
-      const token =
+      let rawToken =
         client.handshake.auth?.token ||
-        client.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '') ||
+        client.handshake.headers?.authorization ||
         client.handshake.query?.token;
 
-      if (!token || typeof token !== 'string') {
+      const token = typeof rawToken === 'string' ? rawToken.replace(/^Bearer\s+/i, '').trim() : null;
+
+      if (!token) {
         this.logger.warn(`[TrackingGateway] Connection rejected: Missing authentication token (socket: ${client.id})`);
         client.emit(DELIVERY_WS_EVENTS.ERROR, {
           code: 'UNAUTHENTICATED',
@@ -117,6 +135,38 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Attach verified user payload to the socket instance
       client.user = payload;
+
+      // If user has 'rider' role, auto-join their private rider dispatch room
+      if (payload.roles.includes('rider')) {
+        const rider = await this.db.query.riders.findFirst({
+          where: eq(schema.riders.userId, payload.userId),
+        });
+        if (rider) {
+          const riderRoom = TrackingGateway.getRiderRoom(rider.id);
+          await client.join(riderRoom);
+          this.logger.log(`[TrackingGateway] Rider socket ${client.id} joined private room ${riderRoom}`);
+        }
+      }
+
+      // If user has 'restaurant_staff' role, auto-join all their assigned active outlet kitchen rooms
+      if (payload.roles.includes('restaurant_staff')) {
+        const assignments = await this.db.query.restaurantStaff.findMany({
+          where: and(
+            eq(schema.restaurantStaff.userId, payload.userId),
+            eq(schema.restaurantStaff.isActive, true),
+          ),
+          columns: { outletId: true },
+        });
+
+        for (const assignment of assignments) {
+          const outletRoom = TrackingGateway.getOutletRoom(assignment.outletId);
+          await client.join(outletRoom);
+          this.logger.log(
+            `[TrackingGateway] Restaurant staff socket ${client.id} auto-joined outlet room ${outletRoom}`,
+          );
+        }
+      }
+
       this.logger.log(
         `[TrackingGateway] Socket connected: ${client.id} (user: ${payload.userId}, roles: ${payload.roles.join(',')})`,
       );
@@ -247,6 +297,103 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
+  // ================= RESTAURANT OUTLET SUBSCRIPTIONS =================
+
+  /**
+   * Explicitly subscribe to a restaurant outlet kitchen channel.
+   * Enforces that the caller is an active staff member assigned to that outlet, or an admin.
+   */
+  @SubscribeMessage(DELIVERY_WS_EVENTS.SUBSCRIBE_OUTLET)
+  async handleSubscribeOutlet(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: SubscribeOutletPayload,
+  ) {
+    if (!client.user) {
+      client.emit(DELIVERY_WS_EVENTS.ERROR, {
+        code: 'UNAUTHENTICATED',
+        message: 'Must authenticate before subscribing to outlet order feed',
+      });
+      return;
+    }
+
+    const { outletId } = data || {};
+    if (!outletId || typeof outletId !== 'string') {
+      client.emit(DELIVERY_WS_EVENTS.ERROR, {
+        code: 'INVALID_OUTLET_ID',
+        message: 'Valid outletId is required to subscribe',
+      });
+      return;
+    }
+
+    // Verify outlet exists
+    const outlet = await this.db.query.restaurantOutlets.findFirst({
+      where: eq(schema.restaurantOutlets.id, outletId),
+      columns: { id: true, name: true, isActive: true },
+    });
+
+    if (!outlet) {
+      client.emit(DELIVERY_WS_EVENTS.ERROR, {
+        code: 'OUTLET_NOT_FOUND',
+        message: `Outlet with ID '${outletId}' not found`,
+        outletId,
+      });
+      return;
+    }
+
+    // Authorization check: Admins bypass outlet assignment; staff must have active record
+    const isAdmin = client.user.roles.includes('admin');
+    if (!isAdmin) {
+      const staffRecord = await this.db.query.restaurantStaff.findFirst({
+        where: and(
+          eq(schema.restaurantStaff.userId, client.user.userId),
+          eq(schema.restaurantStaff.outletId, outletId),
+          eq(schema.restaurantStaff.isActive, true),
+        ),
+      });
+
+      if (!staffRecord) {
+        this.logger.warn(
+          `[TrackingGateway] User ${client.user.userId} rejected from subscribing to outlet ${outletId}: Insufficient permissions`,
+        );
+        client.emit(DELIVERY_WS_EVENTS.ERROR, {
+          code: 'UNAUTHORIZED_OUTLET_ACCESS',
+          message: `Access denied. You are not assigned as active staff to outlet '${outletId}'`,
+          outletId,
+        });
+        return;
+      }
+    }
+
+    const room = TrackingGateway.getOutletRoom(outletId);
+    await client.join(room);
+
+    this.logger.log(
+      `[TrackingGateway] User ${client.user.userId} joined outlet room ${room} (${outlet.name})`,
+    );
+
+    client.emit(DELIVERY_WS_EVENTS.OUTLET_SUBSCRIBED, {
+      outletId,
+      room,
+      outletName: outlet.name,
+    });
+  }
+
+  /**
+   * Unsubscribe from restaurant outlet kitchen channel
+   */
+  @SubscribeMessage(DELIVERY_WS_EVENTS.UNSUBSCRIBE_OUTLET)
+  async handleUnsubscribeOutlet(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: SubscribeOutletPayload,
+  ) {
+    const { outletId } = data || {};
+    if (outletId) {
+      const room = TrackingGateway.getOutletRoom(outletId);
+      await client.leave(room);
+      client.emit(DELIVERY_WS_EVENTS.OUTLET_UNSUBSCRIBED, { outletId, room });
+    }
+  }
+
   // ================= BROADCASTING HELPERS =================
 
   /**
@@ -305,6 +452,15 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   /**
+   * Broadcasts new delivery offer to the assigned rider's private room.
+   */
+  broadcastOfferCreated(riderId: string, payload: any) {
+    if (!this.server) return;
+    const room = TrackingGateway.getRiderRoom(riderId);
+    this.server.to(room).emit(DELIVERY_WS_EVENTS.OFFER_CREATED, payload);
+  }
+
+  /**
    * Broadcasts delivery completed and kicks sockets out of the tracking room.
    */
   broadcastCompleted(payload: DeliveryCompletedPayload) {
@@ -332,5 +488,18 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     this.server.in(room).socketsLeave(room);
+  }
+
+  /**
+   * Broadcasts a newly placed order to the restaurant outlet's kitchen room.
+   * Triggered immediately and strictly after successful payment verification.
+   */
+  broadcastOrderCreated(outletId: string, payload: OrderCreatedPayload) {
+    if (!this.server) return;
+    const room = TrackingGateway.getOutletRoom(outletId);
+    this.server.to(room).emit(DELIVERY_WS_EVENTS.ORDER_CREATED, payload);
+    this.logger.log(
+      `[TrackingGateway] Broadcasted ${DELIVERY_WS_EVENTS.ORDER_CREATED} for order ${payload.orderNumber} to room ${room}`,
+    );
   }
 }

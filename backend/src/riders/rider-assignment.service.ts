@@ -44,9 +44,9 @@ export class RiderAssignmentService {
   private readonly logger = new Logger(RiderAssignmentService.name);
 
   /**
-   * Offer expiry window: 60 seconds (1 minute) for rider to accept or reject in Phase 4.4.
+   * Offer expiry window: 60 seconds in production; 300 seconds (5 mins) in development mode for easy testing.
    */
-  public static readonly OFFER_EXPIRY_SECONDS = 60;
+  public static readonly OFFER_EXPIRY_SECONDS = process.env.NODE_ENV === 'production' ? 60 : 300;
 
   /**
    * Stale GPS threshold: 300 seconds (5 minutes)
@@ -61,21 +61,32 @@ export class RiderAssignmentService {
   ) {}
 
   /**
-   * Evaluates location freshness strictly:
-   * Checks both updatedAt and capturedAt (if present) against MAX_LOCATION_AGE_SECONDS.
+   * Evaluates location freshness:
+   * In production: strictly MAX_LOCATION_AGE_SECONDS (300s).
+   * In development: relaxed to maxAgeSeconds to support local QA and emulator testing.
    */
-  isLocationFresh(updatedAt: Date | null | undefined, capturedAt: Date | null | undefined): boolean {
+  isLocationFresh(
+    updatedAt: Date | null | undefined,
+    capturedAt: Date | null | undefined,
+    maxAgeSeconds: number = RiderAssignmentService.MAX_LOCATION_AGE_SECONDS,
+  ): boolean {
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      // In development, always accept recorded location for QA and multi-device testing
+      return true;
+    }
+
     if (!updatedAt) return false;
 
     const now = Date.now();
     const serverAgeSeconds = Math.max(0, Math.floor((now - new Date(updatedAt).getTime()) / 1000));
-    if (serverAgeSeconds > RiderAssignmentService.MAX_LOCATION_AGE_SECONDS) {
+    if (serverAgeSeconds > maxAgeSeconds) {
       return false;
     }
 
     if (capturedAt) {
       const gpsAgeSeconds = Math.max(0, Math.floor((now - new Date(capturedAt).getTime()) / 1000));
-      if (gpsAgeSeconds > RiderAssignmentService.MAX_LOCATION_AGE_SECONDS) {
+      if (gpsAgeSeconds > maxAgeSeconds) {
         return false;
       }
     }
@@ -100,10 +111,10 @@ export class RiderAssignmentService {
     const tx = typeof orderIdOrTx === 'object' && orderIdOrTx !== null ? orderIdOrTx : maybeTx;
     const dbClient = tx || this.db;
 
-    // Geographic bounding box pre-filter (~3.5 km = ~0.035 degrees latitude/longitude)
-    // 1 deg latitude ~ 111.195 km => 3.5 km ~ 0.0315 deg
-    const latDelta = 0.035;
-    const lonDelta = 0.035;
+    const isDev = process.env.NODE_ENV !== 'production';
+    // Geographic bounding box pre-filter (~3.5 km in prod; relaxed in dev for remote/multi-device testing)
+    const latDelta = isDev ? 50.0 : 0.035;
+    const lonDelta = isDev ? 50.0 : 0.035;
     const minLat = outletLat - latDelta;
     const maxLat = outletLat + latDelta;
     const minLon = outletLon - lonDelta;
@@ -112,8 +123,9 @@ export class RiderAssignmentService {
     const now = new Date();
 
     // If orderId is provided, retrieve riders who already rejected or expired for this order
+    // In dev mode, do NOT exclude riders so a single QA rider never gets permanently locked out
     const excludedRiderIds: string[] = [];
-    if (orderId) {
+    if (orderId && !isDev) {
       const pastAttempts = await dbClient
         .select({ riderId: schema.deliveryAssignmentAttempts.riderId })
         .from(schema.deliveryAssignmentAttempts)
@@ -195,8 +207,9 @@ export class RiderAssignmentService {
     const eligibleCandidates: CandidateRider[] = [];
 
     for (const r of rawRiders) {
-      // 1. Freshness check
-      if (!this.isLocationFresh(r.updatedAt, r.capturedAt)) {
+      // 1. Freshness check (In dev mode, relaxed to 24h for smooth local testing)
+      const maxAgeSec = isDev ? 86400 : RiderAssignmentService.MAX_LOCATION_AGE_SECONDS;
+      if (!this.isLocationFresh(r.updatedAt, r.capturedAt, maxAgeSec)) {
         continue;
       }
 
@@ -207,7 +220,7 @@ export class RiderAssignmentService {
         continue;
       }
 
-      // 3. Exact Haversine proximity check (Strictly <= 3,000 meters)
+      // 3. Exact Haversine proximity check (Strictly <= 3,000 meters in prod; relaxed in dev)
       const proximity = calculateRiderProximity(
         r.latitude,
         r.longitude,
@@ -215,7 +228,7 @@ export class RiderAssignmentService {
         outletLon,
       );
 
-      if (!proximity.isWithin3Km) {
+      if (!isDev && !proximity.isWithin3Km) {
         continue;
       }
 
@@ -342,6 +355,8 @@ export class RiderAssignmentService {
           latitude: schema.restaurantOutlets.latitude,
           longitude: schema.restaurantOutlets.longitude,
           name: schema.restaurantOutlets.name,
+          address: schema.restaurantOutlets.address,
+          phone: schema.restaurantOutlets.phone,
         })
         .from(schema.restaurantOutlets)
         .where(eq(schema.restaurantOutlets.id, order.outletId));
@@ -406,7 +421,35 @@ export class RiderAssignmentService {
         };
       }
 
-      // 7. Successful Assignment: Create or update delivery assignment
+      // 7. Calculate authoritative Restaurant Outlet -> Customer Delivery Address trip distance
+      // NOTE: Straight-line Haversine distance is used for the Greater Noida pilot.
+      // This is the delivery trip distance used by the financial earning engine to compensate riders.
+      // Rider-to-restaurant proximity distance is logged separately in deliveryAssignmentAttempts.
+      if (!order.deliveryLatitude || !order.deliveryLongitude) {
+        throw new BadRequestException(
+          `Order ${order.orderNumber} is missing delivery destination coordinates`,
+        );
+      }
+
+      const destLat = Number(order.deliveryLatitude);
+      const destLon = Number(order.deliveryLongitude);
+
+      if (isNaN(destLat) || isNaN(destLon)) {
+        throw new BadRequestException(
+          `Order ${order.orderNumber} contains invalid delivery destination coordinates`,
+        );
+      }
+
+      const deliveryTripProximity = calculateRiderProximity(
+        outletLat,
+        outletLon,
+        destLat,
+        destLon,
+      );
+
+      const deliveryTripDistanceMeters = deliveryTripProximity.distanceMeters;
+
+      // 8. Successful Assignment: Create or update delivery assignment
       const offerExpiresAt = new Date(
         now.getTime() + RiderAssignmentService.OFFER_EXPIRY_SECONDS * 1000,
       );
@@ -418,7 +461,7 @@ export class RiderAssignmentService {
           .set({
             riderId: bestCandidate.riderId,
             status: 'assigned',
-            distanceMeters: String(bestCandidate.distanceMeters.toFixed(2)),
+            distanceMeters: String(deliveryTripDistanceMeters.toFixed(2)),
             assignedAt: now,
             offerExpiresAt,
             lastDispatchAttemptAt: now,
@@ -435,7 +478,7 @@ export class RiderAssignmentService {
             orderId: order.id,
             riderId: bestCandidate.riderId,
             status: 'assigned',
-            distanceMeters: String(bestCandidate.distanceMeters.toFixed(2)),
+            distanceMeters: String(deliveryTripDistanceMeters.toFixed(2)),
             assignedAt: now,
             offerExpiresAt,
             lastDispatchAttemptAt: now,
@@ -445,7 +488,7 @@ export class RiderAssignmentService {
         deliveryRecord = created;
       }
 
-      // 8. Record audit attempt entry
+      // 9. Record audit attempt entry (stores rider-to-restaurant proximity distance for dispatch audit)
       await tx.insert(schema.deliveryAssignmentAttempts).values({
         orderId: order.id,
         deliveryId: deliveryRecord.id,
@@ -478,6 +521,53 @@ export class RiderAssignmentService {
         .catch((err) => {
           this.logger.warn(`Failed to dispatch offer notification to rider: ${err?.message || err}`);
         });
+
+      // 9A. Real-time Rider Private WebSocket Notification: New Offer Available
+      try {
+        const orderItemsList = await tx
+          .select({
+            name: schema.orderItems.itemName,
+            quantity: schema.orderItems.quantity,
+          })
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.orderId, order.id));
+
+        const addressSnapshot = order.deliveryAddressSnapshot as any;
+
+        this.trackingPublisher.publishOfferCreated(bestCandidate.riderId, {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          deliveryId: deliveryRecord.id,
+          riderId: bestCandidate.riderId,
+          distanceMeters: Number(deliveryRecord.distanceMeters),
+          distanceKm: Number(((Number(deliveryRecord.distanceMeters || 0)) / 1000).toFixed(2)),
+          offerExpiresAt: offerExpiresAt.toISOString(),
+          expiresInSeconds: RiderAssignmentService.OFFER_EXPIRY_SECONDS,
+          secondsRemaining: RiderAssignmentService.OFFER_EXPIRY_SECONDS,
+          estimatedEarnings: '45.00',
+          outlet: {
+            name: outlet.name,
+            address: outlet.address || 'Knowledge Park III, Greater Noida',
+            phone: outlet.phone || '',
+            latitude: outletLat,
+            longitude: outletLon,
+          },
+          deliveryAddress: {
+            label: addressSnapshot?.label,
+            street: addressSnapshot?.addressLine1,
+            addressLine1: addressSnapshot?.addressLine1,
+            addressLine2: addressSnapshot?.addressLine2,
+            city: addressSnapshot?.city,
+            postalCode: addressSnapshot?.postalCode,
+            landmark: addressSnapshot?.landmark,
+            latitude: Number(addressSnapshot?.latitude || 0),
+            longitude: Number(addressSnapshot?.longitude || 0),
+          },
+          items: orderItemsList,
+        });
+      } catch (wsOfferErr: any) {
+        this.logger.warn(`Failed to broadcast offer to rider room: ${wsOfferErr?.message || wsOfferErr}`);
+      }
 
       // 10. Real-time Customer WebSocket notification: Rider Assigned
       try {

@@ -16,6 +16,7 @@ import { isWithinDeliveryRadius } from '../common/utils/geo';
 import { PaymentsService } from '../payments/payments.service';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
+import { RiderOffersService } from '../riders/rider-offers.service';
 
 @Injectable()
 export class OrdersService {
@@ -28,6 +29,7 @@ export class OrdersService {
     private readonly paymentsService: PaymentsService,
     private readonly trackingPublisher: TrackingPublisherService,
     private readonly financialSettingsService: FinancialSettingsService,
+    private readonly riderOffersService: RiderOffersService,
   ) {}
 
   /**
@@ -455,6 +457,14 @@ export class OrdersService {
         changedByUserId: customerId,
         reason: dto.reason || 'Cancelled by customer',
       });
+
+      // Cleanup associated delivery and release rider capacity slot if assigned/accepted
+      await this.riderOffersService.cleanupDeliveryForCancelledOrder(
+        order.id,
+        customerId,
+        dto.reason || 'Cancelled by customer',
+        tx,
+      );
 
       return {
         id: cancelledOrder.id,
