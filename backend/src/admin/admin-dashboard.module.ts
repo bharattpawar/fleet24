@@ -1,3 +1,5 @@
+import { AdminTransactionsController } from './admin-transactions.controller';
+import { AdminTransactionsService } from './admin-transactions.service';
 import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
@@ -27,6 +29,7 @@ import { TrackingModule } from '../tracking/tracking.module';
     forwardRef(() => TrackingModule),
   ],
   controllers: [
+    AdminTransactionsController,
     AdminDashboardController,
     AdminManagementController,
     AdminOperationsController,
@@ -34,6 +37,7 @@ import { TrackingModule } from '../tracking/tracking.module';
     FinancialSettingsController,
   ],
   providers: [
+    AdminTransactionsService,
     AdminDashboardService,
     AdminManagementService,
     AdminOperationsService,
@@ -50,4 +54,3 @@ import { TrackingModule } from '../tracking/tracking.module';
   ],
 })
 export class AdminDashboardModule {}
-

@@ -1,24 +1,34 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
+import { useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { Sidebar, pageTitles } from './Sidebar';
 import { Header } from './Header';
 
-export const DashboardLayout: React.FC = () => {
-  return (
-    <div className="flex h-screen w-full bg-[#17211B] text-[#F7F6F0] overflow-hidden">
-      {/* Fixed Admin Sidebar */}
-      <Sidebar />
+export function DashboardLayout() {
+  const { pathname } = useLocation();
+  const drawer = useRef<HTMLDialogElement>(null);
+  const content = useRef<HTMLElement>(null);
 
-      {/* Main View Area */}
-      <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden">
-        <Header />
-        
-        {/* Scrollable Workspace Content */}
-        <main className="flex-1 overflow-y-auto p-8 bg-[#121915]">
-          <Outlet />
-        </main>
+  useEffect(() => {
+    drawer.current?.close();
+    content.current?.scrollTo(0, 0);
+  }, [pathname]);
+
+  return (
+    <div className="admin-shell">
+      <aside className="admin-desktop-nav"><Sidebar /></aside>
+      <dialog ref={drawer} className="admin-nav-drawer" aria-label="Navigation" onClick={(event) => {
+        if (event.target === event.currentTarget) drawer.current?.close();
+      }}>
+        <button className="admin-drawer-close" type="button" onClick={() => drawer.current?.close()} aria-label="Close navigation">
+          <X size={20} />
+        </button>
+        <Sidebar onNavigate={() => drawer.current?.close()} />
+      </dialog>
+      <div className="admin-workspace">
+        <Header title={pageTitles[pathname] || 'Fleet24'} onOpenNavigation={() => drawer.current?.showModal()} />
+        <main className="admin-content" ref={content}><Outlet /></main>
       </div>
     </div>
   );
-};
-
+}

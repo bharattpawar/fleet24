@@ -37,6 +37,7 @@ export interface ConfirmedOrderDetails {
 interface OrderConfirmationModalProps {
   visible: boolean;
   order: ConfirmedOrderDetails | null;
+  onTrackOrder?: () => void;
   onViewOrders: () => void;
   onClose: () => void;
 }
@@ -45,6 +46,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   visible,
   order,
   onViewOrders,
+  onTrackOrder,
   onClose,
 }) => {
   if (!order) return null;
@@ -65,7 +67,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             </View>
             <Text style={styles.heroTitle}>
               {order.status === 'pending_payment'
-                ? 'Order Placed (Awaiting Payment)'
+                ? 'Awaiting Payment'
                 : order.status === 'placed'
                 ? 'Order Sent to Restaurant'
                 : 'Order Confirmed'}
@@ -165,12 +167,13 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
         {/* Footer Actions */}
         <View style={styles.footer}>
           <Button
-            title="Track in Orders"
+            title="View Orders"
             variant="primary"
             size="lg"
             onPress={onViewOrders}
             style={{ width: '100%', marginBottom: spacing.xs }}
           />
+          {onTrackOrder && <Button title="Track Order" onPress={onTrackOrder} />}
           <TouchableOpacity onPress={onClose} style={styles.dismissBtn}>
             <Text style={styles.dismissBtnText}>Back to Discovery</Text>
           </TouchableOpacity>

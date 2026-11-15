@@ -28,6 +28,7 @@ interface RiderAuthContextType {
   acceptActiveOffer: () => Promise<void>;
   rejectActiveOffer: (reason?: string) => Promise<void>;
   availableOrders: AvailableDeliveryOrder[];
+  availableOrdersError: boolean;
   refreshAvailableOrders: () => Promise<AvailableDeliveryOrder[]>;
   claimOrder: (orderId: string) => Promise<boolean>;
 }
@@ -41,6 +42,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [activeDelivery, setActiveDelivery] = useState<ActiveDeliveryDetails | null>(null);
   const [activeOffer, setActiveOffer] = useState<DeliveryOfferItem | null>(null);
+  const [availableOrdersError, setAvailableOrdersError] = useState(false);
   const [availableOrders, setAvailableOrders] = useState<AvailableDeliveryOrder[]>([]);
   const [isSocketConnected, setIsSocketConnected] = useState<boolean>(false);
 
@@ -526,8 +528,10 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const list = await riderApi.getAvailableOrders();
       setAvailableOrders(list || []);
+      setAvailableOrdersError(false);
       return list || [];
     } catch (e) {
+      setAvailableOrdersError(true);
       console.warn('Failed to load available orders:', e);
       return [];
     }
@@ -557,6 +561,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeDelivery,
         activeOffer,
         availableOrders,
+        availableOrdersError,
         isOnline,
         isSocketConnected,
         loginWithMock,

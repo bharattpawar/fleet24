@@ -405,10 +405,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+    fontFamily: 'InstrumentSerifItalic',
+    fontSize: 30,
+    color: colors.primary,
   },
   emptyCard: {
     backgroundColor: colors.surface,

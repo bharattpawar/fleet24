@@ -167,6 +167,14 @@ export class IncentivesConfigDto {
   peakBonusFlat?: number;
 }
 
+export class DeliveryServiceabilityConfigDto {
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(50000)
+  maxRoadDistanceMeters: number = 3000;
+}
+
 export class FinancialSettingsPayloadDto {
   @IsNotEmpty()
   @ValidateNested()
@@ -192,6 +200,11 @@ export class FinancialSettingsPayloadDto {
   @ValidateNested()
   @Type(() => IncentivesConfigDto)
   incentives!: IncentivesConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryServiceabilityConfigDto)
+  deliveryServiceability?: DeliveryServiceabilityConfigDto;
 }
 
 export class CreateFinancialSettingsDraftDto {

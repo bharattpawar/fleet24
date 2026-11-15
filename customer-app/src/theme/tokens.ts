@@ -99,3 +99,13 @@ export const borderRadius = {
   xxl: 28,
   full: 9999,
 };
+
+export const exploreColors = {
+  background: '#FAF5EF',
+  surface: '#FFFCFA',
+  green: '#064B33',
+  ink: '#102019',
+  secondary: '#535D67',
+  border: '#DDD7CF',
+  tint: '#E2EFDF',
+};

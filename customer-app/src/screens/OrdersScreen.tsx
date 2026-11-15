@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  AppState,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,15 +21,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 WebBrowser.maybeCompleteAuthSession();
 
+export interface OrderRefundSummary {
+  amount: string | number;
+  status: 'pending' | 'processed' | 'failed' | string;
+  reason?: string;
+  refundId?: string | null;
+  createdAt?: string;
+}
+
 export interface OrderItemSummary {
   id: string;
   orderNumber: string;
   restaurantName: string;
   outletName: string;
   status: string;
+  paymentStatus?: string;
   totalPayable: string;
   itemCount: number;
   createdAt: string;
+  refund?: OrderRefundSummary | null;
 }
 
 interface OrdersScreenProps {
@@ -49,7 +60,12 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
 
-  const fetchOrders = async () => {
+  const requestVersion = useRef(0);
+  const retryLock = useRef(false);
+  const [paymentNotice, setPaymentNotice] = useState<string>();
+  const [verifyingOrderId, setVerifyingOrderId] = useState<string>();
+  const fetchOrders = useCallback(async () => {
+    const version = ++requestVersion.current;
     if (USE_MOCK_DATA) {
       setOrders(MOCK_ORDERS);
       setIsLoading(false);
@@ -63,18 +79,45 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
     }
     try {
       const res = await apiRequest<{ orders: OrderItemSummary[] }>('/orders');
-      setOrders(res.orders || []);
+      if (version === requestVersion.current) setOrders(res.orders || []);
     } catch {
-      setOrders([]);
+      // Keep the last snapshot if a background refresh fails.
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     fetchOrders();
-  }, [isAuthenticated]);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') fetchOrders();
+    });
+    return () => {
+      requestVersion.current++;
+      subscription.remove();
+    };
+  }, [fetchOrders]);
+
+  const hasPending = orders.some(
+    (order) =>
+      (order.status === 'pending_payment' &&
+        (order.paymentStatus !== 'failed' || order.id === verifyingOrderId)) ||
+      order.status === 'payment_conflict' ||
+      (order.refund && order.refund.status === 'pending'),
+  );
+  useEffect(() => {
+    if (!isAuthenticated || USE_MOCK_DATA || !hasPending || payingOrderId) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      if (++attempts >= 12) {
+        clearInterval(timer);
+        setVerifyingOrderId(undefined);
+      }
+      fetchOrders();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [fetchOrders, hasPending, isAuthenticated, payingOrderId]);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -82,7 +125,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   };
 
   const handlePayNow = async (order: OrderItemSummary) => {
-    if (payingOrderId) return;
+    if (retryLock.current || (verifyingOrderId === order.id && order.paymentStatus !== 'failed')) return;
     if (USE_MOCK_DATA) {
       Alert.alert('Payment (Mock Mode)', 'Mock payment successful! Order marked as placed.');
       setOrders((prev) =>
@@ -91,8 +134,15 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
       return;
     }
 
+    retryLock.current = true;
     try {
       setPayingOrderId(order.id);
+      setPaymentNotice(undefined);
+      setVerifyingOrderId(undefined);
+      const latest = await apiRequest<{ status: string; payment?: { status: string } }>(`/orders/${order.id}`);
+      if (latest.status !== 'pending_payment' || latest.payment?.status === 'captured') {
+        return;
+      }
 
       // 1. Request Payment Session
       const session = await apiRequest<{
@@ -120,10 +170,11 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
         const params = parsed.queryParams || {};
 
         if (params.status === 'cancelled') {
-          Alert.alert('Checkout Cancelled', 'Payment was cancelled. You can retry whenever you are ready.');
+          setPaymentNotice('Checkout cancelled. Check the order below for the latest payment status.');
           return;
         }
 
+        setVerifyingOrderId(order.id);
         const rzpPaymentId = params.razorpay_payment_id as string;
         const rzpOrderId = (params.razorpay_order_id as string) || session.razorpayOrderId;
         const rzpSignature = params.razorpay_signature as string;
@@ -133,6 +184,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
             verified: boolean;
             orderId: string;
             orderStatus: string;
+            paymentStatus: string;
           }>('/payments/verify', {
             method: 'POST',
             body: JSON.stringify({
@@ -142,19 +194,21 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
             }),
           });
 
-          if (verifyResult.verified && verifyResult.orderStatus === 'placed') {
+          if (verifyResult.verified && verifyResult.orderId === order.id && verifyResult.paymentStatus === 'captured' && verifyResult.orderStatus === 'placed') {
             Alert.alert('Payment Successful!', `Order #${order.orderNumber} is confirmed.`);
-            fetchOrders();
             return;
           }
         }
+        setPaymentNotice('Verifying payment. This order will update once capture is confirmed.');
+      } else {
+        setPaymentNotice('Checkout closed. Check the order below for the latest payment status.');
       }
-
-      await fetchOrders();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Payment attempt failed';
-      Alert.alert('Payment Notice', msg);
+      setPaymentNotice(msg + ' Check the order below for the latest payment status.');
     } finally {
+      await fetchOrders();
+      retryLock.current = false;
       setPayingOrderId(null);
     }
   };
@@ -207,13 +261,41 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
     );
   }
 
-  const renderStatusBadge = (status: string) => {
+  const renderStatusBadge = (status: string, paymentStatus?: string, verifying = false, refund?: OrderRefundSummary | null) => {
     switch (status) {
       case 'placed':
         return (
           <View style={[styles.statusBadge, styles.statusPlaced]}>
             <View style={[styles.statusDot, { backgroundColor: colors.primary }]} />
             <Text style={[styles.statusBadgeText, { color: colors.primaryDark }]}>CONFIRMED</Text>
+          </View>
+        );
+      case 'confirmed':
+        return (
+          <View style={[styles.statusBadge, styles.statusPlaced]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.primary }]} />
+            <Text style={[styles.statusBadgeText, { color: colors.primaryDark }]}>ACCEPTED BY RESTAURANT</Text>
+          </View>
+        );
+      case 'preparing':
+        return (
+          <View style={[styles.statusBadge, styles.statusPlaced]}>
+            <Ionicons name="restaurant-outline" size={12} color={colors.primary} />
+            <Text style={[styles.statusBadgeText, { color: colors.primaryDark }]}>PREPARING FOOD</Text>
+          </View>
+        );
+      case 'ready_for_pickup':
+        return (
+          <View style={[styles.statusBadge, styles.statusPlaced]}>
+            <Ionicons name="bag-check-outline" size={12} color={colors.primary} />
+            <Text style={[styles.statusBadgeText, { color: colors.primaryDark }]}>READY FOR PICKUP</Text>
+          </View>
+        );
+      case 'out_for_delivery':
+        return (
+          <View style={[styles.statusBadge, styles.statusPlaced]}>
+            <Ionicons name="bicycle-outline" size={12} color={colors.primary} />
+            <Text style={[styles.statusBadgeText, { color: colors.primaryDark }]}>OUT FOR DELIVERY</Text>
           </View>
         );
       case 'delivered':
@@ -227,16 +309,58 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
         return (
           <View style={[styles.statusBadge, styles.statusPending]}>
             <Ionicons name="time-outline" size={12} color={colors.accent} />
-            <Text style={[styles.statusBadgeText, { color: colors.accent }]}>AWAITING PAYMENT</Text>
+            <Text style={[styles.statusBadgeText, { color: colors.accent }]}>
+              {paymentStatus === 'failed'
+                ? 'PAYMENT FAILED'
+                : verifying
+                ? 'VERIFYING PAYMENT'
+                : 'AWAITING PAYMENT'}
+            </Text>
+          </View>
+        );
+      case 'payment_conflict':
+        return (
+          <View style={[styles.statusBadge, styles.statusConflict]}>
+            <Ionicons name="shield-outline" size={12} color="#92400E" />
+            <Text style={[styles.statusBadgeText, { color: '#92400E' }]}>
+              {refund?.status === 'processed'
+                ? 'REFUND COMPLETED'
+                : refund?.status === 'pending'
+                ? 'REFUND IN PROGRESS'
+                : refund?.status === 'failed'
+                ? 'REFUND NEEDS REVIEW'
+                : 'PAYMENT UNDER REVIEW'}
+            </Text>
           </View>
         );
       case 'cancelled':
-      case 'rejected':
-      default:
         return (
           <View style={[styles.statusBadge, styles.statusCancelled]}>
             <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
-            <Text style={[styles.statusBadgeText, { color: colors.error }]}>CANCELLED</Text>
+            <Text style={[styles.statusBadgeText, { color: colors.error }]}>
+              {refund?.status === 'processed'
+                ? 'CANCELLED & REFUNDED'
+                : refund?.status === 'pending'
+                ? 'CANCELLED • REFUND IN PROGRESS'
+                : 'CANCELLED'}
+            </Text>
+          </View>
+        );
+      case 'rejected':
+        return (
+          <View style={[styles.statusBadge, styles.statusCancelled]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
+            <Text style={[styles.statusBadgeText, { color: colors.error }]}>REJECTED</Text>
+          </View>
+        );
+      default:
+        // Neutral fallback for any unknown future status without misleading financial claim
+        return (
+          <View style={[styles.statusBadge, styles.statusNeutral]}>
+            <View style={[styles.statusDot, { backgroundColor: '#6B7280' }]} />
+            <Text style={[styles.statusBadgeText, { color: '#4B5563' }]}>
+              {status ? status.replace(/_/g, ' ').toUpperCase() : 'ORDER RECORDED'}
+            </Text>
           </View>
         );
     }
@@ -251,6 +375,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
         </View>
       </View>
       <Text style={styles.headerSub}>Active deliveries & culinary history</Text>
+      {paymentNotice && <Text accessibilityRole="alert" style={styles.headerSub}>{paymentNotice}</Text>}
     </View>
   );
 
@@ -295,8 +420,77 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
                       {item.outletName}
                     </Text>
                   </View>
-                  {renderStatusBadge(item.status)}
+                  {renderStatusBadge(
+                    item.status,
+                    item.paymentStatus,
+                    verifyingOrderId === item.id,
+                    item.refund,
+                  )}
                 </View>
+
+                {/* Conflict Notice Card for payment_conflict orders */}
+                {item.status === 'payment_conflict' && (
+                  <View style={styles.conflictCardBox}>
+                    <View style={styles.conflictHeaderRow}>
+                      <Ionicons name="alert-circle" size={16} color="#92400E" />
+                      <Text style={styles.conflictHeading}>Payment Received, Under Review</Text>
+                    </View>
+                    <Text style={styles.conflictBodyText}>
+                      We received your payment of ₹{parseFloat(item.totalPayable).toFixed(0)}, but this
+                      order could not be placed because another order is already active. Our team is
+                      reviewing the payment for refund approval.
+                    </Text>
+                    {item.refund && (
+                      <View style={styles.refundSnippetBox}>
+                        <View style={styles.refundSnippetRow}>
+                          <Text style={styles.refundSnippetLabel}>Refund Status:</Text>
+                          <Text style={styles.refundSnippetValue}>
+                            {item.refund.status === 'processed'
+                              ? 'Completed'
+                              : item.refund.status === 'pending'
+                              ? 'In Progress'
+                              : item.refund.status === 'failed'
+                              ? 'Needs Review'
+                              : item.refund.status}
+                          </Text>
+                        </View>
+                        {item.refund.refundId && (
+                          <View style={styles.refundSnippetRow}>
+                            <Text style={styles.refundSnippetLabel}>Reference:</Text>
+                            <Text style={[styles.refundSnippetValue, { fontFamily: 'monospace' }]}>
+                              {item.refund.refundId}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Refund Information Banner for cancelled orders with refund details */}
+                {item.status === 'cancelled' && item.refund && (
+                  <View style={styles.refundInfoBox}>
+                    <Ionicons
+                      name={item.refund.status === 'processed' ? 'checkmark-circle' : 'time-outline'}
+                      size={15}
+                      color={item.refund.status === 'processed' ? '#065F46' : '#92400E'}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.refundInfoTitle}>
+                        {item.refund.status === 'processed'
+                          ? `Refund of ₹${parseFloat(String(item.refund.amount || item.totalPayable)).toFixed(0)} Completed`
+                          : item.refund.status === 'pending'
+                          ? `Refund of ₹${parseFloat(String(item.refund.amount || item.totalPayable)).toFixed(0)} In Progress`
+                          : 'Refund Requires Operations Review'}
+                      </Text>
+                      {item.refund.refundId && (
+                        <Text style={styles.refundInfoSub}>
+                          Gateway Ref: {item.refund.refundId}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
 
                 {/* Middle: Order metadata */}
                 <View style={styles.cardDivider} />
@@ -332,10 +526,10 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
                     <TouchableOpacity
                       style={styles.payNowBtn}
                       activeOpacity={0.88}
-                      disabled={payingOrderId === item.id}
+                      disabled={Boolean(payingOrderId) || (verifyingOrderId === item.id && item.paymentStatus !== 'failed')}
                       onPress={() => handlePayNow(item)}
                     >
-                      {payingOrderId === item.id ? (
+                      {payingOrderId === item.id || (verifyingOrderId === item.id && item.paymentStatus !== 'failed') ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <>
@@ -356,10 +550,14 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
                       <Text style={styles.cancelTextBtnLabel}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
+                ) : item.status === 'payment_conflict' ? (
+                  // Strictly NO Pay Now, NO Retry, NO Live Tracking for conflict orders
+                  null
                 ) : (
                   <View style={styles.actionRowContainer}>
                     {/* Live Tracking Button for active in-flight deliveries */}
-                    {item.status !== 'cancelled' && item.status !== 'rejected' && (
+                    {['placed', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered'].includes(item.status) &&
+                      (USE_MOCK_DATA || item.paymentStatus === 'captured') && (
                       <TouchableOpacity
                         style={styles.trackOrderBtn}
                         activeOpacity={0.88}
@@ -511,6 +709,82 @@ const styles = StyleSheet.create({
   },
   statusCancelled: {
     backgroundColor: '#FDF2F2',
+  },
+  statusConflict: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  statusNeutral: {
+    backgroundColor: '#F3F4F6',
+  },
+  conflictCardBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: spacing.sm + 2,
+    marginTop: spacing.sm,
+  },
+  conflictHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  conflictHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  conflictBodyText: {
+    fontSize: 11.5,
+    color: '#78350F',
+    lineHeight: 16,
+  },
+  refundSnippetBox: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#FDE68A',
+    gap: 2,
+  },
+  refundSnippetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  refundSnippetLabel: {
+    fontSize: 11,
+    color: '#92400E',
+    fontWeight: '600',
+  },
+  refundSnippetValue: {
+    fontSize: 11,
+    color: '#78350F',
+    fontWeight: '700',
+  },
+  refundInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0FDF4',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  refundInfoTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  refundInfoSub: {
+    fontSize: 10.5,
+    color: '#15803D',
+    fontFamily: 'monospace',
+    marginTop: 1,
   },
   statusDot: {
     width: 6,

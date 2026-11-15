@@ -99,7 +99,7 @@ export class AdminManagementService {
       .leftJoin(schema.orders, eq(schema.users.id, schema.orders.customerId))
       .where(and(...conditions))
       .groupBy(schema.users.id)
-      .orderBy(orderByClause)
+      .orderBy(orderByClause, desc(schema.users.id))
       .limit(limit)
       .offset(offset);
 

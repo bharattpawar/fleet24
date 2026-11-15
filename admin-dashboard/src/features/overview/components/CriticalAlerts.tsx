@@ -83,8 +83,8 @@ export const CriticalAlerts: React.FC<CriticalAlertsProps> = ({ overview }) => {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <ShieldAlert className="w-4 h-4 text-[#E98755]" />
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[#F7F6F0]">
+        <ShieldAlert className="w-4 h-4 text-[#9A431F]" />
+        <h2 className="text-xs font-bold  text-[#171A21]">
           Critical Attention Items ({alerts.length})
         </h2>
       </div>
@@ -95,11 +95,11 @@ export const CriticalAlerts: React.FC<CriticalAlertsProps> = ({ overview }) => {
             key={alert.id}
             className={`p-4 rounded-xl border flex items-start gap-3 ${
               alert.level === 'urgent'
-                ? 'bg-[#E98755]/15 border-[#E98755]/40 text-[#F7F6F0]'
-                : 'bg-black/30 border-[#24533F]/40 text-[#F7F6F0]'
+                ? 'bg-[#9A431F]/15 border-[#9A431F]/40 text-[#171A21]'
+                : 'bg-[#F5F6F8] border-[#E3E7EC] text-[#171A21]'
             }`}
           >
-            <div className="p-1.5 rounded-lg bg-black/40 text-[#E98755] shrink-0 mt-0.5">
+            <div className="p-1.5 rounded-lg bg-[#F5F6F8] text-[#9A431F] shrink-0 mt-0.5">
               {alert.level === 'urgent' ? (
                 <AlertTriangle className="w-4 h-4" />
               ) : (
@@ -108,8 +108,8 @@ export const CriticalAlerts: React.FC<CriticalAlertsProps> = ({ overview }) => {
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-xs font-bold text-[#F7F6F0]">{alert.title}</h3>
-              <p className="text-[11px] text-[#F7F6F0]/70 leading-relaxed">
+              <h3 className="text-xs font-bold text-[#171A21]">{alert.title}</h3>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
                 {alert.description}
               </p>
             </div>

@@ -7,7 +7,8 @@ export type OrderStatus =
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled'
-  | 'rejected';
+  | 'rejected'
+  | 'payment_conflict';
 
 export type PaymentStatus =
   | 'pending'
@@ -81,10 +82,10 @@ export interface OrderItem {
 }
 
 export interface OrderTimelineEvent {
-  status: string;
+  id: string;
+  eventType: string;
+  description: string;
   timestamp: string;
-  reason?: string;
-  changedBy?: string;
 }
 
 export interface AdminOrderDetail {
@@ -114,7 +115,7 @@ export interface AdminOrderDetail {
     slug: string;
     outletId: string;
     outletName: string;
-    outletAddress: string;
+    address: string;
     outletPhone: string;
   };
   items: OrderItem[];
@@ -123,13 +124,17 @@ export interface AdminOrderDetail {
     status: PaymentStatus;
     amount: number;
     currency: string;
-    method: string;
-    gatewayPaymentId: string | null;
+    provider: string;
+    providerOrderId: string | null;
+    providerPaymentId: string | null;
+    paidAt: string | null;
     refunds: Array<{
       id: string;
       amount: number;
       status: string;
       reason: string;
+      providerRefundId: string | null;
+      isManualReviewRequired: boolean;
       createdAt: string;
     }>;
   } | null;
@@ -161,10 +166,127 @@ export interface AdminOrderQuery {
   search?: string;
   orderStatus?: string;
   paymentStatus?: string;
+  customerId?: string;
   deliveryStatus?: string;
 }
 
 export interface CancelOrderPayload {
   reason: string;
 }
+
+export type ConflictFilterStatus =
+  | 'all'
+  | 'pending_review'
+  | 'refund_pending'
+  | 'refund_failed'
+  | 'refund_completed';
+
+export interface PaymentConflictSummary {
+  orderId: string;
+  orderNumber: string;
+  status: OrderStatus;
+  authoritativeStatus: 'pending_review' | 'refund_pending' | 'refund_failed' | 'refund_completed';
+  totalPayable: number;
+  currency: string;
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  restaurant: {
+    name: string;
+    outletName: string;
+  };
+  payment: {
+    id: string;
+    provider: string;
+    providerPaymentId: string | null;
+    providerOrderId: string | null;
+    amount: number;
+    status: PaymentStatus;
+    paidAt: string | null;
+  } | null;
+  conflictDetails: {
+    conflictType: string;
+    detectedAt: string;
+    detectionSource?: string;
+    resolutionStatus?: string;
+    resolutionNotes?: string;
+    approvedByAdminUserId?: string;
+    approvedAt?: string;
+    approvalReason?: string;
+    conflictingActiveOrder?: {
+      id: string;
+      orderNumber: string;
+      status: string;
+      placedAt?: string | null;
+    } | null;
+  } | null;
+  refund: {
+    id: string;
+    amount: number;
+    status: string;
+    reason: string;
+    providerRefundId: string | null;
+    attemptCount: number;
+    approvedByUserId: string | null;
+    lastErrorMessage: string | null;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentConflictListResponse {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  metrics?: {
+    total: number;
+    pendingReview: number;
+    refundPending: number;
+    refundFailed: number;
+    refundCompleted: number;
+  };
+  data: PaymentConflictSummary[];
+}
+
+export interface PaymentConflictDetail extends PaymentConflictSummary {
+  auditEvents: Array<{
+    id: string;
+    action: string;
+    performedByUserId: string | null;
+    details: any;
+    createdAt: string;
+  }>;
+  statusHistory: Array<{
+    id: string;
+    previousStatus: OrderStatus | null;
+    newStatus: OrderStatus;
+    reason: string | null;
+    changedByUserId: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface ApproveConflictRefundPayload {
+  reason?: string;
+}
+
+export interface ApproveConflictRefundResponse {
+  orderId: string;
+  orderNumber: string;
+  orderStatus: OrderStatus;
+  refund: {
+    refundId: string;
+    providerRefundId: string | null;
+    paymentId: string;
+    amount: string;
+    status: string;
+    message: string;
+  };
+  message: string;
+}
+
 

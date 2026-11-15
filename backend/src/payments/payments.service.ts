@@ -3,13 +3,15 @@ import {
   Inject,
   BadRequestException,
   NotFoundException,
+  ConflictException,
   UnauthorizedException,
   InternalServerErrorException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, ne, and, inArray, sql } from 'drizzle-orm';
 import * as crypto from 'crypto';
 import * as https from 'https';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -38,6 +40,35 @@ export interface VerifyPaymentResult {
   paymentId: string;
   paymentStatus: string;
   amount: string;
+  isConflict?: boolean;
+}
+
+export interface FinalizeCapturedPaymentParams {
+  orderId: string;
+  paymentId: string;
+  providerPaymentId: string;
+  rawGatewayMetadata?: any;
+  source: 'client_verify' | 'webhook';
+}
+
+export interface FinalizeCapturedPaymentResult {
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  paymentId: string;
+  paymentStatus: string;
+  amount: string;
+  isConflict: boolean;
+  orderToNotify: {
+    orderId: string;
+    orderNumber: string;
+    outletId: string;
+    createdAt: string;
+    itemCount: number;
+    totalAmount: string;
+    currency: string;
+    items?: Array<{ name: string; quantity: number }>;
+  } | null;
 }
 
 @Injectable()
@@ -189,6 +220,38 @@ export class PaymentsService {
       );
     }
 
+    // Advisory Guard: A customer cannot open or retry payment for a different order while another order is actively being fulfilled.
+    // Legitimate retries for the SAME pending order are preserved.
+    const [activeFulfillmentOrder] = await this.db
+      .select({
+        id: schema.orders.id,
+        orderNumber: schema.orders.orderNumber,
+        status: schema.orders.status,
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.customerId, customerId),
+          ne(schema.orders.id, order.id),
+          inArray(schema.orders.status, [...schema.ACTIVE_FULFILLMENT_ORDER_STATUSES]),
+        ),
+      )
+      .limit(1);
+
+    if (activeFulfillmentOrder) {
+      throw new ConflictException({
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        code: 'ACTIVE_ORDER_IN_PROGRESS',
+        message: `You already have an active order #${activeFulfillmentOrder.orderNumber} (${activeFulfillmentOrder.status}). You cannot initiate payment for another order until your active order is delivered or cancelled.`,
+        activeOrder: {
+          id: activeFulfillmentOrder.id,
+          orderNumber: activeFulfillmentOrder.orderNumber,
+          status: activeFulfillmentOrder.status,
+        },
+      });
+    }
+
     const amountInPaise = this.convertRupeesToPaise(order.totalPayable);
 
     // Check if a payment record already exists for this order
@@ -196,32 +259,31 @@ export class PaymentsService {
       where: eq(schema.payments.orderId, order.id),
     });
 
-    // Reuse existing Razorpay order if already created and still pending AND not already paid at gateway
-    if (existingPayment?.providerOrderId && existingPayment.status === 'pending') {
-      let isAlreadyPaidAtGateway = false;
-      if (this.razorpayClient) {
-        try {
-          const remoteOrder = await this.razorpayClient.orders.fetch(existingPayment.providerOrderId);
-          if (remoteOrder?.status === 'paid') {
-            isAlreadyPaidAtGateway = true;
-          }
-        } catch {
-          // If fetch fails, proceed with existing
-        }
+    if (existingPayment?.status === 'captured') {
+      throw new BadRequestException('Payment is already captured. Refresh your order.');
+    }
+
+    // Keep the provider order available for a delayed capture webhook.
+    if (existingPayment?.providerOrderId) {
+      if (!this.razorpayClient) {
+        throw new InternalServerErrorException('Razorpay payment gateway is unavailable.');
+      }
+      const remoteOrder = await this.razorpayClient.orders.fetch(existingPayment.providerOrderId)
+        .catch(() => { throw new BadRequestException('Could not check the previous payment. Please try again shortly.'); });
+      if (remoteOrder.status === 'paid') {
+        throw new BadRequestException('Payment is being confirmed. Refresh your order shortly.');
       }
 
-      if (!isAlreadyPaidAtGateway) {
-        return {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          razorpayOrderId: existingPayment.providerOrderId,
-          keyId: this.keyId,
-          amount: amountInPaise,
-          currency: 'INR',
-          status: 'pending',
-          checkoutUrl: `/api/v1/payments/checkout/${order.id}`,
-        };
-      }
+      return {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        razorpayOrderId: existingPayment.providerOrderId,
+        keyId: this.keyId,
+        amount: amountInPaise,
+        currency: 'INR',
+        status: 'pending',
+        checkoutUrl: `/api/v1/payments/checkout/${order.id}`,
+      };
     }
 
     if (!this.razorpayClient) {
@@ -287,6 +349,335 @@ export class PaymentsService {
   }
 
   /**
+   * Authoritative, centralized transaction-safe finalization gate for captured payments.
+   *
+   * Shared by:
+   * 1. Client payment verification (verifyPayment)
+   * 2. Signed webhook processing (handleWebhook - payment.captured, order.paid)
+   *
+   * Enforces:
+   * - Verification / gateway calls outside the transaction.
+   * - PostgreSQL customer-level locking (users FOR UPDATE) to serialize finalization per customer.
+   * - In-transaction re-reading of payment and order records.
+   * - Exact-once idempotency if already finalized.
+   * - Checks for another active fulfillment order across:
+   *   ['placed', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery']
+   * - If no conflict: promotes order from 'pending_payment' -> 'placed', records status history.
+   * - If conflict:
+   *   - Preserves existing active order.
+   *   - Keeps payment status as 'captured' with full provider evidence.
+   *   - Sets conflicting order status to 'payment_conflict'.
+   *   - Populates payment_conflict_details JSONB with structured metadata.
+   *   - Inserts orderStatusHistory and auditLogs record.
+   *   - Never marks payment failed, never auto-refunds, never creates deliveries or dispatches order.
+   * - Recovers safely from PostgreSQL error 23505 (partial unique index collision) by moving to payment_conflict.
+   * - Emits operational WebSocket notifications only after transaction commits successfully and only for 'placed' orders.
+   */
+  async finalizeCapturedPayment(
+    params: FinalizeCapturedPaymentParams,
+  ): Promise<FinalizeCapturedPaymentResult> {
+    const { orderId, paymentId, providerPaymentId, rawGatewayMetadata, source } = params;
+
+    let orderToNotify: FinalizeCapturedPaymentResult['orderToNotify'] = null;
+
+    const result = await this.db.transaction(async (tx) => {
+      // 1. In-transaction re-read of the order to identify owning customer
+      const initialOrder = await tx.query.orders.findFirst({
+        where: eq(schema.orders.id, orderId),
+      });
+
+      if (!initialOrder) {
+        throw new NotFoundException(`Order record '${orderId}' missing during payment finalization.`);
+      }
+
+      // 2. Row-level customer lock (users FOR UPDATE) to serialize all concurrent checkout and payment finalizations
+      const [lockedCustomer] = await tx
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.id, initialOrder.customerId))
+        .for('update');
+
+      if (!lockedCustomer) {
+        throw new NotFoundException(`Owning customer '${initialOrder.customerId}' not found.`);
+      }
+
+      // 3. Re-read payment and order records under the customer lock
+      const currentOrder = await tx.query.orders.findFirst({
+        where: eq(schema.orders.id, orderId),
+        with: {
+          items: true,
+        },
+      });
+
+      if (!currentOrder) {
+        throw new NotFoundException(`Order record '${orderId}' missing under transaction lock.`);
+      }
+
+      const currentPayment = await tx.query.payments.findFirst({
+        where: eq(schema.payments.id, paymentId),
+      });
+
+      if (!currentPayment) {
+        throw new NotFoundException(`Payment record '${paymentId}' missing under transaction lock.`);
+      }
+
+      // 4. Idempotency Check: Already captured and finalized (or already in payment_conflict)
+      if (
+        currentPayment.status === 'captured' &&
+        currentOrder.status !== 'pending_payment'
+      ) {
+        this.logger.log(
+          `Payment ${paymentId} for order ${currentOrder.orderNumber} already finalized in status '${currentOrder.status}'. Returning idempotent state.`,
+        );
+        return {
+          orderId: currentOrder.id,
+          orderNumber: currentOrder.orderNumber,
+          orderStatus: currentOrder.status,
+          paymentId: currentPayment.id,
+          paymentStatus: currentPayment.status,
+          amount: currentPayment.amount,
+          isConflict: currentOrder.status === 'payment_conflict',
+          orderToNotify: null,
+        };
+      }
+
+      // Check if order was cancelled/rejected before payment confirmation
+      if (currentOrder.status === 'cancelled' || currentOrder.status === 'rejected') {
+        this.logger.warn(
+          `Order ${currentOrder.orderNumber} was '${currentOrder.status}' prior to payment capture finalization. Preserving captured payment for refund review.`,
+        );
+        await tx
+          .update(schema.payments)
+          .set({
+            providerPaymentId: providerPaymentId || currentPayment.providerPaymentId,
+            status: 'captured',
+            paidAt: currentPayment.paidAt || new Date(),
+            rawResponseMetadata: rawGatewayMetadata || currentPayment.rawResponseMetadata || null,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.payments.id, currentPayment.id));
+
+        return {
+          orderId: currentOrder.id,
+          orderNumber: currentOrder.orderNumber,
+          orderStatus: currentOrder.status,
+          paymentId: currentPayment.id,
+          paymentStatus: 'captured',
+          amount: currentPayment.amount,
+          isConflict: false,
+          orderToNotify: null,
+        };
+      }
+
+      // 5. Always persist the provider-confirmed payment capture evidence
+      await tx
+        .update(schema.payments)
+        .set({
+          providerPaymentId: providerPaymentId || currentPayment.providerPaymentId,
+          status: 'captured',
+          paidAt: currentPayment.paidAt || new Date(),
+          rawResponseMetadata: rawGatewayMetadata || currentPayment.rawResponseMetadata || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.payments.id, currentPayment.id));
+
+      // 6. Check for another active fulfillment order for this customer
+      const [conflictingActiveOrder] = await tx
+        .select({
+          id: schema.orders.id,
+          orderNumber: schema.orders.orderNumber,
+          status: schema.orders.status,
+          placedAt: schema.orders.placedAt,
+          totalPayable: schema.orders.totalPayable,
+        })
+        .from(schema.orders)
+        .where(
+          and(
+            eq(schema.orders.customerId, currentOrder.customerId),
+            ne(schema.orders.id, currentOrder.id),
+            inArray(schema.orders.status, [...schema.ACTIVE_FULFILLMENT_ORDER_STATUSES]),
+          ),
+        )
+        .limit(1);
+
+      // Helper closure to mark this order in payment_conflict
+      const recordPaymentConflict = async (
+        conflictingActive: {
+          id: string;
+          orderNumber: string;
+          status: string;
+          placedAt?: Date | null;
+          totalPayable?: string;
+        } | null,
+        reason: string,
+      ) => {
+        const conflictDetails = {
+          conflictType: 'duplicate_active_fulfillment',
+          detectedAt: new Date().toISOString(),
+          detectionSource: source,
+          capturedPaymentId: currentPayment.id,
+          providerPaymentId: providerPaymentId || currentPayment.providerPaymentId,
+          capturedAmount: currentPayment.amount,
+          currency: currentPayment.currency,
+          conflictingActiveOrder: conflictingActive
+            ? {
+                id: conflictingActive.id,
+                orderNumber: conflictingActive.orderNumber,
+                status: conflictingActive.status,
+                placedAt: conflictingActive.placedAt ? new Date(conflictingActive.placedAt).toISOString() : null,
+              }
+            : null,
+          resolutionStatus: 'pending_admin_review',
+          resolutionNotes: reason,
+        };
+
+        const [conflictOrder] = await tx
+          .update(schema.orders)
+          .set({
+            status: 'payment_conflict',
+            paymentConflictDetails: conflictDetails,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.orders.id, currentOrder.id))
+          .returning();
+
+        await tx.insert(schema.orderStatusHistory).values({
+          orderId: currentOrder.id,
+          previousStatus: currentOrder.status,
+          newStatus: 'payment_conflict',
+          changedByUserId: currentOrder.customerId,
+          reason,
+        });
+
+        // Insert auditable log
+        await tx.insert(schema.auditLogs).values({
+          action: 'payment_conflict_detected',
+          entityType: 'order',
+          entityId: currentOrder.id,
+          performedByUserId: currentOrder.customerId,
+          details: conflictDetails,
+        });
+
+        this.logger.warn(
+          `Payment conflict recorded for order ${currentOrder.orderNumber}: ${reason}. Payment ${currentPayment.id} preserved as captured.`,
+        );
+
+        return {
+          orderId: conflictOrder.id,
+          orderNumber: conflictOrder.orderNumber,
+          orderStatus: 'payment_conflict',
+          paymentId: currentPayment.id,
+          paymentStatus: 'captured',
+          amount: currentPayment.amount,
+          isConflict: true,
+          orderToNotify: null,
+        };
+      };
+
+      if (conflictingActiveOrder) {
+        return await recordPaymentConflict(
+          conflictingActiveOrder,
+          `Customer already has an active order #${conflictingActiveOrder.orderNumber} (${conflictingActiveOrder.status}) in fulfillment.`,
+        );
+      }
+
+      // 7. No conflict detected: Advance order from pending_payment -> placed
+      try {
+        const [placedOrder] = await tx
+          .update(schema.orders)
+          .set({
+            status: 'placed',
+            updatedAt: new Date(),
+          })
+          .where(and(eq(schema.orders.id, currentOrder.id), eq(schema.orders.status, 'pending_payment')))
+          .returning({ id: schema.orders.id });
+
+        if (placedOrder) {
+          await tx.insert(schema.orderStatusHistory).values({
+            orderId: currentOrder.id,
+            previousStatus: 'pending_payment',
+            newStatus: 'placed',
+            changedByUserId: currentOrder.customerId,
+            reason: `Payment capture verified via ${source}`,
+          });
+
+          const safeItems = currentOrder.items
+            ? currentOrder.items.map((i: any) => ({
+                name: i.nameSnapshot || i.name || 'Item',
+                quantity: i.quantity || 1,
+              }))
+            : [];
+
+          orderToNotify = {
+            orderId: currentOrder.id,
+            orderNumber: currentOrder.orderNumber,
+            outletId: currentOrder.outletId,
+            createdAt: currentOrder.createdAt
+              ? new Date(currentOrder.createdAt).toISOString()
+              : new Date().toISOString(),
+            itemCount:
+              safeItems.reduce((acc: number, curr: any) => acc + curr.quantity, 0) || safeItems.length,
+            totalAmount: currentOrder.totalPayable,
+            currency: 'INR',
+            items: safeItems,
+          };
+        }
+
+        const finalOrder = await tx.query.orders.findFirst({
+          where: eq(schema.orders.id, currentOrder.id),
+        });
+
+        return {
+          orderId: currentOrder.id,
+          orderNumber: currentOrder.orderNumber,
+          orderStatus: placedOrder ? 'placed' : finalOrder?.status ?? currentOrder.status,
+          paymentId: currentPayment.id,
+          paymentStatus: 'captured',
+          amount: currentPayment.amount,
+          isConflict: false,
+          orderToNotify,
+        };
+      } catch (dbErr: any) {
+        // Inspect for PostgreSQL error 23505 (unique_violation)
+        // If orders_single_active_per_customer_idx collided, safely recover to payment_conflict
+        const isUniqueViolation = dbErr?.code === '23505' || dbErr?.routine === 'nbtinsert';
+        const isSingleActiveIdx =
+          typeof dbErr?.message === 'string' &&
+          dbErr.message.includes('orders_single_active_per_customer_idx');
+
+        if (isUniqueViolation && isSingleActiveIdx) {
+          this.logger.warn(
+            `PostgreSQL 23505 unique violation on orders_single_active_per_customer_idx caught for order ${currentOrder.orderNumber}. Transitioning safely to payment_conflict.`,
+          );
+          return await recordPaymentConflict(
+            null,
+            'Concurrent transaction committed an active fulfillment order (PostgreSQL 23505 unique index guard triggered).',
+          );
+        }
+
+        // Unrelated database error: do not swallow
+        throw dbErr;
+      }
+    });
+
+    // 8. Post-commit notification dispatch (Guaranteed only after DB transaction commits successfully and only if placed)
+    if (result.orderToNotify && this.trackingPublisher) {
+      try {
+        this.trackingPublisher.publishOrderCreated(result.orderToNotify.outletId, {
+          ...result.orderToNotify,
+          status: 'placed',
+        });
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to publish order.created event for ${result.orderToNotify.orderNumber}: ${err.message}`,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Verifies Razorpay Checkout signature and reconciles payment state with gateway
    */
   async verifyPayment(customerId: string, dto: VerifyPaymentDto): Promise<VerifyPaymentResult> {
@@ -306,7 +697,7 @@ export class PaymentsService {
       throw new UnauthorizedException('Payment does not belong to the current authenticated customer.');
     }
 
-    // Idempotency: If already captured, return verified state immediately without repeated side effects
+    // Idempotency: If already captured and finalized, return verified state immediately without repeated side effects
     if (payment.status === 'captured' && payment.order.status !== 'pending_payment') {
       return {
         verified: true,
@@ -316,6 +707,7 @@ export class PaymentsService {
         paymentId: payment.id,
         paymentStatus: payment.status,
         amount: payment.amount,
+        isConflict: payment.order.status === 'payment_conflict',
       };
     }
 
@@ -339,169 +731,66 @@ export class PaymentsService {
           failedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(schema.payments.id, payment.id));
+        .where(and(eq(schema.payments.id, payment.id), ne(schema.payments.status, 'captured')));
 
       throw new BadRequestException('Invalid payment signature. Payment verification rejected.');
     }
 
-    // 3. Mandatory gateway verification if client initialized
-    if (this.razorpayClient) {
-      try {
-        const fetchedPayment = await this.razorpayClient.payments.fetch(dto.razorpayPaymentId);
-        const expectedPaise = this.convertRupeesToPaise(payment.amount);
-
-        // A. Verify amount & currency match
-        if (fetchedPayment.amount !== expectedPaise || fetchedPayment.currency !== payment.currency) {
-          this.logger.error(
-            `Payment amount mismatch! Expected ${expectedPaise} ${payment.currency}, got ${fetchedPayment.amount} ${fetchedPayment.currency}`,
-          );
-          throw new BadRequestException('Payment amount or currency mismatch.');
-        }
-
-        // B. Verify payment entity belongs to the requested Razorpay order ID
-        if (fetchedPayment.order_id !== dto.razorpayOrderId) {
-          throw new BadRequestException('Payment was not made for the associated order.');
-        }
-
-        // C. Verify payment is in captured (or authorized) status at gateway
-        if (fetchedPayment.status !== 'captured' && fetchedPayment.status !== 'authorized') {
-          this.logger.error(`Payment ${dto.razorpayPaymentId} is not captured or authorized (status: ${fetchedPayment.status})`);
-          throw new BadRequestException(`Payment is not in captured status at gateway (current: ${fetchedPayment.status}).`);
-        }
-      } catch (err: unknown) {
-        if (err instanceof BadRequestException) throw err;
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`Could not fetch payment directly from Razorpay: ${msg}`);
-        // In test mode or when mock gateway responses are active during unit testing, fallback to cryptographic signature check
-        if (this.configService.get<string>('RAZORPAY_MODE') !== 'test') {
-          throw new BadRequestException(`Razorpay payment fetch verification failed: ${msg}`);
-        }
-      }
+    if (!this.razorpayClient) {
+      throw new BadRequestException('Payment verification is unavailable.');
     }
 
-    // 4. Transactionally mark order as placed and payment as captured
-    let orderToNotify: {
-      orderId: string;
-      orderNumber: string;
-      outletId: string;
-      createdAt: string;
-      itemCount: number;
-      totalAmount: string;
-      currency: string;
-      items?: Array<{ name: string; quantity: number }>;
-    } | null = null;
-
-    const result = await this.db.transaction(async (tx) => {
-      // Re-query with row-level safety
-      const currentOrder = await tx.query.orders.findFirst({
-        where: eq(schema.orders.id, payment.orderId),
-        with: {
-          items: true,
-        },
+    // 3. Provider verification performed outside database transaction
+    const fetchedPayment = await this.razorpayClient.payments
+      .fetch(dto.razorpayPaymentId)
+      .catch(() => {
+        throw new BadRequestException('Could not confirm payment with Razorpay.');
       });
 
-      if (!currentOrder) {
-        throw new NotFoundException('Order record missing.');
-      }
-
-      // Check if order was cancelled while customer was paying
-      if (currentOrder.status === 'cancelled') {
-        this.logger.warn(`Order ${currentOrder.orderNumber} was cancelled before payment verification.`);
-        await tx
-          .update(schema.payments)
-          .set({
-            providerPaymentId: dto.razorpayPaymentId,
-            status: 'captured', // Payment is captured at gateway, but order is cancelled -> eligible for refund
-            paidAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.payments.id, payment.id));
-
-        return {
-          verified: true,
-          orderId: currentOrder.id,
-          orderNumber: currentOrder.orderNumber,
-          orderStatus: currentOrder.status,
-          paymentId: payment.id,
-          paymentStatus: 'captured',
-          amount: payment.amount,
-        };
-      }
-
-      // Update payment
-      await tx
-        .update(schema.payments)
-        .set({
-          providerPaymentId: dto.razorpayPaymentId,
-          status: 'captured',
-          paidAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.payments.id, payment.id));
-
-      // Advance order status from pending_payment -> placed only if in pending_payment
-      if (currentOrder.status === 'pending_payment') {
-        await tx
-          .update(schema.orders)
-          .set({
-            status: 'placed',
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.orders.id, currentOrder.id));
-
-        // Log status transition
-        await tx.insert(schema.orderStatusHistory).values({
-          orderId: currentOrder.id,
-          previousStatus: currentOrder.status,
-          newStatus: 'placed',
-          changedByUserId: customerId,
-          reason: 'Payment verified via Razorpay Checkout signature',
-        });
-
-        // Set post-commit notification payload
-        const safeItems = currentOrder.items
-          ? currentOrder.items.map((i: any) => ({
-              name: i.nameSnapshot || i.name || 'Item',
-              quantity: i.quantity || 1,
-            }))
-          : [];
-
-        orderToNotify = {
-          orderId: currentOrder.id,
-          orderNumber: currentOrder.orderNumber,
-          outletId: currentOrder.outletId,
-          createdAt: currentOrder.createdAt ? new Date(currentOrder.createdAt).toISOString() : new Date().toISOString(),
-          itemCount: safeItems.reduce((acc: number, curr: any) => acc + curr.quantity, 0) || safeItems.length,
-          totalAmount: currentOrder.totalPayable,
-          currency: 'INR',
-          items: safeItems,
-        };
-      }
-
-      return {
-        verified: true,
-        orderId: currentOrder.id,
-        orderNumber: currentOrder.orderNumber,
-        orderStatus: 'placed',
-        paymentId: payment.id,
-        paymentStatus: 'captured',
-        amount: payment.amount,
-      };
-    });
-
-    // 5. Post-commit notification dispatch (Guaranteed only after DB transaction commits successfully)
-    if (orderToNotify && this.trackingPublisher) {
-      try {
-        this.trackingPublisher.publishOrderCreated((orderToNotify as any).outletId, {
-          ...(orderToNotify as any),
-          status: 'placed',
-        });
-      } catch (err: any) {
-        this.logger.error(`Failed to publish order.created event for ${(orderToNotify as any).orderNumber}: ${err.message}`);
-      }
+    if (
+      fetchedPayment.amount !== this.convertRupeesToPaise(payment.amount) ||
+      fetchedPayment.currency !== payment.currency ||
+      fetchedPayment.order_id !== dto.razorpayOrderId
+    ) {
+      throw new BadRequestException('Payment details do not match the order.');
     }
 
-    return result;
+    if (fetchedPayment.status === 'authorized') {
+      return {
+        verified: false,
+        orderId: payment.orderId,
+        orderNumber: payment.order.orderNumber,
+        orderStatus: payment.order.status,
+        paymentId: payment.id,
+        paymentStatus: 'pending',
+        amount: payment.amount,
+        isConflict: false,
+      };
+    }
+
+    if (fetchedPayment.status !== 'captured') {
+      throw new BadRequestException('Razorpay has not captured this payment.');
+    }
+
+    // 4. Delegate to the centralized, transaction-safe finalization gate
+    const finalized = await this.finalizeCapturedPayment({
+      orderId: payment.order.id,
+      paymentId: payment.id,
+      providerPaymentId: dto.razorpayPaymentId,
+      rawGatewayMetadata: fetchedPayment,
+      source: 'client_verify',
+    });
+
+    return {
+      verified: true,
+      orderId: finalized.orderId,
+      orderNumber: finalized.orderNumber,
+      orderStatus: finalized.orderStatus,
+      paymentId: finalized.paymentId,
+      paymentStatus: finalized.paymentStatus,
+      amount: finalized.amount,
+      isConflict: finalized.isConflict,
+    };
   }
 
   /**
@@ -516,8 +805,9 @@ export class PaymentsService {
     }
 
     const payload = JSON.parse(rawBody.toString('utf8'));
-    const eventId = payload.event_id || payload.payload?.payment?.entity?.id || `evt_${Date.now()}`;
     const eventType = payload.event;
+    const entityId = payload.payload?.payment?.entity?.id || payload.payload?.order?.entity?.id;
+    const eventId = payload.event_id || (entityId ? `${eventType}:${entityId}` : `evt_${Date.now()}`);
 
     // 2. Event deduplication check
     const existingEvent = await this.db.query.paymentWebhookEvents.findFirst({
@@ -535,81 +825,32 @@ export class PaymentsService {
       const rzpOrderId = paymentEntity?.order_id || payload.payload?.order?.entity?.id;
       const rzpPaymentId = paymentEntity?.id;
 
-      if (rzpOrderId) {
+      const captureReported = eventType === 'payment.captured'
+        ? paymentEntity?.status === 'captured'
+        : payload.payload?.order?.entity?.status === 'paid';
+
+      if (rzpOrderId && captureReported) {
         const payment = await this.db.query.payments.findFirst({
           where: eq(schema.payments.providerOrderId, rzpOrderId),
           with: { order: true },
         });
 
-        if (payment && payment.status !== 'captured') {
-          let webhookOrderToNotify: any = null;
-
-          await this.db.transaction(async (tx) => {
-            await tx
-              .update(schema.payments)
-              .set({
-                providerPaymentId: rzpPaymentId || payment.providerPaymentId,
-                status: 'captured',
-                paidAt: new Date(),
-                rawResponseMetadata: paymentEntity || null,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.payments.id, payment.id));
-
-            if (payment.order && payment.order.status === 'pending_payment') {
-              await tx
-                .update(schema.orders)
-                .set({
-                  status: 'placed',
-                  updatedAt: new Date(),
-                })
-                .where(eq(schema.orders.id, payment.order.id));
-
-              await tx.insert(schema.orderStatusHistory).values({
-                orderId: payment.order.id,
-                previousStatus: payment.order.status,
-                newStatus: 'placed',
-                changedByUserId: payment.order.customerId,
-                reason: `Payment confirmed via webhook (${eventType})`,
-              });
-
-              // Fetch order items for notification summary
-              const fullOrder = await tx.query.orders.findFirst({
-                where: eq(schema.orders.id, payment.order.id),
-                with: { items: true },
-              });
-
-              const safeItems = fullOrder?.items
-                ? fullOrder.items.map((i: any) => ({
-                    name: i.nameSnapshot || i.name || 'Item',
-                    quantity: i.quantity || 1,
-                  }))
-                : [];
-
-              webhookOrderToNotify = {
-                orderId: payment.order.id,
-                orderNumber: payment.order.orderNumber,
-                outletId: payment.order.outletId,
-                createdAt: fullOrder?.createdAt ? new Date(fullOrder.createdAt).toISOString() : new Date().toISOString(),
-                itemCount: safeItems.reduce((acc: number, curr: any) => acc + curr.quantity, 0) || safeItems.length,
-                totalAmount: payment.order.totalPayable,
-                currency: 'INR',
-                status: 'placed',
-                items: safeItems,
-              };
-            }
-          });
-
-          // Post-commit notification for webhook reconciliation
-          if (webhookOrderToNotify && this.trackingPublisher) {
-            try {
-              this.trackingPublisher.publishOrderCreated(webhookOrderToNotify.outletId, webhookOrderToNotify);
-            } catch (err: any) {
-              this.logger.error(`Webhook: Failed to publish order.created event: ${err.message}`);
-            }
+        if (
+          payment &&
+          (!paymentEntity ||
+            (paymentEntity.amount === this.convertRupeesToPaise(payment.amount) &&
+              paymentEntity.currency === payment.currency))
+        ) {
+          if (payment.order) {
+            await this.finalizeCapturedPayment({
+              orderId: payment.order.id,
+              paymentId: payment.id,
+              providerPaymentId: rzpPaymentId || payment.providerPaymentId || '',
+              rawGatewayMetadata: paymentEntity || null,
+              source: 'webhook',
+            });
+            this.logger.log(`Successfully reconciled payment and order via webhook: ${rzpOrderId}`);
           }
-
-          this.logger.log(`Successfully reconciled payment and order via webhook: ${rzpOrderId}`);
         }
       }
     } else if (eventType === 'payment.failed') {
@@ -630,7 +871,7 @@ export class PaymentsService {
               rawResponseMetadata: paymentEntity || null,
               updatedAt: new Date(),
             })
-            .where(eq(schema.payments.id, payment.id));
+            .where(and(eq(schema.payments.id, payment.id), ne(schema.payments.status, 'captured')));
           this.logger.log(`Recorded payment failure via webhook for order: ${rzpOrderId}`);
         }
       }
@@ -663,6 +904,42 @@ export class PaymentsService {
                 updatedAt: new Date(),
               })
               .where(eq(schema.payments.id, existingRefund.paymentId));
+
+            // If order was in payment_conflict, transition to cancelled
+            const paymentOrderId = existingRefund.payment?.orderId || (await tx.query.payments.findFirst({
+              where: eq(schema.payments.id, existingRefund.paymentId),
+            }))?.orderId;
+
+            if (paymentOrderId) {
+              const targetOrder = await tx.query.orders.findFirst({
+                where: eq(schema.orders.id, paymentOrderId),
+              });
+              if (targetOrder && targetOrder.status === 'payment_conflict') {
+                const existingDetails = (targetOrder.paymentConflictDetails as any) || {};
+                await tx
+                  .update(schema.orders)
+                  .set({
+                    status: 'cancelled',
+                    cancellationReason: 'Payment conflict fully refunded to customer (webhook)',
+                    cancelledAt: new Date(),
+                    paymentConflictDetails: {
+                      ...existingDetails,
+                      resolutionStatus: 'refund_processed',
+                      resolvedAt: new Date().toISOString(),
+                    },
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(schema.orders.id, targetOrder.id));
+
+                await tx.insert(schema.orderStatusHistory).values({
+                  orderId: targetOrder.id,
+                  previousStatus: 'payment_conflict',
+                  newStatus: 'cancelled',
+                  reason: 'Full refund confirmed via webhook',
+                  changedByUserId: existingRefund.approvedByUserId || null,
+                });
+              }
+            }
           });
           this.logger.log(`Marked refund processed via webhook: ${rzpRefundId}`);
         } else if (rzpPaymentId) {
@@ -716,7 +993,7 @@ export class PaymentsService {
       eventType,
       provider: 'razorpay',
       payload,
-    });
+    }).onConflictDoNothing({ target: schema.paymentWebhookEvents.eventId });
 
     return { received: true };
   }
@@ -788,121 +1065,125 @@ export class PaymentsService {
   }
 
   /**
-   * Initiates or reconciles an automated full refund against a captured payment.
-   *
-   * Enforces:
-   * 1. Persistent Idempotency Key ('flt24_ref_...') adhering to Razorpay rules.
-   * 2. Atomic Database Reservation using operationKey and row-locking to block concurrent duplicate requests.
-   * 3. Sends official 'X-Refund-Idempotency' header over authenticated HTTPS.
-   * 4. Categorized error handling: Ambiguous timeouts/5xx/409 remain 'pending' and preserve keys for safe retry.
-   * 5. Active gateway reconciliation before retrying.
+   * Internal routine to execute an atomic refund reservation inside a given or new transaction client.
+   * Allows caller transactions (such as AdminOperationsService.approvePaymentConflictRefund)
+   * to atomically combine order validation, metadata updates, audit logs, and refund reservation.
    */
-  async initiateOrderRefund(
+  async reserveRefundInTransaction(
+    tx: any,
     orderId: string,
     reason: string,
     approvedByUserId?: string,
   ) {
     const operationKey = `full_refund_${orderId}`;
 
-    // Step 1: Atomic Database Reservation inside a short transaction
-    const reservation = await this.db.transaction(async (tx) => {
-      // Lock the payment row to serialize concurrent refund requests for this order
-      const [payment] = await tx
-        .select()
-        .from(schema.payments)
-        .where(eq(schema.payments.orderId, orderId))
-        .for('update');
+    // Lock the payment row to serialize concurrent refund requests for this order
+    const [payment] = await tx
+      .select()
+      .from(schema.payments)
+      .where(eq(schema.payments.orderId, orderId))
+      .for('update');
 
-      if (!payment) {
-        throw new NotFoundException(`No payment record found for order '${orderId}'.`);
-      }
+    if (!payment) {
+      throw new NotFoundException(`No payment record found for order '${orderId}'.`);
+    }
 
-      if (payment.status !== 'captured') {
-        throw new BadRequestException(
-          `Payment is in '${payment.status}' status. Only captured payments can be refunded.`,
-        );
-      }
-
-      if (!payment.providerPaymentId) {
-        throw new BadRequestException(
-          'Payment record is missing authoritative gateway providerPaymentId.',
-        );
-      }
-
-      // Check if a refund record with this operationKey already exists
-      const existingOperationRefund = await tx.query.refunds.findFirst({
-        where: eq(schema.refunds.operationKey, operationKey),
-      });
-
-      if (existingOperationRefund) {
-        // If already completed or in-flight, return the existing reservation
-        return {
-          isNew: false,
-          refund: existingOperationRefund,
-          payment,
-        };
-      }
-
-      // Check cumulative non-failed refunds to prevent exceeding captured total
-      const allRefunds = await tx.query.refunds.findMany({
-        where: eq(schema.refunds.paymentId, payment.id),
-      });
-      const nonFailedRefunds = allRefunds.filter((r) => r.status !== 'failed');
-      const totalRefundedAlready = nonFailedRefunds.reduce(
-        (sum, r) => sum + parseFloat(r.amount),
-        0,
+    if (payment.status !== 'captured') {
+      throw new BadRequestException(
+        `Payment is in '${payment.status}' status. Only captured payments can be refunded.`,
       );
-      const capturedAmount = parseFloat(payment.amount);
-      const remainingRefundable = Math.max(0, capturedAmount - totalRefundedAlready);
+    }
 
-      if (remainingRefundable <= 0) {
-        const activeRefund = nonFailedRefunds[0];
-        return {
-          isNew: false,
-          refund: activeRefund,
-          payment,
-        };
-      }
+    if (!payment.providerPaymentId) {
+      throw new BadRequestException(
+        'Payment record is missing authoritative gateway providerPaymentId.',
+      );
+    }
 
-      // Generate a persistent, stable idempotency key [A-Za-z0-9_-]{10,}
-      const randomPart = crypto.randomBytes(12).toString('hex');
-      const idempotencyKey = `flt24_ref_${randomPart}`;
-
-      const refundAmountPaise = this.convertRupeesToPaise(remainingRefundable);
-      const requestPayload = {
-        amount: refundAmountPaise,
-        notes: {
-          fleet24OrderId: orderId,
-          reason: reason || 'Customer order cancelled or rejected by restaurant',
-          operationKey,
-        },
-      };
-
-      // Atomically persist the pending refund reservation
-      const [newRefund] = await tx
-        .insert(schema.refunds)
-        .values({
-          paymentId: payment.id,
-          operationKey,
-          idempotencyKey,
-          amount: remainingRefundable.toFixed(2),
-          reason: reason || 'Customer order cancelled or rejected by restaurant',
-          status: 'pending',
-          requestPayload,
-          attemptCount: '1',
-          lastAttemptAt: new Date(),
-          approvedByUserId: approvedByUserId || null,
-        })
-        .returning();
-
-      return {
-        isNew: true,
-        refund: newRefund,
-        payment,
-      };
+    // Check if a refund record with this operationKey already exists
+    const existingOperationRefund = await tx.query.refunds.findFirst({
+      where: eq(schema.refunds.operationKey, operationKey),
     });
 
+    if (existingOperationRefund) {
+      // If already completed or in-flight, return the existing reservation
+      return {
+        isNew: false,
+        refund: existingOperationRefund,
+        payment,
+      };
+    }
+
+    // Check cumulative non-failed refunds to prevent exceeding captured total
+    const allRefunds = await tx.query.refunds.findMany({
+      where: eq(schema.refunds.paymentId, payment.id),
+    });
+    const nonFailedRefunds = allRefunds.filter((r: any) => r.status !== 'failed');
+    const totalRefundedAlready = nonFailedRefunds.reduce(
+      (sum: number, r: any) => sum + parseFloat(r.amount),
+      0,
+    );
+    const capturedAmount = parseFloat(payment.amount);
+    const remainingRefundable = Math.max(0, capturedAmount - totalRefundedAlready);
+
+    if (remainingRefundable <= 0) {
+      const activeRefund = nonFailedRefunds[0];
+      return {
+        isNew: false,
+        refund: activeRefund,
+        payment,
+      };
+    }
+
+    // Generate a persistent, stable idempotency key [A-Za-z0-9_-]{10,}
+    const randomPart = crypto.randomBytes(12).toString('hex');
+    const idempotencyKey = `flt24_ref_${randomPart}`;
+
+    const refundAmountPaise = this.convertRupeesToPaise(remainingRefundable);
+    const requestPayload = {
+      amount: refundAmountPaise,
+      notes: {
+        fleet24OrderId: orderId,
+        reason: reason || 'Customer order cancelled or rejected by restaurant',
+        operationKey,
+      },
+    };
+
+    // Atomically persist the pending refund reservation
+    const [newRefund] = await tx
+      .insert(schema.refunds)
+      .values({
+        paymentId: payment.id,
+        operationKey,
+        idempotencyKey,
+        amount: remainingRefundable.toFixed(2),
+        reason: reason || 'Customer order cancelled or rejected by restaurant',
+        status: 'pending',
+        requestPayload,
+        attemptCount: '1',
+        lastAttemptAt: new Date(),
+        approvedByUserId: approvedByUserId || null,
+      })
+      .returning();
+
+    return {
+      isNew: true,
+      refund: newRefund,
+      payment,
+    };
+  }
+
+  /**
+   * Executes Razorpay HTTP refund API call outside database transaction using a pre-reserved refund row.
+   */
+  async executeReservedRefund(reservation: {
+    isNew: boolean;
+    refund: any;
+    payment: any;
+  }) {
     const { refund: currentRefund, payment } = reservation;
+    const orderId = payment.orderId;
+    const operationKey = currentRefund.operationKey || `full_refund_${orderId}`;
 
     // If another concurrent thread or previous operation already completed or is in-flight:
     if (!reservation.isNew) {
@@ -949,6 +1230,35 @@ export class PaymentsService {
                   .update(schema.payments)
                   .set({ status: 'refunded', updatedAt: new Date() })
                   .where(eq(schema.payments.id, payment.id));
+
+                const targetOrder = await tx.query.orders.findFirst({
+                  where: eq(schema.orders.id, payment.orderId),
+                });
+                if (targetOrder && targetOrder.status === 'payment_conflict') {
+                  const existingDetails = (targetOrder.paymentConflictDetails as any) || {};
+                  await tx
+                    .update(schema.orders)
+                    .set({
+                      status: 'cancelled',
+                      cancellationReason: 'Payment conflict fully refunded to customer',
+                      cancelledAt: new Date(),
+                      paymentConflictDetails: {
+                        ...existingDetails,
+                        resolutionStatus: 'refund_processed',
+                        resolvedAt: new Date().toISOString(),
+                      },
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(schema.orders.id, targetOrder.id));
+
+                  await tx.insert(schema.orderStatusHistory).values({
+                    orderId: targetOrder.id,
+                    previousStatus: 'payment_conflict',
+                    newStatus: 'cancelled',
+                    reason: 'Full refund confirmed by payment gateway',
+                    changedByUserId: currentRefund.approvedByUserId || null,
+                  });
+                }
               }
             });
 
@@ -996,7 +1306,7 @@ export class PaymentsService {
       }
     }
 
-    // Step 3: Call Razorpay API outside long-running database transaction with X-Refund-Idempotency
+    // Call Razorpay API outside database transaction with X-Refund-Idempotency
     const payload = (currentRefund.requestPayload as any) || {
       amount: this.convertRupeesToPaise(parseFloat(currentRefund.amount)),
       notes: {
@@ -1044,6 +1354,36 @@ export class PaymentsService {
                 updatedAt: new Date(),
               })
               .where(eq(schema.payments.id, payment.id));
+
+            // If the order was in payment_conflict, transition order to cancelled once full refund is confirmed
+            const targetOrder = await tx.query.orders.findFirst({
+              where: eq(schema.orders.id, payment.orderId),
+            });
+            if (targetOrder && targetOrder.status === 'payment_conflict') {
+              const existingDetails = (targetOrder.paymentConflictDetails as any) || {};
+              await tx
+                .update(schema.orders)
+                .set({
+                  status: 'cancelled',
+                  cancellationReason: 'Payment conflict fully refunded to customer',
+                  cancelledAt: new Date(),
+                  paymentConflictDetails: {
+                    ...existingDetails,
+                    resolutionStatus: 'refund_processed',
+                    resolvedAt: new Date().toISOString(),
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.orders.id, targetOrder.id));
+
+              await tx.insert(schema.orderStatusHistory).values({
+                orderId: targetOrder.id,
+                previousStatus: 'payment_conflict',
+                newStatus: 'cancelled',
+                reason: 'Full refund confirmed by payment gateway',
+                changedByUserId: currentRefund.approvedByUserId || null,
+              });
+            }
           }
         });
 
@@ -1208,6 +1548,21 @@ export class PaymentsService {
         message: 'Network timeout encountered. Refund preserved in pending status for reconciliation.',
       };
     }
+  }
+
+  /**
+   * Initiates or reconciles an automated full refund against a captured payment.
+   */
+  async initiateOrderRefund(
+    orderId: string,
+    reason: string,
+    approvedByUserId?: string,
+  ) {
+    const reservation = await this.db.transaction(async (tx) => {
+      return this.reserveRefundInTransaction(tx, orderId, reason, approvedByUserId);
+    });
+
+    return this.executeReservedRefund(reservation);
   }
 
   /**

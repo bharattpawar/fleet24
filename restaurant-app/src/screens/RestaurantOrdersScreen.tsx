@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
   Vibration,
@@ -15,12 +15,11 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, borderRadius, minTouchTarget, shadows } from '../theme/tokens';
+import { colors, spacing, borderRadius, shadows } from '../theme/tokens';
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
 import { restaurantApi } from '../api/restaurantApi';
 import {
   RestaurantOrder,
-  KitchenOrderStatus,
   OrderOverviewStats,
 } from '../types';
 import { KitchenHeader } from '../components/KitchenHeader';
@@ -32,7 +31,14 @@ import {
 } from '../api/restaurantSocket';
 import { Socket } from 'socket.io-client';
 
-type FilterTab = 'all' | 'placed' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'delivered';
+type FilterTab = 'placed' | 'preparing' | 'ready_for_pickup' | 'history';
+
+const EMPTY_QUEUE: Record<FilterTab, string> = {
+  placed: 'Orders waiting for acceptance will appear here.',
+  preparing: 'Accepted orders and orders being prepared will appear here.',
+  ready_for_pickup: 'Orders waiting for rider pickup will appear here.',
+  history: 'Orders that have left the kitchen will appear here.',
+};
 
 const QUICK_REJECTION_REASONS = [
   'Kitchen overload',
@@ -45,15 +51,18 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
   onNavigateToOutlets,
 }) => {
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = width >= 1000;
 
   const { activeOutlet, permissions } = useRestaurantAuth();
-  const [selectedTab, setSelectedTab] = useState<FilterTab>('all');
+  const [selectedTab, setSelectedTab] = useState<FilterTab>('placed');
+  const [selection, setSelection] = useState<{ outletId: string; orderId: string | null }>();
+  const [loadedOutletId, setLoadedOutletId] = useState<string>();
   const [orders, setOrders] = useState<RestaurantOrder[]>([]);
   const [overview, setOverview] = useState<OrderOverviewStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ outletId: string | undefined; message: string } | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Connection & Sync Diagnostics
@@ -75,6 +84,9 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
   const socketRef = useRef<Socket | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const seenOrderIdsRef = useRef<Set<string>>(new Set());
+  const actionLock = useRef(false);
+  const activeOutletIdRef = useRef(activeOutlet?.id);
+  activeOutletIdRef.current = activeOutlet?.id;
   const currentReqRef = useRef<number>(0);
 
   /**
@@ -98,7 +110,6 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
         const [ordersRes, overviewRes] = await Promise.all([
           restaurantApi.listOrders({
             outletId: activeOutlet.id,
-            status: selectedTab === 'all' ? undefined : selectedTab,
           }),
           restaurantApi.getOrdersOverview(activeOutlet.id),
         ]);
@@ -112,6 +123,7 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
           : [];
 
         setOrders(rawOrders);
+        setLoadedOutletId(activeOutlet.id);
         setOverview(overviewRes);
         setLastSyncedAt(new Date());
         setFetchError(null);
@@ -128,19 +140,24 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
         }
       } finally {
         if (reqId === currentReqRef.current) {
-          if (!isSilent) setLoading(false);
+          setLoading(false);
           setRefreshing(false);
         }
       }
     },
-    [activeOutlet?.id, selectedTab],
+    [activeOutlet?.id],
   );
 
   /**
    * 2. Initial Fetch & Outlet Isolation
    */
   useEffect(() => {
+    currentReqRef.current++;
     setOrders([]);
+    setLoadedOutletId(undefined);
+    setSelection(undefined);
+    setRejectModalVisible(false);
+    setOrderToReject(null);
     setOverview(null);
     setFetchError(null);
     seenOrderIdsRef.current.clear();
@@ -152,7 +169,7 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
       setLoading(false);
       setConnectionStatus('Offline');
     }
-  }, [activeOutlet?.id, selectedTab, fetchOrdersAndOverview]);
+  }, [activeOutlet?.id, fetchOrdersAndOverview]);
 
   /**
    * 3. Socket.IO Real-Time Connection
@@ -278,15 +295,18 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
     status: 'confirmed' | 'preparing' | 'ready_for_pickup' | 'rejected',
     reason?: string,
   ) => {
-    if (actionLoadingId) return;
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setActionError(null);
     setActionLoadingId(orderId);
 
     try {
       await restaurantApi.updateOrderStatus(orderId, status, reason);
-      await fetchOrdersAndOverview(true);
+      if (activeOutletIdRef.current === activeOutlet?.id) await fetchOrdersAndOverview(true);
     } catch (err: any) {
-      Alert.alert('Action Failed', err?.message || 'Failed to update order status');
+      setActionError({ outletId: activeOutlet?.id, message: err?.message || 'Could not update order status.' });
     } finally {
+      actionLock.current = false;
       setActionLoadingId(null);
     }
   };
@@ -305,18 +325,53 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
     setOrderToReject(null);
   };
 
-  const tabs: Array<{ key: FilterTab; label: string; count?: number }> = [
-    { key: 'all', label: 'All Orders' },
-    { key: 'placed', label: 'New', count: overview?.counts.newOrders },
-    { key: 'confirmed', label: 'Accepted', count: overview?.counts.confirmed },
-    { key: 'preparing', label: 'Cooking', count: overview?.counts.preparing },
-    { key: 'ready_for_pickup', label: 'Ready', count: overview?.counts.readyForPickup },
-    { key: 'delivered', label: 'Completed', count: overview?.counts.completedToday },
+  const outletId = activeOutlet?.id;
+  const outletOrders = loadedOutletId === outletId ? orders : [];
+  const visibleOrders = outletOrders.filter(({ status }) => {
+    if (selectedTab === 'preparing') return status === 'confirmed' || status === 'preparing';
+    if (selectedTab === 'history') return ['out_for_delivery', 'delivered', 'rejected', 'cancelled'].includes(status);
+    return status === selectedTab;
+  });
+  const selectedOrder = (
+    selection?.outletId === outletId
+      ? visibleOrders.find(order => order.id === selection?.orderId)
+      : undefined
+  ) ?? (isWide ? visibleOrders[0] : undefined);
+
+  useEffect(() => {
+    if (!outletId || (!isWide && !selection?.orderId)) return;
+    if (selection?.outletId === outletId && selectedOrder?.id === (selection.orderId ?? undefined)) return;
+    setSelection({ outletId, orderId: selectedOrder?.id ?? null });
+  }, [isWide, outletId, selection, selectedOrder?.id]);
+
+  const tabs: Array<{ key: FilterTab; label: string; count?: number; tone?: string }> = [
+    { key: 'placed', label: 'New', count: overview?.counts.newOrders, tone: colors.pendingLight },
+    { key: 'preparing', label: 'Preparing', count: (overview?.counts.confirmed ?? 0) + (overview?.counts.preparing ?? 0), tone: colors.confirmedLight },
+    { key: 'ready_for_pickup', label: 'Ready', count: overview?.counts.readyForPickup, tone: colors.readyLight },
+    { key: 'history', label: 'History' },
   ];
+
+  const renderOrder = (item: RestaurantOrder, detail = false) => (
+    <KitchenOrderCard
+      order={item}
+      mode={detail ? 'detail' : isWide ? 'queue' : 'accordion'}
+      selected={selectedOrder?.id === item.id}
+      onPressDetails={detail ? undefined : () => setSelection({
+        outletId: item.outletId,
+        orderId: !isWide && selectedOrder?.id === item.id ? null : item.id,
+      })}
+      actionLoading={actionLoadingId === item.id}
+      actionsDisabled={Boolean(actionLoadingId)}
+      onAccept={permissions.canAcceptOrders ? () => handleUpdateStatus(item.id, 'confirmed') : undefined}
+      onReject={permissions.canAcceptOrders ? () => openRejectModal(item.id) : undefined}
+      onStartPreparing={permissions.canUpdateKitchenStatus ? () => handleUpdateStatus(item.id, 'preparing') : undefined}
+      onMarkReady={permissions.canUpdateKitchenStatus ? () => handleUpdateStatus(item.id, 'ready_for_pickup') : undefined}
+    />
+  );
 
   return (
     <View style={styles.container}>
-      <KitchenHeader onOutletPress={onNavigateToOutlets} />
+      <KitchenHeader kitchen onOutletPress={onNavigateToOutlets} />
 
       {/* Telemetry & Connection Diagnostic Bar */}
       <View style={styles.telemetryBar}>
@@ -348,7 +403,7 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
               accessibilityRole="button"
               accessibilityLabel="Sync kitchen orders"
             >
-              <Ionicons name="refresh" size={12} color={colors.limeAccent} />
+              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
               <Text style={styles.syncText}>Sync</Text>
             </TouchableOpacity>
 
@@ -360,11 +415,11 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
               accessibilityLabel={soundEnabled ? 'Mute alerts' : 'Enable alerts'}
             >
               <Ionicons
-                name={soundEnabled ? 'volume-high' : 'volume-mute'}
+                name={soundEnabled ? 'volume-high-outline' : 'volume-mute-outline'}
                 size={13}
-                color={soundEnabled ? colors.limeAccent : colors.textMuted}
+                color={soundEnabled ? colors.primary : colors.textMuted}
               />
-              <Text style={[styles.soundText, { color: soundEnabled ? colors.limeAccent : colors.textMuted }]}>
+              <Text style={[styles.soundText, { color: soundEnabled ? colors.primary : colors.textMuted }]}>
                 {soundEnabled ? 'Alerts ON' : 'Muted'}
               </Text>
             </TouchableOpacity>
@@ -399,82 +454,6 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
         </View>
       )}
 
-      {/* Summary KPI Cards (Clean, Compact, Non-Overflowing Grid) */}
-      {overview && (
-        <View style={styles.kpiWrapper}>
-          <View style={styles.kpiContainer}>
-            {/* 1. New Orders */}
-            <TouchableOpacity
-              style={[styles.kpiCard, overview.counts.newOrders > 0 && styles.kpiCardNewActive]}
-              onPress={() => setSelectedTab('placed')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.kpiTopRow}>
-                <Text
-                  style={[
-                    styles.kpiValue,
-                    overview.counts.newOrders > 0 && { color: colors.pendingDark },
-                  ]}
-                >
-                  {overview.counts.newOrders}
-                </Text>
-                <Ionicons
-                  name="alert-circle"
-                  size={13}
-                  color={overview.counts.newOrders > 0 ? colors.pendingDark : colors.textMuted}
-                />
-              </View>
-              <Text style={styles.kpiLabel}>NEW</Text>
-            </TouchableOpacity>
-
-            {/* 2. Cooking */}
-            <TouchableOpacity
-              style={styles.kpiCard}
-              onPress={() => setSelectedTab('preparing')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.kpiTopRow}>
-                <Text style={[styles.kpiValue, { color: colors.preparing }]}>
-                  {overview.counts.preparing}
-                </Text>
-                <Ionicons name="flame" size={13} color={colors.preparing} />
-              </View>
-              <Text style={styles.kpiLabel}>COOKING</Text>
-            </TouchableOpacity>
-
-            {/* 3. Ready */}
-            <TouchableOpacity
-              style={styles.kpiCard}
-              onPress={() => setSelectedTab('ready_for_pickup')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.kpiTopRow}>
-                <Text style={[styles.kpiValue, { color: colors.ready }]}>
-                  {overview.counts.readyForPickup}
-                </Text>
-                <Ionicons name="bag-check" size={13} color={colors.ready} />
-              </View>
-              <Text style={styles.kpiLabel}>READY</Text>
-            </TouchableOpacity>
-
-            {/* 4. Completed */}
-            <TouchableOpacity
-              style={styles.kpiCard}
-              onPress={() => setSelectedTab('delivered')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.kpiTopRow}>
-                <Text style={styles.kpiValue}>
-                  {overview.counts.completedToday}
-                </Text>
-                <Ionicons name="checkmark-done" size={13} color={colors.delivered} />
-              </View>
-              <Text style={styles.kpiLabel}>DONE</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       {/* Filter Tabs */}
       <View style={styles.tabBar}>
         <FlatList
@@ -488,7 +467,10 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
             return (
               <TouchableOpacity
                 style={[styles.tabButton, isSelected && styles.tabButtonActive]}
-                onPress={() => setSelectedTab(item.key)}
+                onPress={() => {
+                  setSelectedTab(item.key);
+                  setSelection(undefined);
+                }}
                 activeOpacity={0.8}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isSelected }}
@@ -497,8 +479,8 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
                   {item.label}
                 </Text>
                 {item.count !== undefined && item.count > 0 && (
-                  <View style={[styles.tabBadge, isSelected && styles.tabBadgeActive]}>
-                    <Text style={[styles.tabBadgeText, isSelected && styles.tabBadgeTextActive]}>
+                  <View style={[styles.tabBadge, { backgroundColor: item.tone }]}>
+                    <Text style={[styles.tabBadgeText]}>
                       {item.count}
                     </Text>
                   </View>
@@ -508,6 +490,10 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
           }}
         />
       </View>
+
+      {actionError && actionError.outletId === activeOutlet?.id && (
+        <Text accessibilityRole="alert" style={styles.actionError}>{actionError.message}</Text>
+      )}
 
       {/* Main Body */}
       {!activeOutlet ? (
@@ -530,7 +516,7 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
             </TouchableOpacity>
           )}
         </View>
-      ) : loading ? (
+      ) : (loading || (loadedOutletId !== outletId && !fetchError)) ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Fetching kitchen orders for {activeOutlet.name}...</Text>
@@ -551,66 +537,29 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
             <Text style={styles.refreshButtonText}>Retry Sync</Text>
           </TouchableOpacity>
         </View>
-      ) : orders.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="receipt-outline" size={38} color={colors.textSecondary} />
-          </View>
-          <Text style={styles.emptyTitle}>No Orders Found</Text>
-          <Text style={styles.emptySubtitle}>
-            {selectedTab === 'all'
-              ? 'No active orders for this outlet. Incoming customer orders will appear here automatically.'
-              : `No orders currently in '${selectedTab}' status.`}
-          </Text>
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={() => fetchOrdersAndOverview(false)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="refresh" size={15} color={colors.primary} />
-            <Text style={styles.refreshButtonText}>Refresh Terminal</Text>
-          </TouchableOpacity>
+      ) : visibleOrders.length === 0 ? (
+        <View style={styles.emptyQueue}>
+          <Ionicons name="receipt-outline" size={24} color={colors.primary} />
+          <Text style={styles.emptyTitle}>Queue is empty</Text>
+          <Text style={styles.emptySubtitle}>{EMPTY_QUEUE[selectedTab]}</Text>
         </View>
       ) : (
-        <FlatList
-          key={isWide ? 'grid-2' : 'list-1'}
-          data={orders}
-          keyExtractor={(item) => item.id}
-          numColumns={isWide ? 2 : 1}
-          columnWrapperStyle={isWide ? styles.gridRow : undefined}
-          contentContainerStyle={styles.ordersList}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-          }
-          renderItem={({ item }) => (
-            <View style={isWide ? styles.gridCol : undefined}>
-              <KitchenOrderCard
-                order={item}
-                actionLoading={actionLoadingId === item.id}
-                onAccept={
-                  permissions.canAcceptOrders
-                    ? () => handleUpdateStatus(item.id, 'confirmed')
-                    : undefined
-                }
-                onReject={
-                  permissions.canAcceptOrders
-                    ? () => openRejectModal(item.id)
-                    : undefined
-                }
-                onStartPreparing={
-                  permissions.canUpdateKitchenStatus
-                    ? () => handleUpdateStatus(item.id, 'preparing')
-                    : undefined
-                }
-                onMarkReady={
-                  permissions.canUpdateKitchenStatus
-                    ? () => handleUpdateStatus(item.id, 'ready_for_pickup')
-                    : undefined
-                }
-              />
-            </View>
+        <View style={[styles.queueLayout, isWide && styles.queueLayoutWide]}>
+          <FlatList
+            style={isWide ? styles.queuePanel : undefined}
+            data={visibleOrders}
+            extraData={selectedOrder?.id}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.ordersList}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+            renderItem={({ item }) => renderOrder(item)}
+          />
+          {isWide && selectedOrder && (
+            <ScrollView style={styles.detailPanel} contentContainerStyle={styles.detailContent}>
+              {renderOrder(selectedOrder, true)}
+            </ScrollView>
           )}
-        />
+        </View>
       )}
 
       {/* Reject Order Confirmation Modal */}
@@ -686,14 +635,16 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
+  actionError: { color: colors.textRed, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  emptyQueue: { alignItems: 'center', padding: spacing.xl, gap: spacing.xs },
   telemetryBar: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.md,
-    paddingVertical: 5,
+    paddingVertical: 0,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomColor: '#E2E5E3',
   },
   telemetryInner: {
     flexDirection: 'row',
@@ -719,7 +670,7 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   dotConnected: {
-    backgroundColor: colors.limeAccent,
+    backgroundColor: colors.primary,
   },
   dotReconnecting: {
     backgroundColor: colors.pending,
@@ -728,31 +679,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.rejected,
   },
   connectionText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.textWhite,
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   lastSyncedText: {
     fontSize: 10,
     color: colors.textMuted,
     marginLeft: 3,
-    fontFamily: 'monospace',
+    fontVariant: ['tabular-nums'],
   },
   syncBtn: {
+    minHeight: 44,
+    minWidth: 54,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: borderRadius.xs,
-    backgroundColor: 'rgba(217, 240, 120, 0.12)',
+    backgroundColor: colors.surfaceGreen,
   },
   syncText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.limeAccent,
+    color: colors.primary,
   },
   soundToggle: {
+    minHeight: 44,
+    minWidth: 54,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
@@ -762,7 +719,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   alertBanner: {
-    backgroundColor: colors.limeAccent,
+    backgroundColor: colors.surfaceGreen,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderBottomWidth: 1,
@@ -803,116 +760,20 @@ const styles = StyleSheet.create({
   alertDismissBtn: {
     padding: spacing.xs,
   },
-  kpiWrapper: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.background,
-  },
-  kpiContainer: {
-    flexDirection: 'row',
-    gap: 6,
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    ...shadows.kpi,
-  },
-  kpiCardNewActive: {
-    borderColor: colors.pending,
-    backgroundColor: colors.pendingLight,
-  },
-  kpiTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
-  },
-  kpiLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 0.4,
-    marginTop: 1,
-  },
-  tabBar: {
-    paddingVertical: 6,
-    backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tabsList: {
-    paddingHorizontal: spacing.md,
-    gap: 6,
-    maxWidth: 1200,
-  },
-  tabButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderMedium,
-    minHeight: 34,
-    gap: 4,
-  },
-  tabButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  tabLabelActive: {
-    color: colors.textWhite,
-  },
-  tabBadge: {
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: borderRadius.full,
-  },
-  tabBadgeActive: {
-    backgroundColor: colors.limeAccent,
-  },
-  tabBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.textSecondary,
-  },
-  tabBadgeTextActive: {
-    color: colors.surfaceDark,
-  },
-  ordersList: {
-    padding: spacing.md,
-    paddingBottom: 120, // generous bottom inset for mobile browser address bar
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  gridRow: {
-    gap: spacing.md,
-  },
-  gridCol: {
-    flex: 1,
-  },
+  tabBar: { marginHorizontal: 14, borderBottomWidth: 1, borderColor: '#E2E5E3' },
+  tabsList: { gap: 2 },
+  tabButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 4, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  tabButtonActive: { borderBottomColor: colors.primary },
+  tabLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  tabLabelActive: { color: colors.primary, fontWeight: '800' },
+  tabBadge: { borderRadius: 12, minWidth: 18, alignItems: 'center', paddingHorizontal: 4 },
+  tabBadgeText: { color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
+  queueLayout: { flex: 1, paddingHorizontal: 14, paddingTop: 12 },
+  queueLayoutWide: { flexDirection: 'row', gap: 14, paddingBottom: 16 },
+  queuePanel: { flex: 2, borderWidth: 1, borderColor: '#E2E5E3', borderRadius: 12 },
+  detailPanel: { flex: 3, borderWidth: 1, borderColor: '#E2E5E3', borderRadius: 12 },
+  detailContent: { padding: 24 },
+  ordersList: { paddingBottom: 20 },
   centerContainer: {
     flex: 1,
     alignItems: 'center',

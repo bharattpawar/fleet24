@@ -101,21 +101,21 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-3 pb-3 border-b border-[#24533F]/30">
-          <div className="w-9 h-9 rounded-xl bg-[#24533F] text-[#D9F078] flex items-center justify-center font-bold">
+      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl overflow-hidden">
+        <div className="flex items-center gap-3 pb-3 border-b border-[#E3E7EC]">
+          <div className="w-9 h-9 rounded-xl bg-[#205641] text-white flex items-center justify-center font-bold">
             <Store className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-[#F7F6F0]">Onboard New Restaurant</h2>
-            <p className="text-[11px] text-[#F7F6F0]/60">
+            <h2 className="text-base font-bold text-[#171A21]">Onboard New Restaurant</h2>
+            <p className="text-[11px] text-slate-600">
               Create restaurant brand and initialize primary operating outlet in Super Admin directory
             </p>
           </div>
         </div>
 
         {error && (
-          <div className="p-3 bg-[#E98755]/15 border border-[#E98755]/30 rounded-xl text-xs text-[#E98755] flex items-center gap-2">
+          <div className="p-3 bg-[#9A431F]/15 border border-[#9A431F]/30 rounded-xl text-xs text-[#9A431F] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -130,13 +130,13 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
         >
           {/* Restaurant Brand Info */}
           <div className="space-y-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#D9F078]">
+            <span className="text-[10px] font-bold  text-[#205641]">
               1. Brand & Identity
             </span>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Restaurant Name *
                 </label>
                 <input
@@ -145,12 +145,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   placeholder="e.g. Royal Biryani House"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Custom Slug (optional)
                 </label>
                 <input
@@ -158,13 +158,13 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   placeholder="royal-biryani-house"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                  className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                  className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Brand Logo URL
               </label>
               <input
@@ -172,12 +172,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 placeholder="https://images.unsplash.com/..."
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Owner User Account UUID (optional)
               </label>
               <input
@@ -185,12 +185,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 placeholder="e.g. 00000000-0000-0000-0000-000000000001"
                 value={ownerId}
                 onChange={(e) => setOwnerId(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Brand Description
               </label>
               <textarea
@@ -198,20 +198,20 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 placeholder="Authentic Hyderabadi biryani, kebabs, and Mughlai curries..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
               />
             </div>
           </div>
 
           {/* Primary Outlet Information */}
-          <div className="space-y-3 pt-2 border-t border-[#24533F]/20">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#D9F078]">
+          <div className="space-y-3 pt-2 border-t border-[#E3E7EC]">
+            <span className="text-[10px] font-bold  text-[#205641]">
               2. Primary Operating Outlet
             </span>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Outlet Name *
                 </label>
                 <input
@@ -220,12 +220,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   placeholder="e.g. Indiranagar Kitchen"
                   value={outletName}
                   onChange={(e) => setOutletName(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Outlet Phone (+91) *
                 </label>
                 <input
@@ -234,13 +234,13 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   placeholder="+919876543210"
                   value={outletPhone}
                   onChange={(e) => setOutletPhone(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                  className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Kitchen Address *
               </label>
               <textarea
@@ -249,13 +249,13 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 placeholder="100 Feet Rd, HAL 2nd Stage, Indiranagar, Bengaluru, Karnataka 560038"
                 value={outletAddress}
                 onChange={(e) => setOutletAddress(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Latitude *
                 </label>
                 <input
@@ -264,12 +264,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   required
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Longitude *
                 </label>
                 <input
@@ -278,12 +278,12 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   required
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Delivery Radius (km) *
                 </label>
                 <input
@@ -294,24 +294,24 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                   required
                   value={deliveryRadiusKm}
                   onChange={(e) => setDeliveryRadiusKm(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#24533F]/30">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E3E7EC]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+              className="px-4 py-2 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending || !name.trim() || !outletAddress.trim()}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 transition-colors disabled:opacity-50 cursor-pointer shadow-md"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer shadow-md"
             >
               <Plus className="w-4 h-4" />
               <span>{createMutation.isPending ? 'Onboarding...' : 'Onboard Restaurant'}</span>

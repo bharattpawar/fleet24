@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { colors, borderRadius, spacing, typography } from '../theme/tokens';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { colors } from '../theme/tokens';
+import { ExplorePhoto } from './ExplorePhoto';
 import { VegBadge } from './VegBadge';
 import { QuantityStepper } from './QuantityStepper';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,12 +46,6 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
       <View style={styles.infoCol}>
         <View style={styles.badgeRow}>
           <VegBadge isVeg={item.isVeg} size={15} />
-          {item.isOverridden && (
-            <View style={styles.specialTag}>
-              <Ionicons name="sparkles" size={10} color={colors.accent} />
-              <Text style={styles.specialTagText}>CHEF'S PICK</Text>
-            </View>
-          )}
           {hasDiscount && (
             <View style={styles.discountTag}>
               <Text style={styles.discountTagText}>OFFER</Text>
@@ -64,11 +59,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 
         <View style={styles.priceRow}>
           <Text style={styles.effectivePrice}>
-            ₹{parseFloat(item.effectivePrice).toFixed(0)}
+            ₹{Number(item.effectivePrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
           </Text>
           {hasDiscount && (
             <Text style={styles.basePrice}>
-              ₹{parseFloat(item.basePrice).toFixed(0)}
+              ₹{Number(item.basePrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
             </Text>
           )}
         </View>
@@ -92,17 +87,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
       {/* Right Photo & Action Column */}
       <View style={styles.actionCol}>
         <View style={styles.imageContainer}>
-          {item.imageUrl ? (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={styles.image}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.placeholderBox}>
-              <Ionicons name="restaurant-outline" size={30} color={colors.primary} />
-            </View>
-          )}
+          <ExplorePhoto key={item.imageUrl} uri={item.imageUrl} />
         </View>
 
         {/* Floating Add Button / Stepper */}
@@ -117,10 +102,12 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             ) : (
               <TouchableOpacity
                 style={styles.addBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${item.name} to cart`}
                 activeOpacity={0.85}
                 onPress={onAdd}
               >
-                <Text style={styles.addBtnText}>ADD</Text>
+                <Text style={styles.addBtnText}>Add</Text>
                 <Ionicons name="add" size={14} color={colors.primary} style={styles.addBtnPlus} />
               </TouchableOpacity>
             )
@@ -136,168 +123,25 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: 16,
-    marginBottom: 14,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  disabledCard: {
-    opacity: 0.6,
-  },
-  infoCol: {
-    flex: 1,
-    paddingRight: 14,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  specialTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 8,
-  },
-  specialTagText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.accent,
-    letterSpacing: 0.3,
-  },
-  discountTag: {
-    backgroundColor: colors.surfaceGreen,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  discountTagText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.3,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.charcoal,
-    lineHeight: 21,
-    letterSpacing: -0.3,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  effectivePrice: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.charcoal,
-  },
-  basePrice: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  description: {
-    fontSize: 12.5,
-    color: colors.textSecondary,
-    lineHeight: 17,
-    marginTop: 2,
-  },
-  unavailableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-  },
-  unavailableText: {
-    fontSize: 11.5,
-    color: colors.error,
-    fontWeight: '600',
-  },
-  actionCol: {
-    width: 108,
-    alignItems: 'center',
-  },
-  imageContainer: {
-    width: 108,
-    height: 108,
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: '#EAE7DD',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderBox: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EAE7DD',
-  },
-  buttonWrapper: {
-    marginTop: -16,
-    zIndex: 5,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    minWidth: 88,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  addBtnText: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 12.5,
-    letterSpacing: 0.5,
-  },
-  addBtnPlus: {
-    marginLeft: 2,
-    fontWeight: '800',
-  },
-  disabledBtn: {
-    backgroundColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  disabledBtnText: {
-    color: colors.textMuted,
-    fontSize: 10.5,
-    fontWeight: '600',
-  },
+  card: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: '#ECEDEB', alignItems: 'flex-start' },
+  disabledCard: { opacity: 0.65 },
+  infoCol: { flex: 1, minWidth: 0, paddingRight: 18 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  discountTag: { backgroundColor: '#EAF5ED', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  discountTagText: { color: colors.primary, fontSize: 9, fontWeight: '700' },
+  name: { fontSize: 17, lineHeight: 23, fontWeight: '700', letterSpacing: -0.3, color: '#202326' },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 7, marginTop: 7 },
+  effectivePrice: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: '#202326' },
+  basePrice: { fontSize: 12, color: '#85898D', textDecorationLine: 'line-through' },
+  description: { fontSize: 13, lineHeight: 19, color: '#777B80', marginTop: 8 },
+  unavailableRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  unavailableText: { flex: 1, fontSize: 11, color: '#8B5149' },
+  actionCol: { width: 116, alignItems: 'center', paddingBottom: 2 },
+  imageContainer: { width: 116, height: 116, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F3F4F1' },
+  buttonWrapper: { marginTop: -14, zIndex: 5 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D8E5DC', borderRadius: 12, minHeight: 44, minWidth: 98, boxShadow: '0px 3px 10px rgba(20, 55, 30, 0.09)' },
+  addBtnText: { fontSize: 16, fontWeight: '800', color: colors.primary },
+  addBtnPlus: { marginLeft: 10 },
+  disabledBtn: { backgroundColor: '#F0F1EE', borderRadius: 10, padding: 10 },
+  disabledBtnText: { fontSize: 11, color: '#737773' },
 });

@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { orderStatusEnum } from './enums';
 import { users } from './users';
 import { restaurantOutlets } from './restaurants';
@@ -44,6 +44,7 @@ export const orders = pgTable(
     customerInstructions: text('customer_instructions'),
     cancellationReason: text('cancellation_reason'),
     idempotencyKey: varchar('idempotency_key', { length: 100 }),
+    paymentConflictDetails: jsonb('payment_conflict_details'),
 
     placedAt: timestamp('placed_at', { withTimezone: true }),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
@@ -56,6 +57,11 @@ export const orders = pgTable(
   (table) => [
     uniqueIndex('orders_order_number_idx').on(table.orderNumber),
     uniqueIndex('orders_idempotency_key_idx').on(table.idempotencyKey),
+    uniqueIndex('orders_single_active_per_customer_idx')
+      .on(table.customerId)
+      .where(
+        sql`status IN ('placed', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery')`,
+      ),
     index('orders_customer_id_idx').on(table.customerId),
     index('orders_outlet_id_idx').on(table.outletId),
     index('orders_status_idx').on(table.status),

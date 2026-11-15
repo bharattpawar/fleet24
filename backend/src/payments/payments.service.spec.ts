@@ -26,6 +26,14 @@ describe('PaymentsService - Step 1 Verification', () => {
           findFirst: jest.fn(),
         },
       },
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+            for: jest.fn().mockResolvedValue([{ id: 'customer' }]),
+          }),
+        }),
+      }),
       transaction: jest.fn(),
       update: jest.fn(),
       insert: jest.fn(),
@@ -71,6 +79,115 @@ describe('PaymentsService - Step 1 Verification', () => {
         create: jest.fn(),
       },
     };
+  });
+
+  describe('Checkout capture verification', () => {
+    const dto = {
+      razorpayOrderId: 'order_test',
+      razorpayPaymentId: 'pay_test',
+      razorpaySignature: '',
+    };
+
+    beforeEach(() => {
+      dto.razorpaySignature = crypto.createHmac('sha256', TEST_SECRET)
+        .update('order_test|pay_test').digest('hex');
+      mockDb.query.payments.findFirst.mockResolvedValue({
+        id: 'payment', orderId: 'order', amount: '100.00', currency: 'INR', status: 'pending',
+        order: { id: 'order', orderNumber: 'FL-1', customerId: 'customer', status: 'pending_payment' },
+      });
+    });
+
+    it('keeps an authorized payment pending without publishing an order', async () => {
+      (service as any).razorpayClient.payments = {
+        fetch: jest.fn().mockResolvedValue({
+          amount: 10000, currency: 'INR', order_id: 'order_test', status: 'authorized',
+        }),
+      };
+      await expect(service.verifyPayment('customer', dto)).resolves.toMatchObject({
+        verified: false, orderStatus: 'pending_payment', paymentStatus: 'pending',
+      });
+      expect(mockDb.transaction).not.toHaveBeenCalled();
+      expect(mockTrackingPublisher.publishOrderCreated).not.toHaveBeenCalled();
+    });
+
+    it.each(['verify first', 'webhook first', 'concurrent'])(
+      'publishes exactly once when capture arrives %s',
+      async (arrival) => {
+        const order = {
+          id: 'order', orderNumber: 'FL-1', customerId: 'customer', outletId: 'outlet',
+          status: 'pending_payment', items: [], totalPayable: '100.00',
+        };
+        const entity = { id: 'pay_test', order_id: 'order_test', status: 'captured', amount: 10000, currency: 'INR' };
+        (service as any).razorpayClient.payments = { fetch: jest.fn().mockResolvedValue(entity) };
+        mockDb.query.paymentWebhookEvents = { findFirst: jest.fn().mockResolvedValue(null) };
+        const history = jest.fn();
+        mockDb.insert.mockReturnValue({ values: jest.fn().mockReturnValue({ onConflictDoNothing: jest.fn() }) });
+        mockDb.transaction.mockImplementation(async (run: (tx: unknown) => Promise<unknown>) => run({
+          query: {
+            orders: { findFirst: async () => ({ ...order }) },
+            payments: { findFirst: async () => ({ id: 'payment', amount: '100.00', currency: 'INR', status: 'pending' }) },
+          },
+          select: jest.fn().mockReturnValue({
+            from: jest.fn().mockReturnValue({
+              where: jest.fn().mockReturnValue({
+                for: jest.fn().mockResolvedValue([{ id: 'customer' }]),
+                limit: jest.fn().mockResolvedValue([]),
+              }),
+            }),
+          }),
+          update: jest.fn().mockReturnValue({
+            set: (values: { status: string }) => ({
+              where: () => ({
+                returning: async () => {
+                  if (values.status !== 'placed' || order.status !== 'pending_payment') return [];
+                  order.status = 'placed';
+                  return [{ id: order.id }];
+                },
+              }),
+            }),
+          }),
+          insert: () => ({ values: history }),
+        }));
+        const body = JSON.stringify({ event: 'payment.captured', payload: { payment: { entity } } });
+        const signature = crypto.createHmac('sha256', TEST_WEBHOOK_SECRET).update(body).digest('hex');
+        const verify = () => service.verifyPayment('customer', dto);
+        const webhook = () => service.handleWebhook(body, signature);
+        if (arrival === 'concurrent') {
+          await Promise.all([verify(), webhook()]);
+        } else if (arrival === 'verify first') {
+          await verify();
+          await webhook();
+        } else {
+          await webhook();
+          await verify();
+        }
+        expect(order.status).toBe('placed');
+        expect(history).toHaveBeenCalledTimes(1);
+        expect(mockTrackingPublisher.publishOrderCreated).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('blocks retry when Razorpay already reports the order paid', async () => {
+      mockDb.query.orders.findFirst.mockResolvedValue({
+        id: 'order', status: 'pending_payment', totalPayable: '100.00',
+      });
+      mockDb.query.payments.findFirst.mockResolvedValue({
+        status: 'pending', providerOrderId: 'order_test',
+      });
+      const gatewayOrders = (service as any).razorpayClient.orders;
+      gatewayOrders.fetch.mockResolvedValue({ status: 'paid' });
+      await expect(service.createPaymentSession('customer', 'order')).rejects.toThrow('Payment is being confirmed');
+      expect(gatewayOrders.create).not.toHaveBeenCalled();
+    });
+
+    it('requires provider confirmation even in test mode', async () => {
+      (service as any).razorpayClient.payments = {
+        fetch: jest.fn().mockRejectedValue(new Error('Unavailable')),
+      };
+      await expect(service.verifyPayment('customer', dto)).rejects.toThrow(BadRequestException);
+      expect(mockDb.transaction).not.toHaveBeenCalled();
+      expect(mockTrackingPublisher.publishOrderCreated).not.toHaveBeenCalled();
+    });
   });
 
   describe('Amount Conversion to Paise', () => {

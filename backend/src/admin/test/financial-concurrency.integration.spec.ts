@@ -145,7 +145,7 @@ describe('Database-Backed Financial Concurrency Integration Tests', () => {
 
           const insertRes = await client.query(
             `INSERT INTO orders (order_number, customer_id, outlet_id, status, item_total, delivery_fee, tax_amount, total_payable, delivery_address_snapshot, delivery_latitude, delivery_longitude)
-             VALUES ($1, $2, $3, 'confirmed', '200.00', $4, '10.00', '240.00', '{}', '28.4744', '77.5040')
+             VALUES ($1, $2, $3, 'delivered', '200.00', $4, '10.00', '240.00', '{}', '28.4744', '77.5040')
              RETURNING id, delivery_fee`,
             [`ORD-${sessionLabel}-${Date.now()}`, testCustomerId, testOutletId, fee],
           );

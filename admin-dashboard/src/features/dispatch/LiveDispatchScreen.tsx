@@ -1,3 +1,4 @@
+import { ridersApi } from '@/lib/api/riders';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dispatchApi } from '@/lib/api/dispatch';
@@ -17,14 +18,16 @@ import {
 
 export const LiveDispatchScreen: React.FC = () => {
   const queryClient = useQueryClient();
+  const [view, setView] = useState<'active' | 'unassigned'>('active');
+  const [page, setPage] = useState(1);
   const [selectedDelivery, setSelectedDelivery] = useState<ActiveDeliverySummary | null>(null);
   const [manualAssignOrderId, setManualAssignOrderId] = useState<string | null>(null);
   const [targetRiderId, setTargetRiderId] = useState<string>('');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['admin', 'deliveries', 'active'],
-    queryFn: () => dispatchApi.getActiveDeliveries(),
+    queryKey: ['admin', 'deliveries', 'active', view, page],
+    queryFn: () => dispatchApi.getActiveDeliveries({ page, status: view === 'unassigned' ? 'unassigned' : undefined }),
     refetchInterval: 10000, // Poll active deliveries every 10s as real-time fallback
   });
 
@@ -46,6 +49,8 @@ export const LiveDispatchScreen: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'deliveries', 'active'] });
       setManualAssignOrderId(null);
       setTargetRiderId('');
+      setSelectedDelivery(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dispatch', 'available-riders'] });
       setActionError(null);
     },
     onError: (err: any) => {
@@ -53,31 +58,38 @@ export const LiveDispatchScreen: React.FC = () => {
     },
   });
 
-  const deliveries = data?.data || [];
+  const availableRiders = useQuery({
+    queryKey: ['admin', 'dispatch', 'available-riders'],
+    queryFn: () => ridersApi.listRiders({ availabilityStatus: 'available', verificationStatus: 'approved', limit: 25 }),
+    refetchInterval: 10000,
+  });
+  const deliveries = [...(data?.data ?? [])].sort((a, b) =>
+    Number(b.deliveryStatus === 'unassigned') - Number(a.deliveryStatus === 'unassigned'),
+  );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#24533F]/30">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#E3E7EC]">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-[#F7F6F0]">
+            <h1 className="text-xl font-bold tracking-tight text-[#171A21]">
               Live Dispatch & Delivery Telemetry
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#24533F]/50 text-[#D9F078] text-[10px] font-mono border border-[#24533F]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#D9F078] animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2ED] text-[#205641] text-[10px] tabular-nums border border-[#205641]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#205641] animate-pulse" />
               Live Telemetry Polling Active (10s)
             </span>
           </div>
-          <p className="text-xs text-[#F7F6F0]/60 mt-1">
-            Super Admin Dispatch Operations · In-Flight Rider Locations, Broadcast Retries, Manual Assignments
+          <p className="text-xs text-slate-600 mt-1">
+            Monitor deliveries and assign riders.
           </p>
         </div>
 
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#24533F]/40 border border-[#24533F] text-xs font-medium text-[#D9F078] hover:bg-[#24533F]/60 transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-medium text-[#205641] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           <span>Sync Dispatch</span>
@@ -85,42 +97,55 @@ export const LiveDispatchScreen: React.FC = () => {
       </div>
 
       {actionError && (
-        <div className="p-3 rounded-lg bg-[#E98755]/15 border border-[#E98755]/30 flex items-center gap-2 text-xs text-[#E98755]">
+        <div className="p-3 rounded-lg bg-[#9A431F]/15 border border-[#9A431F]/30 flex items-center gap-2 text-xs text-[#9A431F]">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{actionError}</span>
         </div>
       )}
 
       {/* Split Operations Workspace */}
+      <section className="admin-panel flex flex-wrap items-center gap-3 p-4">
+        <h2 className="text-sm font-bold">Available riders</h2>
+        <span className="text-sm text-slate-600">{availableRiders.isLoading ? 'Loading…' : availableRiders.isError ? 'Unavailable' : availableRiders.data?.pagination.total ?? 0}</span>
+        {availableRiders.data?.data.slice(0, 4).map((rider) => (
+          <span key={rider.id} className="rounded-md bg-[#E8F2ED] px-2 py-1 text-xs text-[#205641]">{rider.fullName || rider.vehicleType}</span>
+        ))}
+      </section>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Active Deliveries Queue (1 col) */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#F7F6F0]/60">
-              Active Deliveries ({deliveries.length})
-            </span>
-            <span className="text-[11px] font-mono text-[#D9F078]">
-              {deliveries.filter((d) => d.deliveryStatus === 'unassigned').length} Unassigned
-            </span>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Delivery queue">
+            {(['active', 'unassigned'] as const).map((option) => (
+              <button key={option} type="button" aria-pressed={view === option}
+                className={view === option ? 'admin-primary' : 'admin-control'}
+                onClick={() => { setView(option); setPage(1); setSelectedDelivery(null); }}>
+                {option === 'active' ? 'Active deliveries' : 'Unassigned'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <button className="admin-control" disabled={page === 1} onClick={() => { setPage(page - 1); setSelectedDelivery(null); }}>Previous</button>
+            <span>Page {page}{data?.totalPages ? ` of ${data.totalPages}` : ''}</span>
+            <button className="admin-control" disabled={page >= (data?.totalPages ?? 1)} onClick={() => { setPage(page + 1); setSelectedDelivery(null); }}>Next</button>
           </div>
 
           <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
             {isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-28 bg-white/5 animate-pulse rounded-xl" />
+                  <div key={i} className="h-28 bg-slate-100 animate-pulse rounded-xl" />
                 ))}
               </div>
             ) : isError ? (
-              <div className="p-4 rounded-xl bg-[#E98755]/15 text-xs text-[#E98755]">
+              <div className="p-4 rounded-xl bg-[#9A431F]/15 text-xs text-[#9A431F]">
                 Failed to load active delivery stream.
               </div>
             ) : deliveries.length === 0 ? (
-              <div className="p-8 text-center bg-[#17211B] rounded-xl border border-dashed border-[#24533F]/30 space-y-2">
-                <CheckCircle2 className="w-6 h-6 text-[#D9F078] mx-auto" />
-                <p className="text-xs text-[#F7F6F0]/80 font-semibold">Zero In-Flight Deliveries</p>
-                <p className="text-[11px] text-[#F7F6F0]/40">
-                  All customer orders have been completed or are awaiting kitchen confirmation.
+              <div className="p-8 text-center bg-[#FFFFFF] rounded-xl border border-dashed border-[#E3E7EC] space-y-2">
+                <CheckCircle2 className="w-6 h-6 text-[#205641] mx-auto" />
+                <p className="text-xs text-slate-600 font-semibold">{view === 'unassigned' ? 'No unassigned deliveries on this page' : 'Zero In-Flight Deliveries'}</p>
+                <p className="text-[11px] text-slate-600">
+                  {view === 'unassigned' ? 'Orders waiting for a rider appear here.' : 'Active deliveries appear here.'}
                 </p>
               </div>
             ) : (
@@ -134,32 +159,32 @@ export const LiveDispatchScreen: React.FC = () => {
                     onClick={() => setSelectedDelivery(del)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2.5 ${
                       isSelected
-                        ? 'bg-[#24533F]/30 border-[#D9F078] shadow-lg'
-                        : 'bg-[#17211B] border-[#24533F]/30 hover:border-[#24533F]/60'
+                        ? 'bg-[#E8F2ED] border-[#205641] shadow-lg'
+                        : 'bg-[#FFFFFF] border-[#E3E7EC] hover:border-[#E3E7EC]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="font-mono font-bold text-xs text-[#F7F6F0]">
+                      <div className="tabular-nums font-bold text-xs text-[#171A21]">
                         #{del.orderNumber}
                       </div>
                       <OrderStatusBadge type="delivery" status={del.deliveryStatus} />
                     </div>
 
                     <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-1.5 text-[#F7F6F0]/80">
-                        <Store className="w-3.5 h-3.5 text-[#D9F078] shrink-0" />
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <Store className="w-3.5 h-3.5 text-[#205641] shrink-0" />
                         <span className="font-semibold truncate">{del.restaurant?.name || 'Restaurant'}</span>
-                        <span className="text-[#F7F6F0]/40 text-[10px]">({del.restaurant?.outletName || 'Outlet'})</span>
+                        <span className="text-slate-600 text-[10px]">({del.restaurant?.outletName || 'Outlet'})</span>
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-[#F7F6F0]/70">
-                        <Bike className="w-3.5 h-3.5 text-[#D9F078] shrink-0" />
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <Bike className="w-3.5 h-3.5 text-[#205641] shrink-0" />
                         {del.rider ? (
-                          <span className="font-mono text-[11px] text-[#D9F078]">
+                          <span className="tabular-nums text-[11px] text-[#205641]">
                             {del.rider.fullName || 'Fleet Rider'} ({del.rider.vehicleType})
                           </span>
                         ) : (
-                          <span className="text-[11px] font-mono text-amber-400 font-bold">
+                          <span className="text-[11px] tabular-nums text-amber-700 font-bold">
                             No Rider Assigned
                           </span>
                         )}
@@ -167,22 +192,30 @@ export const LiveDispatchScreen: React.FC = () => {
                     </div>
 
                     {/* Telemetry info */}
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-[#F7F6F0]/40">
+                    <div className="pt-2 border-t border-[#E3E7EC] flex items-center justify-between text-[10px] tabular-nums text-slate-600">
                       <span>
                         {del.location
                           ? `GPS: ${del.location.freshness.toUpperCase()} (${del.location.ageSeconds}s ago)`
                           : 'GPS: Missing / Offline'}
                       </span>
                       {isUnassigned && (
+                        <div className="flex flex-wrap justify-end gap-2">
+                        <button className="admin-primary" onClick={(event) => {
+                          event.stopPropagation();
+                          setActionError(null);
+                          setTargetRiderId('');
+                          setManualAssignOrderId(del.orderId);
+                        }}>Assign rider</button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             retryDispatchMutation.mutate(del.orderId);
                           }}
-                          className="px-2 py-0.5 rounded bg-[#24533F] text-[#D9F078] font-bold hover:bg-[#24533F]/80 cursor-pointer"
+                          className="px-2 py-0.5 rounded bg-[#205641] text-white font-bold hover:bg-[#205641]/80 cursor-pointer"
                         >
                           Retry
                         </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -195,27 +228,27 @@ export const LiveDispatchScreen: React.FC = () => {
         {/* Right Column: Live Telemetry Map & Controls (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#F7F6F0]/60">
+            <span className="text-xs font-bold  text-slate-600">
               Live Coordinate Map & Dispatch Interventions
             </span>
             {selectedDelivery && (
-              <span className="text-xs font-mono text-[#D9F078]">
+              <span className="text-xs tabular-nums text-[#205641]">
                 Selected Order: #{selectedDelivery.orderNumber}
               </span>
             )}
           </div>
 
           {/* Coordinate Visualizer Box */}
-          <div className="rounded-2xl border border-[#24533F]/30 bg-[#17211B] p-6 min-h-[420px] flex flex-col justify-between relative overflow-hidden">
+          <div className="rounded-2xl border border-[#E3E7EC] bg-[#FFFFFF] p-6 min-h-[420px] flex flex-col justify-between relative overflow-hidden">
             {selectedDelivery ? (
               <div className="space-y-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-[#F7F6F0] flex items-center gap-2">
-                      <Navigation className="w-5 h-5 text-[#D9F078]" />
+                    <h3 className="text-base font-bold text-[#171A21] flex items-center gap-2">
+                      <Navigation className="w-5 h-5 text-[#205641]" />
                       <span>Order #{selectedDelivery.orderNumber} In-Flight Status</span>
                     </h3>
-                    <p className="text-xs text-[#F7F6F0]/50 mt-1">
+                    <p className="text-xs text-slate-600 mt-1">
                       {selectedDelivery.restaurant?.name || 'Restaurant'} · Outlet: {selectedDelivery.restaurant?.address || 'Outlet Address'}
                     </p>
                   </div>
@@ -223,14 +256,14 @@ export const LiveDispatchScreen: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setManualAssignOrderId(selectedDelivery.orderId)}
-                      className="px-3 py-1.5 rounded-lg bg-[#24533F] text-[#D9F078] text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer"
                     >
                       Manual Rider Override
                     </button>
                     <button
                       disabled={retryDispatchMutation.isPending}
                       onClick={() => retryDispatchMutation.mutate(selectedDelivery.orderId)}
-                      className="px-3 py-1.5 rounded-lg bg-black/40 text-[#D9F078] border border-[#24533F] text-xs font-semibold hover:bg-[#24533F]/30 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-[#F5F6F8] text-[#205641] border border-[#205641] text-xs font-semibold hover:bg-[#E8F2ED] transition-colors cursor-pointer"
                     >
                       Retry Dispatch
                     </button>
@@ -240,66 +273,66 @@ export const LiveDispatchScreen: React.FC = () => {
                 {/* Coordinate Telemetry Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Outlet Node */}
-                  <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#F7F6F0]">
-                      <Store className="w-4 h-4 text-[#D9F078]" />
+                  <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#171A21]">
+                      <Store className="w-4 h-4 text-[#205641]" />
                       <span>Kitchen Coordinates</span>
                     </div>
                     {selectedDelivery.restaurantLocation ? (
-                      <div className="text-[11px] font-mono text-[#F7F6F0]/70 space-y-0.5">
+                      <div className="text-[11px] tabular-nums text-slate-600 space-y-0.5">
                         <div>Lat: {selectedDelivery.restaurantLocation.latitude.toFixed(6)}</div>
                         <div>Lng: {selectedDelivery.restaurantLocation.longitude.toFixed(6)}</div>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-[#F7F6F0]/40">No outlet coordinates</div>
+                      <div className="text-[11px] text-slate-600">No outlet coordinates</div>
                     )}
                   </div>
 
                   {/* Rider Live Node */}
-                  <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#F7F6F0]">
-                      <Bike className="w-4 h-4 text-[#D9F078]" />
+                  <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#171A21]">
+                      <Bike className="w-4 h-4 text-[#205641]" />
                       <span>Rider GPS Fix</span>
                     </div>
                     {selectedDelivery.location ? (
-                      <div className="text-[11px] font-mono text-[#F7F6F0]/70 space-y-0.5">
+                      <div className="text-[11px] tabular-nums text-slate-600 space-y-0.5">
                         <div>Lat: {selectedDelivery.location.latitude.toFixed(6)}</div>
                         <div>Lng: {selectedDelivery.location.longitude.toFixed(6)}</div>
-                        <div className="text-[#D9F078] text-[10px]">
+                        <div className="text-[#205641] text-[10px]">
                           Freshness: {selectedDelivery.location.freshness} ({selectedDelivery.location.ageSeconds}s)
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-[#E98755]">No active GPS transmitted</div>
+                      <div className="text-[11px] text-[#9A431F]">No active GPS transmitted</div>
                     )}
                   </div>
 
                   {/* Customer Dropoff Node */}
-                  <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#F7F6F0]">
-                      <MapPin className="w-4 h-4 text-[#E98755]" />
+                  <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#171A21]">
+                      <MapPin className="w-4 h-4 text-[#9A431F]" />
                       <span>Dropoff Pin</span>
                     </div>
                     {selectedDelivery.customerLocation?.latitude ? (
-                      <div className="text-[11px] font-mono text-[#F7F6F0]/70 space-y-0.5">
+                      <div className="text-[11px] tabular-nums text-slate-600 space-y-0.5">
                         <div>Lat: {selectedDelivery.customerLocation.latitude.toFixed(6)}</div>
                         <div>Lng: {selectedDelivery.customerLocation.longitude?.toFixed(6)}</div>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-[#F7F6F0]/40">Standard Address Delivery</div>
+                      <div className="text-[11px] text-slate-600">Standard Address Delivery</div>
                     )}
                   </div>
                 </div>
 
                 {/* Simulated Map Visualizer Canvas */}
-                <div className="h-60 rounded-xl bg-black/50 border border-[#24533F]/40 flex flex-col items-center justify-center relative p-4 text-center">
-                  <div className="absolute inset-0 bg-[radial-gradient(#24533F_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-                  <Radio className="w-8 h-8 text-[#D9F078] animate-ping mb-3 z-10" />
+                <div className="h-60 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] flex flex-col items-center justify-center relative p-4 text-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(#205641_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
+                  <Radio className="w-8 h-8 text-[#205641] animate-ping mb-3 z-10" />
                   <div className="z-10 space-y-1">
-                    <p className="text-xs font-bold text-[#F7F6F0]">
+                    <p className="text-xs font-bold text-[#171A21]">
                       Live Telemetry Vector Active
                     </p>
-                    <p className="text-[11px] text-[#F7F6F0]/60 max-w-sm">
+                    <p className="text-[11px] text-slate-600 max-w-sm">
                       Coordinates captured directly from rider GPS breadcrumbs and outlet geo-fence. Real map tiles require Google Maps / Mapbox API token configuration.
                     </p>
                   </div>
@@ -307,11 +340,11 @@ export const LiveDispatchScreen: React.FC = () => {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-16">
-                <Navigation className="w-10 h-10 text-[#F7F6F0]/20" />
-                <p className="text-sm font-semibold text-[#F7F6F0]/70">
+                <Navigation className="w-10 h-10 text-slate-600" />
+                <p className="text-sm font-semibold text-slate-600">
                   Select an In-Flight Delivery from the Left Panel
                 </p>
-                <p className="text-xs text-[#F7F6F0]/40 max-w-sm">
+                <p className="text-xs text-slate-600 max-w-sm">
                   Click any active order to inspect live rider GPS coordinates, delivery attempt history, and manual dispatch interventions.
                 </p>
               </div>
@@ -323,16 +356,16 @@ export const LiveDispatchScreen: React.FC = () => {
       {/* Modal: Super Admin Manual Rider Assignment */}
       {manualAssignOrderId && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2 text-[#D9F078]">
+          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-[#205641]">
               <Send className="w-5 h-5" />
-              <h3 className="text-sm font-bold">Manual Rider Assignment Override</h3>
+              <h3 className="text-sm font-bold">Assign rider</h3>
             </div>
-            <p className="text-xs text-[#F7F6F0]/70 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed">
               Manually assign a specific delivery partner to this order. The target rider must be verified, active, and not currently suspended.
             </p>
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/60">
+              <label className="text-[11px] font-semibold text-slate-600">
                 Target Rider UUID
               </label>
               <input
@@ -340,13 +373,13 @@ export const LiveDispatchScreen: React.FC = () => {
                 value={targetRiderId}
                 onChange={(e) => setTargetRiderId(e.target.value)}
                 placeholder="Enter rider UUID..."
-                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
               />
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setManualAssignOrderId(null)}
-                className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
               >
                 Cancel
               </button>
@@ -358,7 +391,7 @@ export const LiveDispatchScreen: React.FC = () => {
                     riderId: targetRiderId.trim(),
                   })
                 }
-                className="px-4 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
               >
                 {manualAssignMutation.isPending ? 'Assigning...' : 'Confirm Assignment'}
               </button>

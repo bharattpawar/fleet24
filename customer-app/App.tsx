@@ -32,12 +32,12 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
     }
   }) as any;
 }
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
-import { colors, spacing, typography, borderRadius } from './src/theme/tokens';
+import { colors, exploreColors } from './src/theme/tokens';
 import { OutletSummary } from './src/components/RestaurantCard';
 
 // Screens
@@ -52,9 +52,20 @@ import { RiderDashboardScreen } from './src/screens/RiderDashboardScreen';
 
 type Tab = 'home' | 'orders' | 'profile';
 
+const tabs: {
+  id: Tab;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  activeIcon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { id: 'home', label: 'Explore', icon: 'home-outline', activeIcon: 'home' },
+  { id: 'orders', label: 'Orders', icon: 'clipboard-outline', activeIcon: 'clipboard' },
+  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+];
+
 function MainApp() {
-  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [featuredDishId, setFeaturedDishId] = useState<string>();
   const [selectedOutlet, setSelectedOutlet] = useState<OutletSummary | null>(null);
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [isRiderMode, setIsRiderMode] = useState(false);
@@ -84,6 +95,10 @@ function MainApp() {
     if (trackingOrderId) {
       return (
         <DeliveryTrackingScreen
+          onViewOrders={() => {
+            setTrackingOrderId(null);
+            setActiveTab('orders');
+          }}
           orderId={trackingOrderId}
           onBack={() => setTrackingOrderId(null)}
         />
@@ -95,14 +110,16 @@ function MainApp() {
         <CartScreen
           onBack={() => setIsCartVisible(false)}
           onRequireAuth={() => setIsAuthModalVisible(true)}
-          onOrderSuccess={(orderId) => {
+          onViewOrders={() => {
             setIsCartVisible(false);
             setSelectedOutlet(null);
-            if (orderId) {
-              setTrackingOrderId(orderId);
-            } else {
-              setActiveTab('orders');
-            }
+            setActiveTab('orders');
+          }}
+          onTrackOrder={(orderId) => {
+            setIsCartVisible(false);
+            setSelectedOutlet(null);
+            setActiveTab('orders');
+            setTrackingOrderId(orderId);
           }}
         />
       );
@@ -111,6 +128,8 @@ function MainApp() {
     if (selectedOutlet) {
       return (
         <RestaurantDetailScreen
+          key={selectedOutlet.id}
+          featuredDishId={featuredDishId}
           outlet={selectedOutlet}
           onBack={() => setSelectedOutlet(null)}
           onViewCart={() => setIsCartVisible(true)}
@@ -123,11 +142,10 @@ function MainApp() {
       case 'home': {
         return (
           <HomeScreen
-            onSelectOutlet={(outlet) => setSelectedOutlet(outlet)}
+            onSelectOutlet={(outlet, dishId) => { setFeaturedDishId(dishId); setSelectedOutlet(outlet); }}
             onViewCart={() => setIsCartVisible(true)}
             onRequireAuth={() => setIsAuthModalVisible(true)}
             onOpenProfile={() => handleTabChange('profile')}
-            bottomOffset={62 + Math.max(insets.bottom, 6)}
           />
         );
       }
@@ -150,7 +168,7 @@ function MainApp() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, activeTab === 'home' && !selectedOutlet && !isCartVisible && styles.exploreBackground]}>
       <StatusBar style="dark" />
       
       {/* Screen Body */}
@@ -158,95 +176,28 @@ function MainApp() {
 
       {/* Integrated Bottom Navigation Bar */}
       {!isCartVisible && !selectedOutlet && (
-        <View
-          style={[
-            styles.bottomNavBar,
-            {
-              paddingBottom: Math.max(insets.bottom, 6),
-              height: 54 + Math.max(insets.bottom, 6),
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.navTab}
-            onPress={() => handleTabChange('home')}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.navIconContainer,
-                activeTab === 'home' && styles.navIconContainerActive,
-              ]}
-            >
-              <Ionicons
-                name={activeTab === 'home' ? 'compass' : 'compass-outline'}
-                size={21}
-                color={activeTab === 'home' ? colors.primary : colors.textSecondary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.navLabel,
-                activeTab === 'home' && styles.navLabelActive,
-              ]}
-            >
-              Explore
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navTab}
-            onPress={() => handleTabChange('orders')}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.navIconContainer,
-                activeTab === 'orders' && styles.navIconContainerActive,
-              ]}
-            >
-              <Ionicons
-                name={activeTab === 'orders' ? 'receipt' : 'receipt-outline'}
-                size={20}
-                color={activeTab === 'orders' ? colors.primary : colors.textSecondary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.navLabel,
-                activeTab === 'orders' && styles.navLabelActive,
-              ]}
-            >
-              Orders
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navTab}
-            onPress={() => handleTabChange('profile')}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.navIconContainer,
-                activeTab === 'profile' && styles.navIconContainerActive,
-              ]}
-            >
-              <Ionicons
-                name={activeTab === 'profile' ? 'person' : 'person-outline'}
-                size={20}
-                color={activeTab === 'profile' ? colors.primary : colors.textSecondary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.navLabel,
-                activeTab === 'profile' && styles.navLabelActive,
-              ]}
-            >
-              Profile
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.bottomNavBar} accessibilityRole="tablist">
+          {tabs.map(({ id, label, icon, activeIcon }) => {
+            const selected = activeTab === id;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={styles.navTab}
+                onPress={() => handleTabChange(id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={selected ? activeIcon : icon}
+                  size={22}
+                  color={selected ? exploreColors.green : exploreColors.secondary}
+                />
+                <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{label}</Text>
+                <View style={[styles.navIndicator, selected && styles.navIndicatorActive]} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -286,43 +237,24 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
+  exploreBackground: { backgroundColor: exploreColors.background },
   bottomNavBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: exploreColors.background,
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: 6,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 8,
+    borderTopColor: exploreColors.border,
   },
   navTab: {
     flex: 1,
+    minHeight: 56,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navIconContainer: {
-    paddingVertical: 4,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navIconContainerActive: {
-    backgroundColor: colors.surfaceGreen,
-  },
-  navLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
+  navLabel: { fontSize: 12, fontWeight: '500', color: exploreColors.secondary },
+  navLabelActive: { color: exploreColors.green, fontWeight: '700' },
+  navIndicator: { width: '54%', maxWidth: 72, height: 4, borderRadius: 2, marginTop: 2 },
+  navIndicatorActive: { backgroundColor: exploreColors.green },
 });

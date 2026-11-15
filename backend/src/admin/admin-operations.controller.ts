@@ -16,6 +16,8 @@ import {
   AdminOrderQueryDto,
   AdminCancelOrderDto,
   AdminActiveDeliveriesQueryDto,
+  AdminPaymentConflictQueryDto,
+  AdminApproveConflictRefundDto,
 } from './dto/admin-operations.dto';
 
 @Controller('admin')
@@ -91,6 +93,41 @@ export class AdminOperationsController {
   @Get('deliveries/:deliveryId')
   async getDeliveryDetails(@Param('deliveryId', ParseUUIDPipe) deliveryId: string) {
     return this.operationsService.getDeliveryDetails(deliveryId);
+  }
+
+  // ==========================================
+  // PAYMENT CONFLICT MANAGEMENT & REFUND APPROVAL
+  // ==========================================
+
+  /**
+   * GET /api/v1/admin/payment-conflicts
+   * Paginated list of captured payment conflict orders requiring admin review.
+   */
+  @Get('payment-conflicts')
+  async listPaymentConflicts(@Query() query: AdminPaymentConflictQueryDto) {
+    return this.operationsService.listPaymentConflicts(query);
+  }
+
+  /**
+   * GET /api/v1/admin/payment-conflicts/:orderId
+   * Detailed view of a single payment conflict with captured payment, conflicting active order, and audit trail.
+   */
+  @Get('payment-conflicts/:orderId')
+  async getPaymentConflictDetails(@Param('orderId', ParseUUIDPipe) orderId: string) {
+    return this.operationsService.getPaymentConflictDetails(orderId);
+  }
+
+  /**
+   * POST /api/v1/admin/payment-conflicts/:orderId/approve-refund
+   * Explicit admin approval and durable refund reservation for a captured payment conflict.
+   */
+  @Post('payment-conflicts/:orderId/approve-refund')
+  async approvePaymentConflictRefund(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: AdminApproveConflictRefundDto,
+  ) {
+    return this.operationsService.approvePaymentConflictRefund(user.userId, orderId, dto);
   }
 }
 

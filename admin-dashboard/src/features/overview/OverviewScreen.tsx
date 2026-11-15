@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAdminAuth } from '@/features/auth/AdminAuthContext';
 import { dashboardApi } from '@/lib/api/dashboard';
 import type { DashboardPeriod } from '@/types/dashboard';
 
@@ -13,13 +12,12 @@ import { RecentActivitySection } from './components/RecentActivitySection';
 import { SystemHealthSection } from './components/SystemHealthSection';
 
 export const OverviewScreen: React.FC = () => {
-  const { user } = useAdminAuth();
   const [period, setPeriod] = useState<DashboardPeriod>('last_7_days');
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
 
   // 1. Overview KPIs Query
   const {
     data: overviewData,
+    dataUpdatedAt: overviewUpdatedAt,
     isLoading: isOverviewLoading,
     isError: isOverviewError,
     refetch: refetchOverview,
@@ -33,6 +31,7 @@ export const OverviewScreen: React.FC = () => {
   // 2. Revenue Analytics Query
   const {
     data: revenueData,
+    dataUpdatedAt: revenueUpdatedAt,
     isLoading: isRevenueLoading,
     isError: isRevenueError,
     refetch: refetchRevenue,
@@ -88,30 +87,23 @@ export const OverviewScreen: React.FC = () => {
       refetchHealth(),
       refetchReadiness(),
     ]);
-    setLastRefreshedAt(new Date());
   };
 
   const isGlobalRefreshing =
     isOverviewFetching || isRevenueFetching || isActivityFetching;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-12">
+    <div className="max-w-7xl mx-auto space-y-4 pb-8">
       {/* 1. Header with Period Selector & Real Admin Identity */}
       <OverviewHeader
-        adminName={user?.fullName || 'Super Administrator'}
-        adminPhone={user?.phone ?? undefined}
         selectedPeriod={period}
-        onPeriodChange={(newPeriod) => {
-          setPeriod(newPeriod);
-          setLastRefreshedAt(new Date());
-        }}
-        lastUpdated={lastRefreshedAt}
+        onPeriodChange={setPeriod}
+        lastUpdated={overviewUpdatedAt && revenueUpdatedAt ? new Date(Math.min(overviewUpdatedAt, revenueUpdatedAt)) : undefined}
         isRefreshing={isGlobalRefreshing}
         onRefresh={handleGlobalRefresh}
       />
 
       {/* 2. Critical Attention Alerts */}
-      <CriticalAlerts overview={overviewData} />
 
       {/* 3. Platform KPI Cards */}
       <KpiCards
@@ -128,6 +120,8 @@ export const OverviewScreen: React.FC = () => {
         isError={isRevenueError}
         onRetry={refetchRevenue}
       />
+
+      <CriticalAlerts overview={overviewData} />
 
       {/* 5. Operational Snapshot */}
       <OperationalSnapshot

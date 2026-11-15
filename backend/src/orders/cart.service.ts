@@ -55,10 +55,11 @@ export class CartService {
   }
 
   /**
-   * Retrieves and calculates the customer's current cart with live authoritative pricing
+   * Retrieves and calculates the customer's current cart with live authoritative pricing.
+   * Accepts an optional transactional client to ensure consistent reads within transaction boundaries.
    */
-  async getCart(customerId: string): Promise<CalculatedCartSummary | null> {
-    const cart = await this.db.query.customerCarts.findFirst({
+  async getCart(customerId: string, client: any = this.db): Promise<CalculatedCartSummary | null> {
+    const cart = await client.query.customerCarts.findFirst({
       where: eq(schema.customerCarts.customerId, customerId),
       with: {
         outlet: {
@@ -93,7 +94,7 @@ export class CartService {
     for (const item of cart.items) {
       const menuItem = item.menuItem;
       // Find override for this specific outlet
-      const override = menuItem.outletOverrides?.find((o) => o.outletId === cart.outletId);
+      const override = menuItem.outletOverrides?.find((o: any) => o.outletId === cart.outletId);
 
       const effectivePriceStr = override?.customPrice || menuItem.basePrice;
       const effectivePrice = parseFloat(effectivePriceStr);
@@ -120,7 +121,7 @@ export class CartService {
     let deliveryFee = 0.0;
     if (itemTotal > 0) {
       try {
-        const { settings } = await this.financialSettingsService.getActiveSettings();
+        const { settings } = await this.financialSettingsService.getActiveSettings(client);
         const cfg = settings.customerDeliveryFee;
 
         // Count prior eligible orders for this customer (Delivered or actively confirmed/preparing orders)
@@ -129,7 +130,7 @@ export class CartService {
           ? ['delivered', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'cancelled']
           : ['delivered', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery'];
 
-        const [orderCountResult] = await this.db
+        const [orderCountResult] = await client
           .select({ count: sql<number>`count(*)::int` })
           .from(schema.orders)
           .where(

@@ -23,6 +23,10 @@ export interface RiderDistanceSlab {
   rate: number;
 }
 
+export interface DeliveryServiceabilityConfig {
+  maxRoadDistanceMeters: number; // e.g. 3000 (3 km)
+}
+
 export interface FinancialSettingsPayload {
   riderEarnings: {
     calculationStrategy: 'fixed_per_delivery' | 'distance_rate' | 'base_plus_distance' | 'distance_slabs';
@@ -57,6 +61,7 @@ export interface FinancialSettingsPayload {
     riderPromotionalBonus?: number;
     peakBonusFlat?: number;
   };
+  deliveryServiceability?: DeliveryServiceabilityConfig;
 }
 
 /**

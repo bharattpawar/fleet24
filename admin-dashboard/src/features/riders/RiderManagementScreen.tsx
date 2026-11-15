@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ridersApi } from '@/lib/api/riders';
@@ -19,7 +20,14 @@ export const RiderManagementScreen: React.FC = () => {
     useState<RiderAvailabilityStatus>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [page, setPage] = useState<number>(1);
-  const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const selectedRiderId = params.get('record');
+  const setSelectedRiderId = (id: string | null) => setParams((previous) => {
+    const next = new URLSearchParams(previous);
+    if (id) next.set('record', id);
+    else next.delete('record');
+    return next;
+  });
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: [
@@ -52,14 +60,14 @@ export const RiderManagementScreen: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#24533F]/30">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#E3E7EC]">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#F7F6F0]">
+          <h1 className="text-xl font-bold tracking-tight text-[#171A21]">
             Delivery Fleet Management & KYC
           </h1>
-          <p className="text-xs text-[#F7F6F0]/60 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             Super Admin Fleet Governance · License Auditing, Operational Availability, Account Suspension
           </p>
         </div>
@@ -67,7 +75,7 @@ export const RiderManagementScreen: React.FC = () => {
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#24533F]/40 border border-[#24533F] text-xs font-medium text-[#D9F078] hover:bg-[#24533F]/60 transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-medium text-[#205641] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           <span>Refresh Fleet</span>
@@ -77,7 +85,7 @@ export const RiderManagementScreen: React.FC = () => {
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Verification Status Tabs */}
-        <div className="flex flex-wrap items-center bg-[#17211B] border border-[#24533F]/40 rounded-lg p-1">
+        <div className="flex flex-wrap items-center bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg p-1">
           {verificationTabs.map((tab) => (
             <button
               key={tab.value}
@@ -87,8 +95,8 @@ export const RiderManagementScreen: React.FC = () => {
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                 selectedVerificationStatus === tab.value
-                  ? 'bg-[#24533F] text-[#D9F078] shadow-sm font-semibold'
-                  : 'text-[#F7F6F0]/60 hover:text-[#F7F6F0] hover:bg-white/5'
+                  ? 'bg-[#205641] text-white shadow-sm font-semibold'
+                  : 'text-slate-600 hover:text-[#171A21] hover:bg-slate-100'
               }`}
             >
               {tab.label}
@@ -104,7 +112,7 @@ export const RiderManagementScreen: React.FC = () => {
               setSelectedAvailabilityStatus(e.target.value as RiderAvailabilityStatus);
               setPage(1);
             }}
-            className="bg-[#17211B] border border-[#24533F]/40 rounded-lg px-3 py-1.5 text-xs text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] cursor-pointer"
+            className="bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg px-3 py-1.5 text-xs text-[#171A21] focus:outline-none focus:border-[#205641] cursor-pointer"
           >
             <option value="all">Availability: All</option>
             <option value="available">Available Only</option>
@@ -113,7 +121,7 @@ export const RiderManagementScreen: React.FC = () => {
           </select>
 
           <div className="relative w-full lg:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#F7F6F0]/40" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
             <input
               type="text"
               value={searchTerm}
@@ -122,7 +130,7 @@ export const RiderManagementScreen: React.FC = () => {
                 setPage(1);
               }}
               placeholder="Search rider, plate, license..."
-              className="w-full bg-[#17211B] border border-[#24533F]/40 rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F7F6F0] placeholder-[#F7F6F0]/30 focus:outline-none focus:border-[#D9F078]"
+              className="w-full bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#205641]"
             />
           </div>
         </div>
@@ -130,22 +138,22 @@ export const RiderManagementScreen: React.FC = () => {
 
       {/* Riders Table */}
       {isError ? (
-        <div className="p-8 rounded-xl bg-[#E98755]/10 border border-[#E98755]/30 text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-[#E98755] mx-auto" />
-          <p className="text-sm font-semibold text-[#F7F6F0]">
+        <div className="p-8 rounded-xl bg-[#9A431F]/10 border border-[#9A431F]/30 text-center space-y-3">
+          <AlertCircle className="w-8 h-8 text-[#9A431F] mx-auto" />
+          <p className="text-sm font-semibold text-[#171A21]">
             Failed to retrieve rider directory from backend.
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-1.5 rounded-lg bg-[#24533F] text-[#D9F078] text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer"
           >
             Retry Query
           </button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#24533F]/30 bg-[#17211B]">
+        <div className="overflow-x-auto rounded-xl border border-[#E3E7EC] bg-[#FFFFFF]">
           <table className="w-full text-left text-xs">
-            <thead className="bg-black/30 border-b border-[#24533F]/30 text-[10px] uppercase font-mono tracking-wider text-[#F7F6F0]/50">
+            <thead className="bg-[#F5F6F8] border-b border-[#E3E7EC] text-[10px] tabular-nums  text-slate-600">
               <tr>
                 <th className="px-5 py-3.5">Rider Partner</th>
                 <th className="px-5 py-3.5">Phone Contact</th>
@@ -157,19 +165,19 @@ export const RiderManagementScreen: React.FC = () => {
                 <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#E3E7EC]">
               {isLoading ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-12 text-center">
-                    <span className="text-xs font-mono text-[#F7F6F0]/40 animate-pulse">
+                    <span className="text-xs tabular-nums text-slate-600 animate-pulse">
                       Loading rider fleet directory...
                     </span>
                   </td>
                 </tr>
               ) : data?.data.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-[#F7F6F0]/50">
-                    <Bike className="w-6 h-6 text-[#F7F6F0]/20 mx-auto mb-2" />
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-600">
+                    <Bike className="w-6 h-6 text-slate-600 mx-auto mb-2" />
                     <span>No delivery partners found matching current filters.</span>
                   </td>
                 </tr>
@@ -179,31 +187,31 @@ export const RiderManagementScreen: React.FC = () => {
                     <tr
                       key={r.id}
                       onClick={() => setSelectedRiderId(r.id)}
-                      className="hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                      className="hover:bg-slate-50 transition-colors cursor-pointer group"
                     >
                       <td className="px-5 py-3.5 space-y-0.5">
-                        <div className="font-bold text-[#F7F6F0] group-hover:text-[#D9F078] transition-colors flex items-center gap-1.5">
+                        <div className="font-bold text-[#171A21] group-hover:text-[#205641] transition-colors flex items-center gap-1.5">
                           <span>{r.fullName || 'Unnamed Rider'}</span>
                         </div>
-                        <div className="text-[11px] font-mono text-[#F7F6F0]/40">
+                        <div className="text-[11px] tabular-nums text-slate-600">
                           ID: {r.id.slice(0, 8)}...
                         </div>
                       </td>
 
-                      <td className="px-5 py-3.5 font-mono text-[11px] text-[#F7F6F0]/70">
+                      <td className="px-5 py-3.5 tabular-nums text-[11px] text-slate-600">
                         {r.user?.phone || 'No Phone Linked'}
                       </td>
 
                       <td className="px-5 py-3.5 space-y-0.5">
-                        <div className="font-semibold uppercase text-[#D9F078]">
+                        <div className="font-semibold text-[#205641]">
                           {r.vehicleType}
                         </div>
-                        <div className="text-[11px] font-mono text-[#F7F6F0]/50">
+                        <div className="text-[11px] tabular-nums text-slate-600">
                           {r.vehicleNumber || 'Unregistered'}
                         </div>
                       </td>
 
-                      <td className="px-5 py-3.5 font-mono text-[11px] text-[#F7F6F0]/70">
+                      <td className="px-5 py-3.5 tabular-nums text-[11px] text-slate-600">
                         {r.licenseNumber || 'None'}
                       </td>
 
@@ -225,7 +233,7 @@ export const RiderManagementScreen: React.FC = () => {
                             e.stopPropagation();
                             setSelectedRiderId(r.id);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#24533F]/30 hover:bg-[#24533F] text-[11px] font-semibold text-[#D9F078] border border-[#24533F] transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#205641] text-[11px] font-semibold text-[#205641] border border-[#205641] transition-colors cursor-pointer"
                         >
                           <span>Manage</span>
                           <ChevronRight className="w-3 h-3" />
@@ -240,7 +248,7 @@ export const RiderManagementScreen: React.FC = () => {
 
           {/* Pagination Controls */}
           {data && data.pagination.totalPages > 1 && (
-            <div className="p-4 bg-black/20 border-t border-[#24533F]/30 flex items-center justify-between text-xs text-[#F7F6F0]/60">
+            <div className="p-4 bg-[#F5F6F8] border-t border-[#E3E7EC] flex items-center justify-between text-xs text-slate-600">
               <span>
                 Page {data.pagination.page} of {data.pagination.totalPages} ({data.pagination.total} total riders)
               </span>
@@ -248,14 +256,14 @@ export const RiderManagementScreen: React.FC = () => {
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1 rounded bg-black/40 border border-white/5 disabled:opacity-30 cursor-pointer"
+                  className="px-3 py-1 rounded bg-[#F5F6F8] border border-[#E3E7EC] disabled:opacity-30 cursor-pointer"
                 >
                   Previous
                 </button>
                 <button
                   disabled={page >= data.pagination.totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="px-3 py-1 rounded bg-black/40 border border-white/5 disabled:opacity-30 cursor-pointer"
+                  className="px-3 py-1 rounded bg-[#F5F6F8] border border-[#E3E7EC] disabled:opacity-30 cursor-pointer"
                 >
                   Next
                 </button>

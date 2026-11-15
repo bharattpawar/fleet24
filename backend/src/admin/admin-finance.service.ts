@@ -1,3 +1,4 @@
+import { getTableColumns } from 'drizzle-orm';
 import {
   Injectable,
   Inject,
@@ -216,10 +217,23 @@ export class AdminFinanceService {
     const total = countResult?.count ?? 0;
 
     const items = await this.db
-      .select()
+      .select({
+        ...getTableColumns(schema.financialLedger),
+        paymentId: sql<string | null>`case when ${schema.financialLedger.entryType} = 'order_payment' then (
+          select case when count(*) = 1 then min(p.id::text) end from payments p
+          where p.order_id = ${schema.financialLedger.orderId}
+            and ${schema.financialLedger.sourceReference} in (p.id::text, p.provider_payment_id)
+        ) end`,
+        refundId: sql<string | null>`case when ${schema.financialLedger.entryType} = 'customer_refund_debit' then (
+          select case when count(*) = 1 then min(r.id::text) end from refunds r
+          join payments p on p.id = r.payment_id
+          where p.order_id = ${schema.financialLedger.orderId}
+            and ${schema.financialLedger.sourceReference} in (r.id::text, r.provider_refund_id)
+        ) end`,
+      })
       .from(schema.financialLedger)
       .where(whereClause)
-      .orderBy(desc(schema.financialLedger.createdAt))
+      .orderBy(desc(schema.financialLedger.createdAt), desc(schema.financialLedger.id))
       .limit(limit)
       .offset(offset);
 
@@ -778,6 +792,7 @@ export class AdminFinanceService {
     const items = await this.db
       .select({
         id: schema.riderPayouts.id,
+        riderName: schema.riders.fullName,
         riderId: schema.riderPayouts.riderId,
         amount: schema.riderPayouts.amount,
         currency: schema.riderPayouts.currency,
@@ -790,10 +805,12 @@ export class AdminFinanceService {
         providerTransferId: schema.riderPayouts.providerTransferId,
         failureReason: schema.riderPayouts.failureReason,
         createdAt: schema.riderPayouts.createdAt,
+        updatedAt: schema.riderPayouts.updatedAt,
       })
       .from(schema.riderPayouts)
+      .innerJoin(schema.riders, eq(schema.riderPayouts.riderId, schema.riders.id))
       .where(whereClause)
-      .orderBy(desc(schema.riderPayouts.createdAt))
+      .orderBy(desc(schema.riderPayouts.createdAt), desc(schema.riderPayouts.id))
       .limit(limit)
       .offset(offset);
 
@@ -1106,6 +1123,7 @@ export class AdminFinanceService {
     const items = await this.db
       .select({
         id: schema.restaurantSettlements.id,
+        restaurantName: schema.restaurants.name,
         restaurantId: schema.restaurantSettlements.restaurantId,
         periodStart: schema.restaurantSettlements.periodStart,
         periodEnd: schema.restaurantSettlements.periodEnd,
@@ -1118,13 +1136,20 @@ export class AdminFinanceService {
         status: schema.restaurantSettlements.status,
         settlementReference: schema.restaurantSettlements.settlementReference,
         approvedAt: schema.restaurantSettlements.approvedAt,
+        providerTransferId: sql<string | null>`(
+          select nullif(${schema.financialLedger.sourceReference}, ${schema.restaurantSettlements.id}::text) from ${schema.financialLedger}
+          where ${schema.financialLedger.idempotencyKey} = concat('ledger_rest_settlement_', ${schema.restaurantSettlements.id})
+            and ${schema.financialLedger.entryType} = 'restaurant_settlement'
+        )`,
         settledAt: schema.restaurantSettlements.settledAt,
         failureReason: schema.restaurantSettlements.failureReason,
         createdAt: schema.restaurantSettlements.createdAt,
+        updatedAt: schema.restaurantSettlements.updatedAt,
       })
       .from(schema.restaurantSettlements)
+      .innerJoin(schema.restaurants, eq(schema.restaurantSettlements.restaurantId, schema.restaurants.id))
       .where(whereClause)
-      .orderBy(desc(schema.restaurantSettlements.createdAt))
+      .orderBy(desc(schema.restaurantSettlements.createdAt), desc(schema.restaurantSettlements.id))
       .limit(limit)
       .offset(offset);
 

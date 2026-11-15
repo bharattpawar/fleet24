@@ -39,6 +39,8 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<{ outletId: string; itemId: string; message: string } | null>(null);
+  const [failedPhotos, setFailedPhotos] = useState<Record<string, string>>({});
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 
   // Add / Edit Modal states
@@ -103,6 +105,8 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
       return;
     }
     if (togglingItemId) return;
+    const outletId = activeOutlet.id;
+    setAvailabilityError(null);
     setTogglingItemId(item.id);
 
     const targetStatus = !(item.effectiveIsAvailable ?? item.isAvailable);
@@ -110,7 +114,9 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
     try {
       await restaurantApi.setOutletOverride(activeOutlet.id, item.id, {
         isAvailable: targetStatus,
-        customPrice: item.effectivePrice ? parseFloat(item.effectivePrice.toString()) : undefined,
+        customPrice: item.isOverridden && Number(item.effectivePrice) !== Number(item.basePrice)
+          ? Number(item.effectivePrice)
+          : undefined,
       });
 
       setItems((prev) =>
@@ -121,7 +127,7 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
         ),
       );
     } catch (err: any) {
-      Alert.alert('Update Failed', err?.message || 'Failed to toggle availability.');
+      setAvailabilityError({ outletId, itemId: item.id, message: err?.message || 'Could not update availability.' });
       fetchMenuData(true);
     } finally {
       setTogglingItemId(null);
@@ -248,9 +254,6 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
     });
   }, [items, selectedCategoryId, searchQuery]);
 
-  const availableCount = items.filter((it) => it.effectiveIsAvailable ?? it.isAvailable).length;
-  const unavailableCount = items.length - availableCount;
-
   return (
     <View style={styles.container}>
       <KitchenHeader onOutletPress={onNavigateToOutlets} />
@@ -259,13 +262,8 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
       <View style={styles.controlHeaderWrapper}>
         <View style={styles.controlHeader}>
           <View style={styles.titleCol}>
-            <Text style={styles.screenTitle}>Menu & Stock Management</Text>
-            <Text style={styles.statsSubtitle}>
-              {items.length} Total Dishes · <Text style={{ color: colors.online, fontWeight: '700' }}>{availableCount} In Stock</Text>
-              {unavailableCount > 0 && (
-                <Text style={{ color: colors.rejected, fontWeight: '700' }}> · {unavailableCount} Out of Stock</Text>
-              )}
-            </Text>
+            <Text style={styles.screenTitle}>Menu</Text>
+            <Text style={styles.statsSubtitle}>{items.length} {items.length === 1 ? 'dish' : 'dishes'}</Text>
           </View>
 
           {permissions.canManageMenu && (
@@ -379,102 +377,75 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
           }
           renderItem={({ item }) => {
             const isAvailable = item.effectiveIsAvailable ?? item.isAvailable;
-            const price = item.effectivePrice || item.basePrice || item.price || 0;
-            const hasCustomOverride = item.isOverridden && item.basePrice && item.effectivePrice !== item.basePrice;
+            const price = item.effectivePrice ?? item.basePrice ?? item.price ?? 0;
+            const hasCustomOverride = item.isOverridden && item.basePrice != null && Number(item.effectivePrice) !== Number(item.basePrice);
 
             return (
               <View style={[isWide && styles.gridCol]}>
                 <View style={[styles.itemCard, !isAvailable && styles.itemCardInactive]}>
-                  {/* Top Row: Veg indicator, Name, Edit CTA */}
-                  <View style={styles.itemHeaderRow}>
-                    {/* FSSAI Veg / Non-Veg Indicator */}
-                    <View style={[styles.fssaiBox, item.isVeg ? styles.fssaiVeg : styles.fssaiNonVeg]}>
-                      <View style={[styles.fssaiDot, item.isVeg ? styles.fssaiDotVeg : styles.fssaiDotNonVeg]} />
-                    </View>
-
-                    <Text style={styles.itemName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-
-                    {permissions.canManageMenu && (
-                      <TouchableOpacity
-                        style={styles.editBtn}
-                        onPress={() => openEditItemModal(item)}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${item.name}`}
-                      >
-                        <Ionicons name="pencil-outline" size={15} color={colors.primary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Body Row: Image & Description */}
                   <View style={styles.itemBodyRow}>
                     <View style={styles.thumbnailWrapper}>
-                      {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.thumbnail} />
+                      {item.imageUrl && failedPhotos[item.id] !== item.imageUrl ? (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={styles.thumbnail}
+                          onError={() => {
+                            const uri = item.imageUrl;
+                            if (uri) setFailedPhotos((previous) => ({ ...previous, [item.id]: uri }));
+                          }}
+                        />
                       ) : (
-                        <View style={styles.placeholderThumbnail}>
+                        <View style={styles.placeholderThumbnail} accessibilityLabel="No dish photo">
                           <Ionicons name="restaurant-outline" size={24} color={colors.textSecondary} />
                         </View>
                       )}
                     </View>
-
                     <View style={styles.itemDescriptionCol}>
-                      {item.description ? (
-                        <Text style={styles.itemDesc} numberOfLines={2}>
-                          {item.description}
-                        </Text>
-                      ) : (
-                        <Text style={styles.itemNoDesc}>Standard recipe item</Text>
-                      )}
-
-                      {/* Price Section */}
+                      <View style={styles.itemHeaderRow}>
+                        <View style={[styles.fssaiBox, item.isVeg ? styles.fssaiVeg : styles.fssaiNonVeg]}>
+                          <View style={[styles.fssaiDot, item.isVeg ? styles.fssaiDotVeg : styles.fssaiDotNonVeg]} />
+                        </View>
+                        <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                      </View>
+                      {item.description && <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>}
                       <View style={styles.priceContainer}>
                         <Text style={styles.itemPrice}>₹{price}</Text>
                         {hasCustomOverride && (
-                          <View style={styles.overrideBadge}>
-                            <Text style={styles.overrideBadgeText}>
-                              Outlet Price (Base ₹{item.basePrice})
-                            </Text>
-                          </View>
+                          <Text style={styles.overrideBadgeText}>Outlet · Base ₹{item.basePrice}</Text>
                         )}
                       </View>
                     </View>
                   </View>
 
-                  {/* Footer Row: Stock Toggle */}
                   <View style={styles.itemFooterRow}>
-                    <View style={styles.stockStatusContainer}>
-                      <View
-                        style={[
-                          styles.stockDot,
-                          isAvailable ? styles.stockDotIn : styles.stockDotOut,
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.stockLabel,
-                          isAvailable ? styles.stockLabelIn : styles.stockLabelOut,
-                        ]}
+                    {permissions.canManageMenu && (
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => openEditItemModal(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.name}`}
                       >
-                        {isAvailable ? 'AVAILABLE FOR ORDERING' : 'OUT OF STOCK (PAUSED)'}
+                        <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                        <Text style={styles.editLabel}>Edit</Text>
+                      </TouchableOpacity>
+                    )}
+                    <View style={styles.stockStatusContainer}>
+                      <Text style={[styles.stockLabel, isAvailable ? styles.stockLabelIn : styles.stockLabelOut]}>
+                        {togglingItemId === item.id ? 'Updating…' : isAvailable ? 'Available' : 'Unavailable'}
                       </Text>
-                    </View>
-
-                    <View style={styles.switchWrapper}>
                       <Switch
+                        accessibilityLabel={`Availability for ${item.name}`}
                         value={isAvailable}
                         onValueChange={() => handleToggleAvailability(item)}
-                        disabled={!activeOutlet?.id || togglingItemId === item.id || !permissions.canToggleItemAvailability}
-                        trackColor={{ false: '#6B7280', true: colors.online }}
+                        disabled={!activeOutlet?.id || Boolean(togglingItemId) || !permissions.canToggleItemAvailability}
+                        trackColor={{ false: colors.textMuted, true: colors.online }}
                         thumbColor={colors.textWhite}
-                        ios_backgroundColor="#6B7280"
-                        style={styles.switch}
                       />
                     </View>
                   </View>
+                  {availabilityError?.itemId === item.id && availabilityError.outletId === activeOutlet?.id && (
+                    <Text accessibilityRole="alert" style={styles.errorText}>{availabilityError.message}</Text>
+                  )}
                 </View>
               </View>
             );
@@ -722,10 +693,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   screenTitle: {
-    fontSize: 20,
+    fontSize: 26,
     fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
+    color: colors.primary,
   },
   statsSubtitle: {
     fontSize: 12,
@@ -742,7 +713,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     gap: 6,
     justifyContent: 'center',
-    ...shadows.kpi,
+
   },
   addButtonText: {
     fontSize: 13,
@@ -766,7 +737,7 @@ const styles = StyleSheet.create({
     maxWidth: 1200,
     width: '100%',
     alignSelf: 'center',
-    ...shadows.kpi,
+
   },
   searchIcon: {
     marginRight: spacing.sm,
@@ -791,7 +762,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderMedium,
-    minHeight: 38,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -817,7 +788,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceGreen,
     borderWidth: 1,
     borderColor: 'rgba(36, 83, 63, 0.2)',
-    minHeight: 38,
+    minHeight: 44,
     justifyContent: 'center',
   },
   addCategoryText: {
@@ -841,11 +812,11 @@ const styles = StyleSheet.create({
   itemCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    ...shadows.card,
+
   },
   itemCardInactive: {
     opacity: 0.75,
@@ -855,7 +826,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   fssaiBox: {
     width: 18,
@@ -884,26 +855,30 @@ const styles = StyleSheet.create({
   },
   itemName: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
   editBtn: {
-    width: 34,
-    height: 34,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    gap: 6,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.surfaceGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  editLabel: { fontSize: 13, fontWeight: '700', color: colors.primary },
   itemBodyRow: {
     flexDirection: 'row',
     gap: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   thumbnailWrapper: {
-    width: 70,
-    height: 70,
+    width: 96,
+    height: 96,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
   },
@@ -921,19 +896,16 @@ const styles = StyleSheet.create({
   },
   itemDescriptionCol: {
     flex: 1,
-    justifyContent: 'space-between',
+    minWidth: 0,
+    gap: 4,
   },
   itemDesc: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 16,
-  },
-  itemNoDesc: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontStyle: 'italic',
+    lineHeight: 19,
   },
   priceContainer: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -941,16 +913,8 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '700',
     color: colors.textPrimary,
-  },
-  overrideBadge: {
-    backgroundColor: colors.surfaceAmber,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: borderRadius.xs,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.3)',
   },
   overrideBadgeText: {
     fontSize: 10,
@@ -966,37 +930,21 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderLight,
   },
   stockStatusContainer: {
+    minHeight: 44,
+    marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  stockDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  stockDotIn: {
-    backgroundColor: colors.online,
-  },
-  stockDotOut: {
-    backgroundColor: colors.rejected,
-  },
   stockLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '600',
   },
   stockLabelIn: {
     color: colors.online,
   },
   stockLabelOut: {
     color: colors.rejected,
-  },
-  switchWrapper: {
-    justifyContent: 'center',
-  },
-  switch: {
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   centerContainer: {
     flex: 1,
@@ -1086,7 +1034,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modalCloseBtn: {
-    padding: spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   formScroll: {
     gap: spacing.xs,
@@ -1229,7 +1180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.sm,
-    ...shadows.kpi,
+
   },
   submitBtnText: {
     fontSize: 14,
@@ -1283,7 +1234,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.kpi,
+
   },
   confirmBtnText: {
     fontSize: 13,

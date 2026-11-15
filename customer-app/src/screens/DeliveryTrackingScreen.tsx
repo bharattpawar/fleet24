@@ -31,6 +31,7 @@ export interface CustomerDeliveryResponse {
   orderId: string;
   orderNumber: string;
   orderStatus: string;
+  paymentStatus?: string;
   deliveryStatus: string;
   deliveryOtp?: string;
   otpExpiresAt?: string | null;
@@ -67,12 +68,14 @@ export interface CustomerDeliveryResponse {
 }
 
 interface DeliveryTrackingScreenProps {
+  onViewOrders: () => void;
   orderId: string;
   onBack: () => void;
 }
 
 export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
   orderId,
+  onViewOrders,
   onBack,
 }) => {
   const insets = useSafeAreaInsets();
@@ -92,7 +95,12 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
   // 1. Initial REST Snapshot fetch
   const fetchDeliverySnapshot = useCallback(async () => {
     try {
-      const res = await apiRequest<CustomerDeliveryResponse>(`/orders/${orderId}/delivery`);
+      const [res, order] = await Promise.all([
+        apiRequest<CustomerDeliveryResponse>(`/orders/${orderId}/delivery`),
+        apiRequest<{ status: string; payment?: { status: string } }>(`/orders/${orderId}`),
+      ]);
+      res.orderStatus = order.status;
+      res.paymentStatus = order.payment?.status;
       setData(res);
 
       if (res.rider?.location) {
@@ -297,11 +305,27 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
     );
   }
 
+  if (data.orderStatus === 'pending_payment' || data.paymentStatus !== 'captured') {
+    return (
+      <View style={[styles.centerContainer, { paddingTop: insets.top }]}>
+        <Text style={styles.errorText}>
+          {['cancelled', 'rejected'].includes(data.orderStatus) ? 'Order cancelled' :
+            data.paymentStatus === 'failed' ? 'Payment failed' : 'Awaiting payment confirmation'}
+        </Text>
+        <TouchableOpacity style={styles.backButton} onPress={onViewOrders}>
+          <Text style={styles.backButtonText}>View Orders</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const { deliveryStatus, orderNumber, restaurant, rider, deliveryOtp } = data;
 
   // Determine active step index
   const getStepIndex = () => {
     switch (deliveryStatus) {
+      case 'unassigned':
+        return -1;
       case 'assigned':
         return 0;
       case 'accepted':
@@ -315,13 +339,13 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
       case 'completed':
         return 5;
       default:
-        return 0;
+        return -1;
     }
   };
 
   const currentStep = getStepIndex();
   const isFinished = deliveryStatus === 'completed';
-  const isCancelled = deliveryStatus === 'cancelled';
+  const isCancelled = deliveryStatus === 'cancelled' || ['cancelled', 'rejected'].includes(data.orderStatus);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -411,7 +435,7 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
               <Text style={styles.verifiedBadgeText}>Verified</Text>
             </View>
           </View>
-        ) : (
+        ) : !isCancelled && (
           <View style={styles.riderWaitingCard}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.riderWaitingText}>Assigning nearby delivery partner...</Text>

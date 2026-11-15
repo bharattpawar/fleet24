@@ -12,6 +12,10 @@ vi.mock('@/lib/api/dispatch', () => ({
   },
 }));
 
+vi.mock('@/lib/api/riders', () => ({
+  ridersApi: { listRiders: vi.fn().mockResolvedValue({ data: [], pagination: { total: 0 } }) },
+}));
+
 describe('LiveDispatchScreen', () => {
   let queryClient: QueryClient;
 
@@ -75,7 +79,8 @@ describe('LiveDispatchScreen', () => {
     };
 
     vi.mocked(dispatchApi.getActiveDeliveries).mockResolvedValue({
-      total: 1,
+      total: 21,
+      totalPages: 2,
       data: [mockDelivery],
     });
 
@@ -92,14 +97,20 @@ describe('LiveDispatchScreen', () => {
     expect(orderCard).toBeDefined();
     expect(screen.getByText('Burger Craft')).toBeDefined();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Unassigned' }));
+    await waitFor(() => expect(dispatchApi.getActiveDeliveries).toHaveBeenLastCalledWith({ page: 1, status: 'unassigned' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(dispatchApi.getActiveDeliveries).toHaveBeenLastCalledWith({ page: 2, status: 'unassigned' }));
+    const requestsBeforeAssignment = vi.mocked(dispatchApi.getActiveDeliveries).mock.calls.length;
+
     // Select delivery card to open telemetry details pane
-    fireEvent.click(orderCard);
+    fireEvent.click(await screen.findByText('#ORD-20261031-7777'));
 
     // Open Manual Rider Override modal
     const assignButton = await screen.findByText('Manual Rider Override');
     fireEvent.click(assignButton);
 
-    expect(screen.getByText('Manual Rider Assignment Override')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Assign rider' })).toBeDefined();
 
     const riderInput = screen.getByPlaceholderText('Enter rider UUID...');
     fireEvent.change(riderInput, { target: { value: 'rider-uuid-456' } });
@@ -109,6 +120,8 @@ describe('LiveDispatchScreen', () => {
 
     await waitFor(() => {
       expect(dispatchApi.assignRider).toHaveBeenCalledWith('ord-888', 'rider-uuid-456');
+      expect(vi.mocked(dispatchApi.getActiveDeliveries).mock.calls.length).toBeGreaterThan(requestsBeforeAssignment);
+      expect(dispatchApi.getActiveDeliveries).toHaveBeenLastCalledWith({ page: 2, status: 'unassigned' });
     });
   });
 

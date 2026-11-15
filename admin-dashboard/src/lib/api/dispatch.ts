@@ -11,6 +11,7 @@ export const dispatchApi = {
    * GET /api/v1/admin/deliveries/active
    */
   getActiveDeliveries: async (params?: {
+    status?: 'unassigned';
     deliveryStatus?: string;
     locationFreshness?: string;
     page?: number;

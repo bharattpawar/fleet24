@@ -1,19 +1,19 @@
 // Fleet24 Rider Design Tokens: "Premium Map-First Logistics UI"
 export const colors = {
   // Brand Backgrounds
-  background: '#F7F6F0',       // Warm Ivory / Cream
+  background: '#FAF5EF',       // Warm Ivory / Cream
   backgroundDark: '#121915',   // Deep Charcoal for map/overlay backdrop
-  surface: '#FFFFFF',          // Cards, sheets, modals
+  surface: '#FFFCFA',          // Cards, sheets, modals
   surfaceElevated: '#FFFFFF',  // Floating bottom sheets
   surfaceMuted: '#EFEFE8',     // Muted dividers / badges
-  surfaceGreen: '#EAF2EC',     // Soft Sage for highlights/badges
+  surfaceGreen: '#E2EFDF',     // Soft Sage for highlights/badges
   surfaceDark: '#193B2C',      // Deep Pine header & high-contrast cards
 
   // Primary Brand
-  primary: '#28543F',          // Forest Green (Primary action buttons)
+  primary: '#064B33',          // Forest Green (Primary action buttons)
   primaryDark: '#193B2C',      // Deep Pine (Headers & pressed states)
   primaryPressed: '#142E23',   // Deepest Pine for active press
-  primaryLight: '#EAF2EC',     // Soft Sage
+  primaryLight: '#E2EFDF',     // Soft Sage
 
   // Accents & Indicators
   accent: '#D99058',           // Warm Terracotta (attention, timers, pickup)
@@ -28,7 +28,7 @@ export const colors = {
   busy: '#D99058',             // In-flight active delivery
 
   // Alerts
-  success: '#28543F',
+  success: '#064B33',
   successLight: '#EBF4EE',
   warning: '#D99058',
   warningLight: '#FDF7F2',
@@ -43,7 +43,7 @@ export const colors = {
   textOnline: '#1F6131',
 
   // Dividers & Borders
-  border: '#E5E4DC',
+  border: '#DDD7CF',
   borderLight: '#F0EFE8',
   borderDark: '#2C3A31',
 

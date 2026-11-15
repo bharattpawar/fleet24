@@ -8,29 +8,32 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, borderRadius, minTouchTarget, shadows } from '../theme/tokens';
+import { colors } from '../theme/tokens';
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
 
 export const RestaurantLoginScreen: React.FC = () => {
   const { loginWithPhoneOnly } = useRestaurantAuth();
-  const [phone, setPhone] = useState('+919876543210');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setError(null);
-    const cleaned = phone.trim();
-    if (!cleaned || cleaned.length < 13) {
-      setError('Please enter a valid 10-digit Indian phone number (e.g. +919876543210)');
+    if (loading) return;
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length !== 10) {
+      setError('Enter a valid 10-digit mobile number.');
       return;
     }
 
     setLoading(true);
     try {
-      await loginWithPhoneOnly(cleaned);
+      await loginWithPhoneOnly(`+91${cleaned}`);
     } catch (err: any) {
       setError(err?.message || 'Failed to authenticate. Please check phone number.');
     } finally {
@@ -38,243 +41,99 @@ export const RestaurantLoginScreen: React.FC = () => {
     }
   };
 
+  const isLoading = loading;
+  const { width } = useWindowDimensions();
+  const wide = width >= 800;
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.contentWrapper}>
-          {/* Header Branding */}
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="restaurant" size={36} color={colors.limeAccent} />
+    <SafeAreaView style={styles.screen}>
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={[styles.layout, wide && styles.layoutWide]}>
+            <View style={[styles.hero, wide && styles.heroWide]}>
+              <Text style={styles.wordmark}>Fleet24<Text style={styles.dot}> •</Text></Text>
+              <Text style={styles.partner}>Restaurant partner</Text>
+              <Text accessibilityRole="header" style={[styles.heading, wide && styles.headingWide]}>
+                Sign in to your kitchen
+              </Text>
             </View>
-            <Text style={styles.brandTitle}>FLEET24</Text>
-            <Text style={styles.brandSubtitle}>Restaurant & Kitchen Operations</Text>
-          </View>
+            <View style={[styles.form, wide && styles.formWide]}>
 
-          {/* Card Form */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Kitchen Terminal Login</Text>
-            <Text style={styles.cardDescription}>
-              Enter your registered restaurant staff mobile number to access your live order display and kitchen terminal.
-            </Text>
-
-            {error && (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color={colors.rejected} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>RESTAURANT PHONE NUMBER</Text>
-              <View style={styles.phoneInputContainer}>
-                <Ionicons name="call-outline" size={18} color={colors.textSecondary} style={styles.inputIcon} />
+              <Text style={styles.intro}>Enter your registered mobile number.</Text>
+              <Text style={styles.label}>Mobile number</Text>
+              <View style={styles.field}>
+                <Text style={styles.prefix}>+91</Text>
                 <TextInput
+                  accessibilityLabel="Mobile number"
                   style={styles.input}
                   value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  placeholder="+919876543210"
-                  placeholderTextColor={colors.textMuted}
+                  onChangeText={value => {
+                    setError(null);
+                    setPhone(value.replace(/\D/g, ''));
+                  }}
+                  placeholder="Enter mobile number"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType={"phone-pad"}
+                  autoComplete={"tel-national"}
+                  editable={!isLoading}
+                  maxLength={10}
+                  onSubmitEditing={handleLogin}
                 />
               </View>
-
+              {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
               <TouchableOpacity
-                style={[styles.primaryButton, loading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={loading}
-                activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Open Kitchen Terminal"
+                accessibilityState={{ disabled: isLoading, busy: isLoading }}
+                style={[styles.button, isLoading && styles.busy]}
+                disabled={isLoading}
+                onPress={handleLogin}
               >
-                {loading ? (
-                  <ActivityIndicator color={colors.textWhite} />
-                ) : (
+                {isLoading ? <ActivityIndicator color={colors.textWhite} /> : (
                   <>
-                    <Text style={styles.primaryButtonText}>Open Kitchen Terminal</Text>
-                    <Ionicons name="arrow-forward" size={18} color={colors.textWhite} />
+                    <Text style={styles.buttonText}>Continue</Text>
+                    <Ionicons name="arrow-forward" size={21} color={colors.textWhite} />
                   </>
                 )}
               </TouchableOpacity>
+              {__DEV__ && (
+                <TouchableOpacity accessibilityRole="button" style={styles.link} disabled={isLoading} onPress={() => {
+                  setPhone('9876543210');
+                  setError(null);
+                }}>
+                  <Text style={styles.linkText}>Use test number</Text>
+                </TouchableOpacity>
+              )}
             </View>
-
-            {/* Quick Demo Credentials Pill */}
-            <TouchableOpacity
-              style={styles.demoPill}
-              onPress={() => setPhone('+919876543210')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="key-outline" size={14} color={colors.primary} />
-              <Text style={styles.demoPillText}>Test Partner Mobile: +919876543210</Text>
-            </TouchableOpacity>
           </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Encrypted Operational Access · Fleet24 Partner Network
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surfaceDark,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  contentWrapper: {
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 2,
-    borderColor: colors.limeAccent,
-  },
-  brandTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: colors.textWhite,
-    letterSpacing: 2,
-  },
-  brandSubtitle: {
-    fontSize: 13,
-    color: colors.limeAccent,
-    marginTop: 2,
-    fontWeight: '700',
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.modal,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  cardDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.rejectedLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.3)',
-  },
-  errorText: {
-    fontSize: 12,
-    color: colors.rejectedDark,
-    fontWeight: '600',
-    flex: 1,
-  },
-  inputGroup: {
-    gap: spacing.sm,
-  },
-  inputLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 0.6,
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.borderMedium,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    minHeight: minTouchTarget + 4,
-  },
-  inputIcon: {
-    marginRight: spacing.sm,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    minHeight: minTouchTarget + 6,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.sm,
-    ...shadows.kpi,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textWhite,
-  },
-  demoPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceGreen,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(36, 83, 63, 0.2)',
-  },
-  demoPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  footer: {
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  footerText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontWeight: '500',
-  },
+  screen: { flex: 1, backgroundColor: colors.background },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 36 },
+  layout: { width: '100%', maxWidth: 460, alignSelf: 'center' },
+  layoutWide: { maxWidth: 1120, flexDirection: 'row', alignItems: 'center' },
+  hero: { paddingBottom: 28, borderBottomWidth: 1, borderColor: colors.border },
+  heroWide: { flex: 1, paddingRight: 40, paddingBottom: 12, borderBottomWidth: 0 },
+  wordmark: { color: colors.primary, fontSize: 34, fontWeight: '900', letterSpacing: -1.4, marginBottom: 24 },
+  dot: { color: colors.primary, fontSize: 22 },
+  partner: { color: colors.primary, fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  heading: { color: colors.primary, fontFamily: 'InstrumentSerifItalic', fontSize: 56, lineHeight: 55 },
+  headingWide: { fontSize: 78, lineHeight: 76 },
+  form: { paddingTop: 26 },
+  formWide: { flex: 1, borderLeftWidth: 1, borderColor: colors.border, paddingLeft: 40, paddingVertical: 20 },
+  intro: { color: colors.primary, fontSize: 19, lineHeight: 27, marginBottom: 22 },
+  label: { color: colors.primary, fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  field: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: 12, backgroundColor: colors.surface },
+  prefix: { color: colors.primary, fontSize: 17, fontWeight: '800', paddingHorizontal: 14, borderRightWidth: 1, borderColor: colors.border },
+  input: { flex: 1, minWidth: 0, minHeight: 54, paddingHorizontal: 14, fontSize: 16, color: colors.textPrimary, borderRadius: 12 },
+  button: { minHeight: 54, marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  busy: { opacity: 0.7 },
+  buttonText: { color: colors.textWhite, fontSize: 17, fontWeight: '800' },
+  error: { color: colors.rejectedDark, marginTop: 8, fontSize: 14 },
+  link: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  linkText: { color: colors.primary, textDecorationLine: 'underline', fontWeight: '600' },
 });

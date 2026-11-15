@@ -3,12 +3,13 @@ import {
   Inject,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, desc, and } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
-import { isWithinDeliveryRadius } from '../common/utils/geo';
+import { calculateDistanceKm, isWithinDeliveryRadius } from '../common/utils/geo';
 import {
   CreateMenuCategoryDto,
   UpdateMenuCategoryDto,
@@ -18,6 +19,8 @@ import {
 } from './dto/restaurant.dto';
 import { AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
 import { OutletAuthorizationService } from './outlet-auth.service';
+import { RoutingService } from '../routing/routing.service';
+import { FinancialSettingsService } from '../admin/financial-settings.service';
 
 @Injectable()
 export class MenusService {
@@ -25,6 +28,10 @@ export class MenusService {
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly outletAuthService: OutletAuthorizationService,
+    @Optional()
+    private readonly routingService?: RoutingService,
+    @Optional()
+    private readonly financialSettingsService?: FinancialSettingsService,
   ) {}
 
   // ==========================================
@@ -195,6 +202,7 @@ export class MenusService {
         isAvailable: item.isAvailable,
         effectiveIsAvailable,
         categoryId: item.categoryId,
+        categoryIsActive: item.category?.isActive ?? false,
         categoryName: item.category?.name,
         isOverridden: !!override,
       };
@@ -331,43 +339,162 @@ export class MenusService {
       },
     });
 
-    return outlets
-      .filter((o) => {
-        if (!o.restaurant.isActive) return false;
-        // If customer coordinates provided, enforce delivery radius eligibility
-        if (
-          userLat !== undefined &&
-          !isNaN(userLat) &&
-          userLon !== undefined &&
-          !isNaN(userLon) &&
-          o.latitude &&
-          o.longitude
-        ) {
+    // Determine platform max road distance from admin settings if available
+    let adminMaxRoadDistanceMeters: number | undefined;
+    if (this.financialSettingsService) {
+      try {
+        const activeSettings = await this.financialSettingsService.getActiveSettings();
+        adminMaxRoadDistanceMeters =
+          activeSettings.settings?.deliveryServiceability?.maxRoadDistanceMeters;
+      } catch {
+        // Fallback to outlet configuration or default
+      }
+    }
+
+    const hasUserCoords =
+      userLat !== undefined &&
+      !isNaN(userLat) &&
+      userLon !== undefined &&
+      !isNaN(userLon);
+
+    const eligibleOutletsWithDistance: Array<{
+      outlet: typeof outlets[0];
+      distanceKm?: number;
+      isServiceable: boolean;
+      serviceabilityStatus: 'VERIFIED' | 'UNVERIFIED';
+    }> = [];
+
+    if (hasUserCoords) {
+      const candidates: Array<{
+        outlet: typeof outlets[0];
+        outletLat: number;
+        outletLon: number;
+        maxAllowedMeters: number;
+      }> = [];
+
+      // Stage 1: Fast Haversine straight-line pruning (mathematical lower bound)
+      for (const o of outlets) {
+        if (!o.restaurant.isActive) continue;
+
+        if (o.latitude && o.longitude) {
+          const outletLat = Number(o.latitude);
+          const outletLon = Number(o.longitude);
+          if (isNaN(outletLat) || isNaN(outletLon)) continue;
+
+          let outletRadiusMeters: number | undefined;
+          if (o.deliveryRadiusKm != null && o.deliveryRadiusKm !== '') {
+            const parsed =
+              typeof o.deliveryRadiusKm === 'number'
+                ? o.deliveryRadiusKm
+                : parseFloat(o.deliveryRadiusKm);
+            if (!isNaN(parsed) && isFinite(parsed) && parsed > 0) {
+              outletRadiusMeters = Math.round(parsed * 1000);
+            }
+          }
+
+          // Option A: Active Admin road-distance limit is authoritative across platform (default 3000m).
+          // Individual outlet deliveryRadiusKm cannot override the platform serviceability threshold.
+          const maxAllowedMeters = adminMaxRoadDistanceMeters ?? 3000;
+          const maxAllowedKm = maxAllowedMeters / 1000;
+
           try {
-            const { isEligible } = isWithinDeliveryRadius(
-              { latitude: o.latitude, longitude: o.longitude },
-              { latitude: userLat, longitude: userLon },
-              o.deliveryRadiusKm,
-            );
-            return isEligible;
+            const straightLineKm = calculateDistanceKm(outletLat, outletLon, userLat, userLon);
+            if (straightLineKm > maxAllowedKm + 1e-6) {
+              // Physically impossible to be within road distance; prune without API call
+              continue;
+            }
           } catch {
-            return false;
+            continue;
+          }
+
+          candidates.push({
+            outlet: o,
+            outletLat,
+            outletLon,
+            maxAllowedMeters,
+          });
+        }
+      }
+
+      // Stage 2: Bounded, chunked matrix evaluation with point-to-point cache reuse
+      if (candidates.length > 0) {
+        if (this.routingService && this.routingService.isAvailable()) {
+          const batchItems = candidates.map((c) => ({
+            id: c.outlet.id,
+            origin: { latitude: c.outletLat, longitude: c.outletLon },
+            destination: { latitude: userLat, longitude: userLon },
+          }));
+
+          const routeResultsMap = await this.routingService.getBatchRoutes(batchItems);
+
+          for (const c of candidates) {
+            const route = routeResultsMap.get(c.outlet.id);
+            if (route && route.status === 'OK' && route.distanceMeters !== null) {
+              // Authoritative road distance successfully verified
+              if (route.distanceMeters <= c.maxAllowedMeters) {
+                eligibleOutletsWithDistance.push({
+                  outlet: c.outlet,
+                  distanceKm: Math.round((route.distanceMeters / 1000) * 100) / 100,
+                  isServiceable: true,
+                  serviceabilityStatus: 'VERIFIED',
+                });
+              }
+              // If route.distanceMeters > maxAllowedMeters, outlet is out of road distance; omitted from eligible delivery
+            } else {
+              // Google Routes failed, timed out, or unavailable:
+              // NEVER represent straight-line Haversine as verified road distance!
+              // Include for browsing with explicit UNVERIFIED serviceability and undefined distance
+              eligibleOutletsWithDistance.push({
+                outlet: c.outlet,
+                distanceKm: undefined,
+                isServiceable: false,
+                serviceabilityStatus: 'UNVERIFIED',
+              });
+            }
+          }
+        } else {
+          // Routing service unconfigured or unavailable: preserve browsing without false road distances
+          for (const c of candidates) {
+            eligibleOutletsWithDistance.push({
+              outlet: c.outlet,
+              distanceKm: undefined,
+              isServiceable: false,
+              serviceabilityStatus: 'UNVERIFIED',
+            });
           }
         }
-        return true;
-      })
-      .map((o) => ({
+      }
+    } else {
+      // No customer coordinates provided: return active outlets for browsing
+      for (const o of outlets) {
+        if (!o.restaurant.isActive) continue;
+        eligibleOutletsWithDistance.push({
+          outlet: o,
+          distanceKm: undefined,
+          isServiceable: true,
+          serviceabilityStatus: 'UNVERIFIED',
+        });
+      }
+    }
+
+    return eligibleOutletsWithDistance.map(
+      ({ outlet: o, distanceKm, isServiceable, serviceabilityStatus }) => ({
         id: o.id,
         restaurantName: o.restaurant.name,
+        restaurantId: o.restaurantId,
         outletName: o.name,
         slug: o.restaurant.slug,
         logoUrl: o.restaurant.logoUrl,
         address: o.address,
+        distanceKm,
+        isServiceable,
+        serviceabilityStatus,
         latitude: o.latitude,
         longitude: o.longitude,
         deliveryRadiusKm: o.deliveryRadiusKm,
         isAcceptingOrders: o.isAcceptingOrders,
         operatingHours: o.operatingHours,
-      }));
+      }),
+    );
   }
 }

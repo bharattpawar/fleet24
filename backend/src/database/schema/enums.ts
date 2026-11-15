@@ -17,7 +17,33 @@ export const orderStatusEnum = pgEnum('order_status', [
   'delivered',
   'cancelled',
   'rejected',
+  'payment_conflict',
 ]);
+
+/**
+ * Authoritative statuses representing orders in active fulfillment.
+ * A customer is strictly restricted to at most ONE order across these statuses simultaneously.
+ */
+export const ACTIVE_FULFILLMENT_ORDER_STATUSES = [
+  'placed',
+  'confirmed',
+  'preparing',
+  'ready_for_pickup',
+  'out_for_delivery',
+] as const;
+
+export type ActiveFulfillmentOrderStatus = (typeof ACTIVE_FULFILLMENT_ORDER_STATUSES)[number];
+
+/**
+ * Terminal order statuses. An order in any of these statuses does not block new order placement.
+ */
+export const TERMINAL_ORDER_STATUSES = [
+  'delivered',
+  'cancelled',
+  'rejected',
+] as const;
+
+export type TerminalOrderStatus = (typeof TERMINAL_ORDER_STATUSES)[number];
 
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',

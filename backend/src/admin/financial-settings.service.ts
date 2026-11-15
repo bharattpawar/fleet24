@@ -56,6 +56,9 @@ export class FinancialSettingsService {
       riderPromotionalBonus: 0.0,
       peakBonusFlat: 0.0,
     },
+    deliveryServiceability: {
+      maxRoadDistanceMeters: 3000,
+    },
   };
 
   constructor(
@@ -70,25 +73,40 @@ export class FinancialSettingsService {
   /**
    * Get the currently active financial configuration version.
    * If any scheduled versions have reached their effectiveFrom, promotes them automatically.
+   * Accepts an optional transactional client and optional row-lock options to participate
+   * in the caller's transaction boundary without publication races.
    */
-  async getActiveSettings(): Promise<{
+  async getActiveSettings(
+    client: any = this.db,
+    options?: { lock?: 'for_share' | 'for_update' },
+  ): Promise<{
     versionId: string;
     versionNumber: number;
     settings: FinancialSettingsPayload;
     effectiveFrom: Date | null;
     publishedAt: Date | null;
   }> {
-    // 1. Check for scheduled versions ready to become active
-    await this.promoteDueScheduledSettings();
+    // 1. Check for scheduled versions ready to become active (only on pool connection to avoid nested txn issues)
+    if (client === this.db) {
+      await this.promoteDueScheduledSettings();
+    }
 
-    // 2. Fetch the active pointer from financial_settings
-    const [pointer] = await this.db
+    // 2. Fetch the active pointer from financial_settings using provided transactional client
+    let pointerQuery = client
       .select()
       .from(schema.financialSettings)
       .where(eq(schema.financialSettings.id, 'global'));
 
+    if (options?.lock === 'for_share' && client !== this.db && typeof pointerQuery.for === 'function') {
+      pointerQuery = pointerQuery.for('share');
+    } else if (options?.lock === 'for_update' && client !== this.db && typeof pointerQuery.for === 'function') {
+      pointerQuery = pointerQuery.for('update');
+    }
+
+    const [pointer] = await pointerQuery;
+
     if (pointer && pointer.activeVersionId) {
-      const [activeVersion] = await this.db
+      const [activeVersion] = await client
         .select()
         .from(schema.financialSettingsVersions)
         .where(eq(schema.financialSettingsVersions.id, pointer.activeVersionId));
@@ -105,7 +123,7 @@ export class FinancialSettingsService {
     }
 
     // Check if an active version exists directly
-    const [directActive] = await this.db
+    const [directActive] = await client
       .select()
       .from(schema.financialSettingsVersions)
       .where(eq(schema.financialSettingsVersions.status, 'active'))
@@ -114,7 +132,7 @@ export class FinancialSettingsService {
 
     if (directActive) {
       // Sync pointer
-      await this.db
+      await client
         .insert(schema.financialSettings)
         .values({
           id: 'global',
@@ -850,6 +868,16 @@ export class FinancialSettingsService {
 
     if (p.restaurantMonthlyCreditBlock.monthlyDeliveriesQuota < 0) {
       throw new BadRequestException('monthlyDeliveriesQuota cannot be negative');
+    }
+
+    if (p.deliveryServiceability) {
+      if (
+        p.deliveryServiceability.maxRoadDistanceMeters === undefined ||
+        p.deliveryServiceability.maxRoadDistanceMeters <= 0 ||
+        !Number.isInteger(p.deliveryServiceability.maxRoadDistanceMeters)
+      ) {
+        throw new BadRequestException('maxRoadDistanceMeters must be a positive whole integer');
+      }
     }
   }
 }

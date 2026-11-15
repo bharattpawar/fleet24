@@ -423,11 +423,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    color: colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 30,
+    color: colors.primary,
   },
   activePill: {
     flexDirection: 'row',

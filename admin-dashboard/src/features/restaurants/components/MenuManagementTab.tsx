@@ -173,10 +173,10 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
 
   if (outlets.length === 0) {
     return (
-      <div className="p-8 text-center bg-black/20 rounded-2xl border border-dashed border-[#24533F]/30 space-y-2">
-        <UtensilsCrossed className="w-8 h-8 text-[#D9F078]/40 mx-auto" />
-        <h3 className="text-sm font-bold text-[#F7F6F0]">No Outlets Configured</h3>
-        <p className="text-xs text-[#F7F6F0]/50 max-w-sm mx-auto">
+      <div className="p-8 text-center bg-[#F5F6F8] rounded-2xl border border-dashed border-[#E3E7EC] space-y-2">
+        <UtensilsCrossed className="w-8 h-8 text-[#205641]/40 mx-auto" />
+        <h3 className="text-sm font-bold text-[#171A21]">No Outlets Configured</h3>
+        <p className="text-xs text-slate-600 max-w-sm mx-auto">
           Add an outlet for this restaurant first before configuring menu categories and items.
         </p>
       </div>
@@ -195,16 +195,16 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Outlet Selector & Search Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-black/30 border border-[#24533F]/30">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC]">
         <div className="flex items-center gap-3">
-          <label className="text-xs font-semibold text-[#F7F6F0]/70 shrink-0">Active Outlet:</label>
+          <label className="text-xs font-semibold text-slate-600 shrink-0">Active Outlet:</label>
           <select
             value={selectedOutletId}
             onChange={(e) => {
               setSelectedOutletId(e.target.value);
               setSelectedCategoryId('all');
             }}
-            className="text-xs bg-[#17211B] border border-[#24533F] text-[#F7F6F0] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D9F078]"
+            className="text-xs bg-[#FFFFFF] border border-[#205641] text-[#171A21] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#205641]"
           >
             {outlets.map((o) => (
               <option key={o.id} value={o.id}>
@@ -222,7 +222,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               setCategoryDisplayOrder(categories.length);
               setCategoryModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F]/50 text-[#D9F078] border border-[#24533F] text-xs font-semibold hover:bg-[#24533F] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E8F2ED] text-[#205641] border border-[#205641] text-xs font-semibold hover:bg-[#205641] transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Category</span>
@@ -237,7 +237,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               setItemModalOpen(true);
             }}
             disabled={categories.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 transition-colors disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Food Item</span>
@@ -246,7 +246,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       </div>
 
       {actionError && (
-        <div className="p-3 rounded-lg bg-[#E98755]/15 border border-[#E98755]/30 flex items-center gap-2 text-xs text-[#E98755]">
+        <div className="p-3 rounded-lg bg-[#9A431F]/15 border border-[#9A431F]/30 flex items-center gap-2 text-xs text-[#9A431F]">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{actionError}</span>
         </div>
@@ -260,8 +260,8 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               onClick={() => setSelectedCategoryId('all')}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer ${
                 selectedCategoryId === 'all'
-                  ? 'bg-[#24533F] text-[#D9F078] font-bold border border-[#D9F078]/30 shadow-xs'
-                  : 'bg-[#17211B] text-[#F7F6F0]/60 hover:text-[#F7F6F0] border border-[#24533F]/30'
+                  ? 'bg-[#205641] text-white font-bold border border-[#205641]/30 shadow-xs'
+                  : 'bg-[#FFFFFF] text-slate-600 hover:text-[#171A21] border border-[#E3E7EC]'
               }`}
             >
               All Items ({menuItems.length})
@@ -272,8 +272,8 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   onClick={() => setSelectedCategoryId(c.id)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
                     selectedCategoryId === c.id
-                      ? 'bg-[#24533F] text-[#D9F078] font-bold border border-[#D9F078]/30 shadow-xs'
-                      : 'bg-[#17211B] text-[#F7F6F0]/60 hover:text-[#F7F6F0] border border-[#24533F]/30'
+                      ? 'bg-[#205641] text-white font-bold border border-[#205641]/30 shadow-xs'
+                      : 'bg-[#FFFFFF] text-slate-600 hover:text-[#171A21] border border-[#E3E7EC]'
                   }`}
                 >
                   {c.name}
@@ -285,7 +285,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     setCategoryDisplayOrder(c.displayOrder);
                     setCategoryModalOpen(true);
                   }}
-                  className="p-1 text-[#F7F6F0]/40 hover:text-[#D9F078] cursor-pointer"
+                  className="p-1 text-slate-600 hover:text-[#205641] cursor-pointer"
                   title="Edit category"
                 >
                   <Edit3 className="w-3 h-3" />
@@ -295,13 +295,13 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
           </div>
 
           <div className="relative w-48 shrink-0">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#F7F6F0]/40" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
             <input
               type="text"
               placeholder="Search dishes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 rounded-lg bg-[#17211B] border border-[#24533F]/30 text-xs text-[#F7F6F0] placeholder-[#F7F6F0]/30 focus:outline-none focus:border-[#D9F078]"
+              className="w-full pl-8 pr-3 py-1 rounded-lg bg-[#FFFFFF] border border-[#E3E7EC] text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#205641]"
             />
           </div>
         </div>
@@ -311,14 +311,14 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       {isLoadingItems ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-28 bg-white/5 animate-pulse rounded-xl" />
+            <div key={i} className="h-28 bg-slate-100 animate-pulse rounded-xl" />
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="p-8 text-center bg-[#17211B] rounded-xl border border-dashed border-[#24533F]/30 space-y-2">
-          <UtensilsCrossed className="w-6 h-6 text-[#F7F6F0]/30 mx-auto" />
-          <p className="text-xs text-[#F7F6F0]/70 font-semibold">No food items found.</p>
-          <p className="text-[11px] text-[#F7F6F0]/40">
+        <div className="p-8 text-center bg-[#FFFFFF] rounded-xl border border-dashed border-[#E3E7EC] space-y-2">
+          <UtensilsCrossed className="w-6 h-6 text-slate-600 mx-auto" />
+          <p className="text-xs text-slate-600 font-semibold">No food items found.</p>
+          <p className="text-[11px] text-slate-600">
             {categories.length === 0
               ? 'Create a category first to start adding dishes to the menu.'
               : 'Add dishes using the "Add Food Item" button above.'}
@@ -331,8 +331,8 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               key={item.id}
               className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between space-y-2.5 ${
                 item.isAvailable
-                  ? 'bg-[#17211B] border-[#24533F]/40 hover:border-[#24533F]'
-                  : 'bg-black/40 border-white/5 opacity-60'
+                  ? 'bg-[#FFFFFF] border-[#E3E7EC] hover:border-[#205641]'
+                  : 'bg-[#F5F6F8] border-[#E3E7EC] opacity-60'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
@@ -349,21 +349,21 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                         }`}
                       />
                     </span>
-                    <span className="font-bold text-xs text-[#F7F6F0] truncate">{item.name}</span>
+                    <span className="font-bold text-xs text-[#171A21] truncate">{item.name}</span>
                   </div>
                   {item.description && (
-                    <p className="text-[11px] text-[#F7F6F0]/50 line-clamp-2 leading-relaxed">
+                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
                       {item.description}
                     </p>
                   )}
                 </div>
 
-                <div className="font-mono text-xs font-bold text-[#D9F078] shrink-0">
+                <div className="tabular-nums text-xs font-bold text-[#205641] shrink-0">
                   ₹{typeof item.basePrice === 'number' ? item.basePrice.toFixed(2) : item.basePrice}
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px]">
+              <div className="pt-2 border-t border-[#E3E7EC] flex items-center justify-between text-[11px]">
                 <button
                   onClick={() =>
                     toggleAvailabilityMutation.mutate({
@@ -371,9 +371,9 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                       currentAvailable: item.isAvailable,
                     })
                   }
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold cursor-pointer transition-colors ${
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold cursor-pointer transition-colors ${
                     item.isAvailable
-                      ? 'bg-[#24533F] text-[#D9F078] hover:bg-[#24533F]/70'
+                      ? 'bg-[#205641] text-white hover:bg-[#205641]/70'
                       : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
                   }`}
                 >
@@ -390,7 +390,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
 
                 <button
                   onClick={() => openEditItemModal(item)}
-                  className="inline-flex items-center gap-1 text-[#F7F6F0]/60 hover:text-[#D9F078] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-slate-600 hover:text-[#205641] transition-colors cursor-pointer"
                 >
                   <Edit3 className="w-3 h-3" />
                   <span>Edit</span>
@@ -404,13 +404,13 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       {/* Modal: Category Create/Edit */}
       {categoryModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-bold text-[#F7F6F0]">
+          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-bold text-[#171A21]">
               {editingCategoryId ? 'Edit Menu Category' : 'Create Menu Category'}
             </h3>
             <div className="space-y-3">
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Category Name
                 </label>
                 <input
@@ -418,25 +418,25 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
                   placeholder="e.g. Starters, Main Course, Biryani"
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Display Order
                 </label>
                 <input
                   type="number"
                   value={categoryDisplayOrder}
                   onChange={(e) => setCategoryDisplayOrder(parseInt(e.target.value) || 0)}
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setCategoryModalOpen(false)}
-                className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
               >
                 Cancel
               </button>
@@ -449,7 +449,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     createCategoryMutation.mutate();
                   }
                 }}
-                className="px-4 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
               >
                 {editingCategoryId ? 'Save Changes' : 'Create Category'}
               </button>
@@ -461,13 +461,13 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       {/* Modal: Item Create/Edit */}
       {itemModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-bold text-[#F7F6F0]">
+          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-bold text-[#171A21]">
               {editingItemId ? 'Edit Food Item' : 'Add Food Item to Menu'}
             </h3>
             <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Item Name *
                 </label>
                 <input
@@ -475,19 +475,19 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   placeholder="e.g. Paneer Butter Masala"
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                  <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                     Category *
                   </label>
                   <select
                     value={itemCategoryId}
                     onChange={(e) => setItemCategoryId(e.target.value)}
-                    className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -498,7 +498,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                  <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                     Base Price (₹) *
                   </label>
                   <input
@@ -507,13 +507,13 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     value={itemPrice}
                     onChange={(e) => setItemPrice(e.target.value)}
                     placeholder="250.00"
-                    className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Description
                 </label>
                 <textarea
@@ -521,12 +521,12 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemDescription}
                   onChange={(e) => setItemDescription(e.target.value)}
                   placeholder="Dish ingredients, portion size, spice level..."
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60 mb-1 block">
+                <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                   Image URL
                 </label>
                 <input
@@ -534,27 +534,27 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemImageUrl}
                   onChange={(e) => setItemImageUrl(e.target.value)}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
                 />
               </div>
 
               <div className="flex items-center gap-6 pt-1">
-                <label className="flex items-center gap-2 text-xs text-[#F7F6F0] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-[#171A21] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={itemIsVeg}
                     onChange={(e) => setItemIsVeg(e.target.checked)}
-                    className="rounded text-[#24533F] focus:ring-[#D9F078]"
+                    className="rounded text-[#205641] focus:ring-[#205641]"
                   />
                   <span>Vegetarian (Green mark)</span>
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-[#F7F6F0] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-[#171A21] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={itemIsAvailable}
                     onChange={(e) => setItemIsAvailable(e.target.checked)}
-                    className="rounded text-[#24533F] focus:ring-[#D9F078]"
+                    className="rounded text-[#205641] focus:ring-[#205641]"
                   />
                   <span>Available in Kitchen</span>
                 </label>
@@ -564,7 +564,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setItemModalOpen(false)}
-                className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
               >
                 Cancel
               </button>
@@ -583,7 +583,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     createItemMutation.mutate();
                   }
                 }}
-                className="px-4 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
               >
                 {editingItemId ? 'Update Dish' : 'Add Dish'}
               </button>

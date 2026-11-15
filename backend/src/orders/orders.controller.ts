@@ -56,6 +56,15 @@ export class OrdersController {
     return this.ordersService.listCustomerOrders(user.userId, query);
   }
 
+  /**
+   * GET /api/v1/orders/active
+   * Retrieves the customer's current active fulfillment order (placed, confirmed, preparing, ready_for_pickup, out_for_delivery)
+   */
+  @Get('active')
+  async getActiveOrder(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.ordersService.getActiveCustomerOrder(user.userId);
+  }
+
   @Get(':orderId')
   async getOrderDetails(
     @CurrentUser() user: AuthenticatedUserPayload,

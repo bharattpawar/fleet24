@@ -50,14 +50,14 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-60">
-      <div className="bg-[#17211B] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-        <div className="flex items-center gap-2 text-[#D9F078]">
+      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center gap-2 text-[#205641]">
           <Settings className="w-5 h-5" />
-          <h3 className="text-sm font-bold text-[#F7F6F0]">Outlet & Delivery Configuration</h3>
+          <h3 className="text-sm font-bold text-[#171A21]">Outlet & Delivery Configuration</h3>
         </div>
 
         {error && (
-          <div className="p-3 bg-[#E98755]/15 border border-[#E98755]/30 rounded-xl text-xs text-[#E98755] flex items-center gap-2">
+          <div className="p-3 bg-[#9A431F]/15 border border-[#9A431F]/30 rounded-xl text-xs text-[#9A431F] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -71,7 +71,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
           className="space-y-3"
         >
           <div>
-            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
               Outlet Name *
             </label>
             <input
@@ -79,12 +79,12 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
               Contact Phone *
             </label>
             <input
@@ -92,12 +92,12 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
               Address *
             </label>
             <textarea
@@ -105,13 +105,13 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Latitude *
               </label>
               <input
@@ -120,12 +120,12 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={latitude}
                 onChange={(e) => setLatitude(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Longitude *
               </label>
               <input
@@ -134,12 +134,12 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={longitude}
                 onChange={(e) => setLongitude(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-[#F7F6F0]/70 mb-1 block">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Delivery Radius (km) *
               </label>
               <input
@@ -150,7 +150,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={deliveryRadiusKm}
                 onChange={(e) => setDeliveryRadiusKm(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#24533F] text-[#F7F6F0] focus:outline-none focus:border-[#D9F078] font-mono"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
               />
             </div>
           </div>
@@ -159,14 +159,14 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+              className="px-3 py-1.5 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={updateMutation.isPending || !name.trim() || !phone.trim() || !address.trim()}
-              className="px-4 py-1.5 rounded-lg bg-[#D9F078] text-black text-xs font-bold hover:bg-[#D9F078]/80 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
             </button>

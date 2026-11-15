@@ -1,5 +1,6 @@
+import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OrdersManagementScreen } from './OrdersManagementScreen';
 import { ordersApi } from '@/lib/api/orders';
@@ -25,12 +26,21 @@ describe('OrdersManagementScreen', () => {
     });
   });
 
-  const renderComponent = () =>
+  const renderComponent = (path = "/orders") =>
     render(
+      <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={queryClient}>
         <OrdersManagementScreen />
       </QueryClientProvider>
+      </MemoryRouter>
     );
+
+  it('keeps the customer filter on later history pages', async () => {
+    vi.mocked(ordersApi.listOrders).mockResolvedValue({ page: 1, limit: 15, total: 30, totalPages: 2, data: [] });
+    renderComponent('/orders?customerId=customer-1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }, { timeout: 8000 }));
+    await waitFor(() => expect(ordersApi.listOrders).toHaveBeenCalledWith(expect.objectContaining({ page: 2, customerId: 'customer-1' })));
+  });
 
   it('renders order management header, status tabs, and search bar', () => {
     vi.mocked(ordersApi.listOrders).mockResolvedValueOnce({

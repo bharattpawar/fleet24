@@ -1,32 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TextInput,
+  Image,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Image,
   ScrollView,
 } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../theme/tokens';
+import { exploreColors as c } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '../api/client';
 import { RestaurantCard, OutletSummary } from '../components/RestaurantCard';
 import { USE_MOCK_DATA, MOCK_OUTLETS } from '../api/mockData';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { ExploreFiltersSheet } from '../components/ExploreFiltersSheet';
+import { ExplorePhoto } from '../components/ExplorePhoto';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { AddressSelectionModal, Address } from '../components/AddressSelectionModal';
 
 interface HomeScreenProps {
-  onSelectOutlet: (outlet: OutletSummary) => void;
+  onSelectOutlet: (outlet: OutletSummary, dishId?: string) => void;
   onViewCart?: () => void;
   onRequireAuth?: () => void;
   onOpenProfile?: () => void;
-  bottomOffset?: number;
 }
 
 interface CuisineCategory {
@@ -36,15 +37,13 @@ interface CuisineCategory {
   filterKey: string;
 }
 
-interface FeaturedDishItem {
-  id: string;
-  name: string;
-  description: string;
-  price: string;
-  basePrice?: string;
-  imageUrl: string | null;
-  isVeg: boolean;
-  outlet: OutletSummary;
+interface FeedSection {
+  kind: 'banner' | 'category' | 'row';
+  title: string;
+  image?: string;
+  cta?: string;
+  targets: { type: string; id: string }[];
+  cards: { outlet: OutletSummary; dish?: { id: string; name: string; imageUrl: string | null; effectivePrice: string } }[];
 }
 
 const CUISINE_CATEGORIES: CuisineCategory[] = [
@@ -80,88 +79,23 @@ const DEFAULT_ADDRESSES: Address[] = [
   },
 ];
 
-const buildDefaultDishes = (outletList: OutletSummary[]): FeaturedDishItem[] => {
-  if (!outletList || outletList.length === 0) return [];
-
-  const biryaniOutlet =
-    outletList.find(
-      (o) =>
-        o.slug.includes('biryani') ||
-        o.restaurantName.toLowerCase().includes('biryani'),
-    ) || outletList[0];
-
-  const punjabiOutlet =
-    outletList.find(
-      (o) =>
-        o.slug.includes('kulcha') ||
-        o.restaurantName.toLowerCase().includes('kulcha') ||
-        o.restaurantName.toLowerCase().includes('chaap'),
-    ) || outletList[1] || outletList[0];
-
-  const rollOutlet =
-    outletList.find(
-      (o) =>
-        o.slug.includes('kathi') ||
-        o.restaurantName.toLowerCase().includes('kathi') ||
-        o.restaurantName.toLowerCase().includes('rolls'),
-    ) || outletList[2] || outletList[0];
-
-  return [
-    {
-      id: 'featured-1-biryani',
-      name: 'Awadhi Chicken Biryani',
-      description:
-        'Fragrant long-grain basmati layered with tender spiced chicken and saffron aromatics.',
-      price: '220',
-      basePrice: '260',
-      imageUrl:
-        'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
-      isVeg: false,
-      outlet: biryaniOutlet,
-    },
-    {
-      id: 'featured-2-thali',
-      name: 'Amritsari Chur Chur Naan Thali',
-      description:
-        'Layered butter naan with paneer filling, served hot with dal makhani and pindi chole.',
-      price: '190',
-      basePrice: '210',
-      imageUrl:
-        'https://images.unsplash.com/photo-1626074353765-517a681e40be?w=600&auto=format&fit=crop&q=80',
-      isVeg: true,
-      outlet: punjabiOutlet,
-    },
-    {
-      id: 'featured-3-roll',
-      name: 'Double Egg Chicken Kathi Roll',
-      description:
-        'Flaky golden paratha wrap loaded with spiced grilled chicken, crisp onions and mint chutney.',
-      price: '140',
-      basePrice: '160',
-      imageUrl:
-        'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&auto=format&fit=crop&q=80',
-      isVeg: false,
-      outlet: rollOutlet,
-    },
-  ];
-};
-
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectOutlet,
   onViewCart,
   onRequireAuth,
   onOpenProfile,
-  bottomOffset = 68,
 }) => {
   const { cart } = useCart();
   const { user, isAuthenticated } = useAuth();
   const [outlets, setOutlets] = useState<OutletSummary[]>([]);
-  const [filteredOutlets, setFilteredOutlets] = useState<OutletSummary[]>([]);
-  const [featuredDishes, setFeaturedDishes] = useState<FeaturedDishItem[]>([]);
+  const [sections, setSections] = useState<FeedSection[]>([]);
+  const [categoryOutlets, setCategoryOutlets] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'open'>('all');
+  const [openOnly, setOpenOnly] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Address Selector Modal State
@@ -169,99 +103,46 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [selectedAddress, setSelectedAddress] = useState<Address>(DEFAULT_ADDRESSES[0]);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
 
-  const fetchOutlets = async () => {
-    if (USE_MOCK_DATA) {
-      setOutlets(MOCK_OUTLETS);
-      applyFilters(MOCK_OUTLETS, searchQuery, selectedFilter, selectedCategory);
-      setFeaturedDishes(buildDefaultDishes(MOCK_OUTLETS));
-      setIsLoading(false);
-      setIsRefreshing(false);
-      return;
-    }
-
+  const coordinates = selectedAddress.latitude && selectedAddress.longitude
+    ? '?latitude=' + encodeURIComponent(selectedAddress.latitude) + '&longitude=' + encodeURIComponent(selectedAddress.longitude)
+    : '';
+  const requestVersion = React.useRef(0);
+  const [loadedCoordinates, setLoadedCoordinates] = useState<string>();
+  const fetchOutlets = useCallback(async () => {
+    const version = ++requestVersion.current;
     try {
-      const data = await apiRequest<OutletSummary[]>('/public/outlets');
-      setOutlets(data);
-      applyFilters(data, searchQuery, selectedFilter, selectedCategory);
-      const dishes = buildDefaultDishes(data);
-      setFeaturedDishes(dishes);
-
-      // Asynchronously enhance featured dishes with live menu data from active outlets
-      fetchLiveDishes(data);
+      const feed = USE_MOCK_DATA ? { outlets: MOCK_OUTLETS, sections: [] } :
+        await apiRequest<{ outlets: OutletSummary[]; sections: FeedSection[] }>('/public/customer-home' + coordinates)
+          .catch(async () => ({ outlets: await apiRequest<OutletSummary[]>('/public/outlets' + coordinates), sections: [] }));
+      if (version !== requestVersion.current) return;
+      setOutlets(feed.outlets);
+      setSections(feed.sections);
+      setHasError(false);
     } catch {
+      if (version !== requestVersion.current) return;
+      setHasError(true);
       setOutlets([]);
-      setFilteredOutlets([]);
-      setFeaturedDishes([]);
+      setSections([]);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  const fetchLiveDishes = async (outletList: OutletSummary[]) => {
-    try {
-      const activeOutlets = outletList.filter((o) => o.isAcceptingOrders).slice(0, 3);
-      if (activeOutlets.length === 0) return;
-
-      const results = await Promise.allSettled(
-        activeOutlets.map((outlet) =>
-          apiRequest<Array<{
-            id: string;
-            name: string;
-            description: string | null;
-            basePrice: string;
-            effectivePrice: string | number;
-            imageUrl: string | null;
-            isVeg: boolean;
-            isAvailable: boolean;
-          }>>(`/public/outlets/${outlet.id}/menu`).then((menuItems) => ({
-            outlet,
-            items: menuItems.filter((i) => i.isAvailable).slice(0, 2),
-          })),
-        ),
-      );
-
-      const liveDishes: FeaturedDishItem[] = [];
-      results.forEach((res) => {
-        if (res.status === 'fulfilled' && res.value.items.length > 0) {
-          res.value.items.forEach((item) => {
-            liveDishes.push({
-              id: item.id,
-              name: item.name,
-              description: item.description || 'Artisanal dish prepared fresh to order.',
-              price: String(typeof item.effectivePrice === 'number' ? item.effectivePrice : parseFloat(item.effectivePrice).toFixed(0)),
-              basePrice: item.basePrice ? String(parseFloat(item.basePrice).toFixed(0)) : undefined,
-              imageUrl: item.imageUrl,
-              isVeg: item.isVeg,
-              outlet: res.value.outlet,
-            });
-          });
-        }
-      });
-
-      if (liveDishes.length > 0) {
-        setFeaturedDishes(liveDishes.slice(0, 4));
+      if (version === requestVersion.current) {
+        setLoadedCoordinates(coordinates);
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-    } catch {
-      // Keep existing default dishes gracefully
     }
-  };
+  }, [coordinates]);
 
   useEffect(() => {
-    fetchOutlets();
-  }, []);
+    void fetchOutlets();
+    return () => { requestVersion.current++; };
+  }, [fetchOutlets]);
 
   const applyFilters = (
     list: OutletSummary[],
     query: string,
-    filter: 'all' | 'open',
     categoryKey: string,
   ) => {
     let result = list;
-
-    if (filter === 'open') {
-      result = result.filter((o) => o.isAcceptingOrders);
-    }
 
     if (categoryKey !== 'all') {
       result = result.filter((o) => {
@@ -280,22 +161,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       );
     }
 
-    setFilteredOutlets(result);
+    return result;
   };
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
-    applyFilters(outlets, text, selectedFilter, selectedCategory);
-  };
-
-  const handleFilterChange = (filter: 'all' | 'open') => {
-    setSelectedFilter(filter);
-    applyFilters(outlets, searchQuery, filter, selectedCategory);
   };
 
   const handleCategorySelect = (filterKey: string) => {
+    setCategoryOutlets(null);
     setSelectedCategory(filterKey);
-    applyFilters(outlets, searchQuery, selectedFilter, filterKey);
   };
 
   const onRefresh = () => {
@@ -309,19 +184,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       id: `addr-${Date.now()}`,
     };
     setAddresses((prev) => [created, ...prev]);
+    setCategoryOutlets(null);
     setSelectedAddress(created);
     setIsAddressModalVisible(false);
   };
 
   // Header rendered cleanly above the FlatList
+  const matchingOutlets = applyFilters(categoryOutlets ? outlets.filter(outlet => categoryOutlets.includes(outlet.id)) : outlets, searchQuery, selectedCategory);
+  const filteredOutlets = openOnly
+    ? matchingOutlets.filter((outlet) => outlet.isAcceptingOrders)
+    : matchingOutlets;
+  const openCount = filteredOutlets.filter((outlet) => outlet.isAcceptingOrders).length;
+
+  const hasCampaign = sections.some(section => section.kind === 'banner');
+
   const renderListHeader = () => (
     <View style={styles.headerContainer}>
+      <View style={styles.heroHeader}>
       {/* 1. First Row: Brand Wordmark (Left) and Notification + Account Actions (Right) */}
       <View style={styles.brandRow}>
-        <View style={styles.brandLeftGroup}>
-          <Text style={styles.brandTitle}>Fleet24</Text>
-          <View style={styles.brandDot} />
-        </View>
+        <TouchableOpacity style={styles.addressHeader} onPress={() => setIsAddressModalVisible(true)} accessibilityRole="button" accessibilityLabel="Choose delivery address">
+          <Text style={styles.addressLabel}>{selectedAddress.label} <Ionicons name="chevron-forward" size={16} /></Text>
+          <Text style={styles.addressLine} numberOfLines={1}>{selectedAddress.addressLine1}</Text>
+        </TouchableOpacity>
 
         <View style={styles.headerActionsRight}>
           {/* Notification Button */}
@@ -331,7 +216,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityLabel="Notifications"
           >
-            <Ionicons name="notifications-outline" size={20} color={colors.charcoal} />
+            <Ionicons name="notifications-outline" size={20} color={c.green} />
             <View style={styles.notificationDot} />
           </TouchableOpacity>
 
@@ -354,7 +239,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               activeOpacity={0.8}
               accessibilityLabel="Sign In"
             >
-              <Ionicons name="person-outline" size={14} color={colors.primary} />
+              <Ionicons name="person-outline" size={14} color={c.green} />
               <Text style={styles.signInButtonText}>Sign In</Text>
             </TouchableOpacity>
           )}
@@ -366,9 +251,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               onPress={onViewCart}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
               accessibilityLabel="Cart"
             >
-              <Ionicons name="cart-outline" size={20} color={colors.charcoal} />
+              <Ionicons name="cart-outline" size={20} color={c.green} />
               {cart && cart.itemCount > 0 ? (
                 <View style={styles.cartBadge}>
                   <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
@@ -379,49 +265,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
       </View>
 
-      {/* 2. Second Row: Delivery Location Selector (Distinct Clickable Row) */}
-      <TouchableOpacity
-        style={styles.locationSelectorRow}
-        onPress={() => setIsAddressModalVisible(true)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`Delivering to ${selectedAddress.addressLine1}`}
-      >
-        <View style={styles.locationIconContainer}>
-          <Ionicons name="location-sharp" size={15} color={colors.primary} />
-        </View>
-        <View style={styles.locationContentContainer}>
-          <Text style={styles.locationSubLabel}>Delivering to</Text>
-          <View style={styles.locationAddressRow}>
-            <Text style={styles.locationMainText} numberOfLines={1}>
-              {selectedAddress.label ? `${selectedAddress.label} • ` : ''}
-              {selectedAddress.addressLine1}
-            </Text>
-            <Ionicons name="chevron-down" size={13} color={colors.charcoal} style={styles.locationChevron} />
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      {/* 3. Main Heading: Clean Typographic Hierarchy, No Random Italics */}
-      <View style={styles.mainHeadingContainer}>
-        <Text style={styles.mainHeadingTitle}>What's your craving today?</Text>
-        <Text style={styles.mainHeadingSubtitle}>
-          Order fresh meals prepared hot by neighbourhood kitchens
-        </Text>
+      <View style={styles.foodIdentity}>
+        <View style={styles.foodIdentityIcon}><Ionicons name="fast-food" size={30} color="#FFFFFF" /></View>
+        <View><Text style={styles.brandTitle}>Fleet24 Food</Text><Text style={styles.foodIdentityCaption}>Your neighbourhood. Delivered.</Text></View>
       </View>
 
-      {/* 4. Search Bar & Dedicated Vertically Aligned Filter Button */}
+      {/* 3. Main Heading: Clean Typographic Hierarchy, No Random Italics */}
       <View style={styles.searchRow}>
         <View style={styles.searchBarContainer}>
           <Ionicons
             name="search-outline"
             size={18}
-            color={colors.textSecondary}
+            color={c.secondary}
             style={styles.searchLeftIcon}
           />
           <TextInput
-            placeholder="Search dishes, restaurants or cuisines..."
-            placeholderTextColor={colors.textMuted}
+            placeholder="Search for dishes & kitchens"
+            placeholderTextColor={c.secondary}
             value={searchQuery}
             onChangeText={handleSearchChange}
             style={styles.searchInput}
@@ -432,7 +292,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               onPress={() => handleSearchChange('')}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              <Ionicons name="close-circle" size={18} color={c.secondary} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -440,29 +300,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <TouchableOpacity
           style={[
             styles.filterIconButton,
-            selectedFilter === 'open' && styles.filterIconButtonActive,
+            openOnly && styles.filterIconButtonActive,
           ]}
-          onPress={() => handleFilterChange(selectedFilter === 'open' ? 'all' : 'open')}
+          onPress={() => setFiltersVisible(true)}
           activeOpacity={0.8}
-          accessibilityLabel="Toggle open restaurants filter"
+          accessibilityLabel={openOnly ? 'Filters, 1 active' : 'Filters'}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: filtersVisible }}
         >
           <Ionicons
             name="options-outline"
             size={18}
-            color={selectedFilter === 'open' ? '#FFFFFF' : colors.charcoal}
+            color={openOnly ? '#FFFFFF' : c.green}
           />
+          {openOnly && (
+            <View style={styles.filterCount}>
+              <Text style={styles.cartBadgeText}>1</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
       {/* 5. Horizontal Category Selector: Consistent Chips, Adequate Padding */}
       <View style={styles.categorySection}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeaderTitle}>Categories</Text>
-          <TouchableOpacity onPress={() => handleCategorySelect('all')} activeOpacity={0.7}>
-            <Text style={styles.seeAllText}>See All</Text>
-          </TouchableOpacity>
-        </View>
-
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -477,13 +337,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   styles.categoryChip,
                   isSelected && styles.categoryChipSelected,
                 ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
                 onPress={() => handleCategorySelect(cat.filterKey)}
                 activeOpacity={0.8}
               >
                 <Ionicons
                   name={cat.icon}
                   size={15}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
+                  color={isSelected ? c.green : c.secondary}
                   style={styles.categoryChipIcon}
                 />
                 <Text
@@ -500,128 +362,109 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </ScrollView>
       </View>
 
-      {/* 6. Curated Food Product Cards: Predictable Horizontal Card Composition */}
-      {featuredDishes.length > 0 && (
-        <View style={styles.featuredDishesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionHeaderTitle}>Curated Specials</Text>
-              <Text style={styles.sectionHeaderSubtitle}>Chef's top picks from neighbourhood kitchens</Text>
-            </View>
+      {!hasCampaign && (
+        <View style={styles.foodBanner}>
+          <Image source={require('../../assets/images/biryani-campaign.png')} style={styles.bannerImage} resizeMode="cover" accessibilityLabel="Bowl of chicken biryani" />
+          <View style={styles.bannerText}>
+            <Text style={styles.bannerEyebrow}>FLEET24 PICKS</Text>
+            <Text style={styles.bannerTitle}>Big flavour.{'\n'}Every bite.</Text>
+            <Text style={styles.bannerSubtitle}>Find your next favourite.</Text>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.foodCardsScroll}
-          >
-            {featuredDishes.map((dish) => (
-              <View key={dish.id} style={styles.foodCard}>
-                {/* Left section: Price, kitchen metadata, title, description, predictable CTA */}
-                <View style={styles.foodCardLeft}>
-                  <View style={styles.cardHeaderMetadata}>
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.foodPriceText}>₹{dish.price}</Text>
-                      {dish.basePrice && parseFloat(dish.basePrice) > parseFloat(dish.price) && (
-                        <Text style={styles.foodBasePriceText}>₹{dish.basePrice}</Text>
-                      )}
-                    </View>
-                    <View style={styles.kitchenBadge}>
-                      <Text style={styles.kitchenBadgeText} numberOfLines={1}>
-                        {dish.outlet.restaurantName}
-                      </Text>
-                    </View>
-                  </View>
+        </View>
+      )}
+      </View>
 
-                  <Text style={styles.foodTitle} numberOfLines={1}>
-                    {dish.name}
-                  </Text>
-
-                  <Text style={styles.foodDescription} numberOfLines={2}>
-                    {dish.description}
-                  </Text>
-
-                  <View style={styles.foodCardCtaRow}>
-                    <TouchableOpacity
-                      style={styles.orderNowBtn}
-                      onPress={() => onSelectOutlet(dish.outlet)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.orderNowBtnText}>Order Now</Text>
-                      <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Right section: Dedicated fixed-size image container */}
-                <View style={styles.foodImageContainer}>
-                  {dish.imageUrl ? (
-                    <Image
-                      source={{ uri: dish.imageUrl }}
-                      style={styles.foodImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.foodImagePlaceholder}>
-                      <Ionicons name="restaurant-outline" size={28} color={colors.primary} />
-                    </View>
-                  )}
-                  <View style={styles.vegIndicatorPill}>
-                    <View
-                      style={[
-                        styles.vegIndicatorDot,
-                        { backgroundColor: dish.isVeg ? colors.veg : colors.nonVeg },
-                      ]}
-                    />
-                  </View>
-                </View>
+      <Text style={styles.discoveryHeading}>What’s on your mind?</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+        {sections.some(section => section.kind === 'category')
+          ? sections.filter(section => section.kind === 'category').map((section, index) => (
+            <TouchableOpacity key={section.targets[0].id + index} style={styles.feedTile} accessibilityRole="button" onPress={() => {
+              setSelectedCategory('all');
+              setCategoryOutlets(section.cards.map(card => card.outlet.id));
+            }}>
+              <View style={styles.tilePhoto}><ExplorePhoto key={section.image} uri={section.image ?? null} /></View>
+              <Text style={styles.tileLabel} numberOfLines={2}>{section.title}</Text>
+            </TouchableOpacity>
+          ))
+          : CUISINE_CATEGORIES.filter(category => category.id !== 'all').map(category => {
+            const photo = applyFilters(outlets, '', category.filterKey).find(outlet => outlet.logoUrl)?.logoUrl;
+            return (
+              <TouchableOpacity key={category.id} style={styles.feedTile} accessibilityRole="button"
+                onPress={() => handleCategorySelect(category.filterKey)}>
+                <View style={styles.tilePhoto}><ExplorePhoto key={photo} uri={photo ?? null} /></View>
+                <Text style={styles.tileLabel} numberOfLines={2}>{category.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+      </ScrollView>
+      {sections.some(section => section.kind === 'banner') && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+          {sections.filter(section => section.kind === 'banner').map((section, index) => (
+            <TouchableOpacity key={index} style={styles.campaign} accessibilityRole="button" onPress={() => {
+              if (section.targets[0].type === 'category') {
+                setSelectedCategory('all');
+                setCategoryOutlets(section.cards.map(card => card.outlet.id));
+              } else {
+                const { outlet, dish } = section.cards[0];
+                onSelectOutlet(outlet, dish?.id);
+              }
+            }}>
+              <ExplorePhoto key={section.image} uri={section.image ?? null} />
+              <View style={styles.campaignCopy}>
+                <Text style={styles.campaignTitle} numberOfLines={2}>{section.title}</Text>
+                <Text style={styles.campaignCta}>{section.cta}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+      {!sections.some(section => section.kind === 'row') && filteredOutlets.length > 0 && (
+        <View style={styles.spotlightSection}>
+          <View style={styles.spotlightHeading}><Ionicons name="restaurant-outline" size={22} color={c.green} /><Text style={styles.spotlightTitle}>In the spotlight</Text></View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+            {filteredOutlets.slice(0, 8).map(outlet => <View key={outlet.id} style={styles.curatedCard}><RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} /></View>)}
+          </ScrollView>
+        </View>
+      )}
+      {sections.filter(section => section.kind === 'row').map((section, index) => (
+        <View key={index} style={styles.featuredDishesSection}>
+          <Text style={[styles.sectionHeaderTitle, { marginHorizontal: gutter }]}>{section.title}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+            {section.cards.map(({ outlet, dish }, cardIndex) => (
+              <View key={cardIndex} style={styles.curatedCard}>
+                {dish ? (
+                  <TouchableOpacity accessibilityRole="button" onPress={() => onSelectOutlet(outlet, dish.id)}>
+                    <View style={styles.curatedPhoto}><ExplorePhoto uri={dish.imageUrl} /></View>
+                    <Text style={styles.foodTitle} numberOfLines={2}>{dish.name}</Text>
+                    <Text style={styles.kitchenName} numberOfLines={1}>{outlet.restaurantName}</Text>
+                    <Text style={styles.foodPriceText}>₹{dish.effectivePrice}</Text>
+                  </TouchableOpacity>
+                ) : <RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} />}
               </View>
             ))}
           </ScrollView>
         </View>
-      )}
+      ))}
 
-      {/* 7. Popular Near You Section Header */}
       <View style={styles.popularSectionHeader}>
-        <View style={styles.popularTitleCol}>
-          <Text style={styles.popularSectionTitle}>Popular Near You</Text>
-          <Text style={styles.popularSectionSubtitle}>
-            {filteredOutlets.length} {filteredOutlets.length === 1 ? 'kitchen' : 'kitchens'} ready to deliver
-          </Text>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionHeaderTitle}>Nearby kitchens</Text>
         </View>
-
-        <TouchableOpacity
-          style={[
-            styles.filterTogglePill,
-            selectedFilter === 'open' && styles.filterTogglePillActive,
-          ]}
-          onPress={() => handleFilterChange(selectedFilter === 'open' ? 'all' : 'open')}
-          activeOpacity={0.75}
-        >
-          <View
-            style={[
-              styles.filterToggleDot,
-              selectedFilter === 'open' && styles.filterToggleDotActive,
-            ]}
-          />
-          <Text
-            style={[
-              styles.filterToggleText,
-              selectedFilter === 'open' && styles.filterToggleTextActive,
-            ]}
-          >
-            {selectedFilter === 'open' ? 'Open Only' : 'All Kitchens'}
+        {!hasError && (
+          <Text style={styles.sectionHeaderSubtitle}>
+            {openCount} {openCount === 1 ? 'kitchen' : 'kitchens'} ready to deliver
           </Text>
-        </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {isLoading ? (
+      {isLoading || loadedCoordinates !== coordinates ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={c.green} size="large" />
           <Text style={styles.loadingText}>Curating neighbourhood kitchens...</Text>
         </View>
       ) : (
@@ -634,18 +477,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
           )}
           ListHeaderComponent={renderListHeader}
-          contentContainerStyle={[styles.listContent, { paddingBottom: bottomOffset + 24 }]}
+          contentContainerStyle={[styles.listContent, cart?.itemCount ? styles.listWithCart : undefined]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={onRefresh}
-              tintColor={colors.primary}
+              tintColor={c.green}
             />
           }
           ListEmptyComponent={
+            hasError ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyTitle}>Couldn’t load kitchens</Text>
+                <TouchableOpacity accessibilityRole="button" onPress={onRefresh} style={styles.retry}>
+                  <Text style={styles.orderNowBtnText}>{isRefreshing ? 'Retrying…' : 'Try again'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : openOnly && matchingOutlets.length > 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyTitle}>No kitchens match your filters</Text>
+                <TouchableOpacity accessibilityRole="button" onPress={() => setOpenOnly(false)} style={styles.retry}>
+                  <Text style={styles.orderNowBtnText}>Clear filters</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="restaurant-outline" size={32} color={colors.textSecondary} />
+                <Ionicons name="restaurant-outline" size={32} color={c.secondary} />
               </View>
               <Text style={styles.emptyTitle}>No matching restaurants</Text>
               <Text style={styles.emptySubtitle}>
@@ -654,12 +512,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   : 'Try selecting a different cuisine filter above.'}
               </Text>
             </View>
+            )
           }
         />
       )}
 
       {/* Floating Cart Summary Bar */}
-      {onViewCart && <CartSummaryBar onPress={onViewCart} bottomOffset={bottomOffset} />}
+      {onViewCart && <CartSummaryBar onPress={onViewCart} bottomOffset={8} />}
+
+      {filtersVisible && (
+        <ExploreFiltersSheet
+          openOnly={openOnly}
+          onClose={() => setFiltersVisible(false)}
+          onApply={(nextOpenOnly) => {
+            setOpenOnly(nextOpenOnly);
+            setFiltersVisible(false);
+          }}
+        />
+      )}
 
       {/* Address Selection Modal */}
       <AddressSelectionModal
@@ -667,6 +537,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         addresses={addresses}
         selectedAddressId={selectedAddress.id}
         onSelectAddress={(addr) => {
+          setCategoryOutlets(null);
           setSelectedAddress(addr);
           setIsAddressModalVisible(false);
         }}
@@ -677,570 +548,125 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   );
 };
 
+const gutter = 15;
+const panel = {
+  backgroundColor: c.surface,
+  borderWidth: 1,
+  borderColor: c.border,
+  borderRadius: 12,
+};
+const shadow = { boxShadow: '0px 2px 4px rgba(17, 30, 23, 0.06)' };
+const row = { flexDirection: 'row', alignItems: 'center' } as const;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  listContent: {
-    paddingBottom: 90,
-  },
-  headerContainer: {
-    paddingTop: 8,
-  },
-  cardWrapper: {
-    paddingHorizontal: 20,
-  },
+  foodBanner: { marginHorizontal: 15, height: 190, backgroundColor: '#330D0C', borderRadius: 20, overflow: 'hidden', justifyContent: 'center' },
+  bannerText: { paddingHorizontal: 16, paddingVertical: 18, width: '54%' },
+  bannerEyebrow: { fontSize: 9, letterSpacing: 1.4, fontWeight: '800', color: '#FFE4BD', marginBottom: 7 },
+  bannerTitle: { fontSize: 26, lineHeight: 29, fontWeight: '800', letterSpacing: -0.8, color: '#FFFFFF' },
+  bannerSubtitle: { fontSize: 13, color: '#FFE4BD', marginTop: 8 },
+  bannerImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  addressHeader: { flex: 1, minWidth: 0, paddingRight: 12 },
+  addressLabel: { color: c.green, fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  addressLine: { color: c.secondary, fontSize: 12 },
+  foodIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFFFFF' },
+  foodIdentityIcon: { width: 54, height: 54, borderRadius: 17, backgroundColor: '#187547', alignItems: 'center', justifyContent: 'center' },
+  foodIdentityCaption: { color: c.secondary, fontSize: 12, marginTop: 3 },
+  spotlightSection: { marginTop: 8, marginBottom: 20 },
+  spotlightHeading: { marginHorizontal: 15, marginBottom: 16, backgroundColor: '#F0F2F1', borderRadius: 28, padding: 16, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center' },
+  spotlightTitle: { color: '#174D32', fontSize: 17, fontWeight: '800' },
+  heroHeader: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden', paddingBottom: 14, marginBottom: 22 },
+  heroFeature: { height: 184, marginHorizontal: 15, borderRadius: 18, overflow: 'hidden', backgroundColor: '#073C2A' },
+  heroFeatureCopy: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 13, backgroundColor: 'rgba(3, 44, 26, 0.78)' },
+  heroFeatureLabel: { color: '#D9F5E6', fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  discoveryHeading: { fontSize: 19, fontWeight: '800', color: '#191919', marginHorizontal: 15, marginBottom: 14 },
+  tileLabel: { color: '#474747', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  feedStrip: { paddingHorizontal: 14, gap: 12, paddingBottom: 14 },
+  feedTile: { width: 76, alignItems: 'center', gap: 5 },
+  tilePhoto: { width: 70, height: 70, borderRadius: 35, overflow: 'hidden' },
+  campaign: { width: 316, height: 142, backgroundColor: c.green, overflow: 'hidden', borderRadius: 16, justifyContent: 'flex-end' },
+  campaignCopy: { position: 'absolute', left: 0, bottom: 0, right: 0, padding: 12, backgroundColor: 'rgba(0, 28, 18, 0.8)' },
+  campaignTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
+  campaignCta: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  curatedCard: { width: 132, backgroundColor: '#FFFFFF', paddingBottom: 8 },
+  curatedPhoto: { aspectRatio: 0.88, borderRadius: 18, overflow: 'hidden' },
 
-  // 1. First Row: Brand Wordmark & Account Actions
-  brandRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  brandLeftGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  brandTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.charcoal,
-    letterSpacing: -0.5,
-  },
-  brandDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    marginTop: 6,
-  },
-  headerActionsRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    position: 'relative',
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 9,
-    right: 10,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.citrusLime,
-    borderWidth: 1,
-    borderColor: colors.surface,
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  listContent: { paddingBottom: 12 },
+  listWithCart: { paddingBottom: 80 },
+  headerContainer: { paddingTop: 0 },
+  cardWrapper: { paddingHorizontal: gutter },
+  brandRow: { ...row, justifyContent: 'space-between', paddingHorizontal: gutter, paddingVertical: 18, backgroundColor: '#FAF7F0' },
+  brandLeftGroup: { ...row, gap: 6 },
+  brandTitle: { color: c.green, fontSize: 27, fontWeight: '900', letterSpacing: -1 },
+  brandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFAA65' },
+  headerActionsRight: { ...row, gap: 5 },
+  iconButton: { ...panel, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  signInButton: { ...row, height: 40, paddingHorizontal: 6, gap: 3 },
+  signInButtonText: { color: c.green, fontSize: 12, fontWeight: '700' },
   avatarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.surface,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: c.tint,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  signInButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 5,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  signInButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
+  avatarText: { color: c.green, fontWeight: '800' },
+  notificationDot: { position: 'absolute', right: 8, top: 8, width: 5, height: 5, borderRadius: 3, backgroundColor: '#FFAA65' },
   cartBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: colors.accent,
-    minWidth: 17,
-    height: 17,
-    borderRadius: 8.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5,
-    borderColor: colors.surface,
+    position: 'absolute', right: 2, top: 2, minWidth: 14, borderRadius: 8,
+    backgroundColor: c.green, paddingHorizontal: 3, alignItems: 'center',
   },
-  cartBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9.5,
-    fontWeight: '800',
-  },
-
-  // 2. Second Row: Delivery Location Selector
+  cartBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
   locationSelectorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-    gap: 10,
+    ...panel, ...row, minHeight: 42, marginHorizontal: gutter, marginTop: 8, paddingHorizontal: 12, gap: 10,
   },
-  locationIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
+  locationMainText: { flex: 1, fontSize: 14, fontWeight: '800', color: c.ink },
+  searchRow: { ...row, marginHorizontal: gutter, gap: 8, marginTop: 16, marginBottom: 6 },
+  searchBarContainer: { ...panel, ...shadow, ...row, flex: 1, minWidth: 0, height: 50, paddingHorizontal: 12 },
+  searchLeftIcon: { marginRight: 8 },
+  searchInput: { flex: 1, minWidth: 0, color: c.ink, fontSize: 14, paddingVertical: 0 },
+  filterIconButton: { ...panel, ...shadow, width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
+  filterCount: {
+    position: 'absolute', top: -5, right: -4, minWidth: 16, height: 16,
+    alignItems: 'center', justifyContent: 'center', borderRadius: 8,
+    backgroundColor: c.green, borderColor: c.surface, borderWidth: 1,
   },
-  locationContentContainer: {
-    flex: 1,
+  filterIconButtonActive: { backgroundColor: c.green, borderColor: c.green },
+  categorySection: { marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#ECEEEB' },
+  categoryPillsScroll: { paddingHorizontal: gutter, paddingBottom: 3, gap: 8 },
+  categoryChip: { ...row, minHeight: 42, paddingHorizontal: 10, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  categoryChipSelected: { borderBottomColor: c.green },
+  categoryChipIcon: { marginRight: 6 },
+  categoryChipLabel: { color: c.secondary, fontSize: 12, fontWeight: '600' },
+  categoryChipLabelSelected: { color: c.green },
+  sectionHeading: { ...row, gap: 12 },
+  sectionRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.secondary },
+  sectionHeaderTitle: { color: '#191919', fontSize: 21, lineHeight: 28, fontWeight: '800' },
+  editorialHeading: { fontFamily: 'InstrumentSerifItalic' },
+  editorialName: { fontFamily: 'BaskervvilleRegular', fontWeight: '400' },
+  sectionHeaderSubtitle: { color: c.secondary, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  featuredDishesSection: { marginBottom: 24, gap: 12 },
+  foodGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 9, marginTop: 11 },
+  foodCard: { ...panel, backgroundColor: c.background, width: '49%', overflow: 'hidden' },
+  foodImageContainer: { width: '100%', aspectRatio: 1.04, overflow: 'hidden' },
+  foodBody: { flex: 1, padding: 8 },
+  foodTitle: { color: '#202326', fontSize: 15, lineHeight: 20, minHeight: 40, fontWeight: '700', letterSpacing: -0.4, marginTop: 8 },
+  kitchenName: { color: '#777B80', fontSize: 12, lineHeight: 17, marginTop: 3, marginBottom: 5 },
+  foodFooter: {
+    ...row, flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, marginTop: 'auto',
+    paddingTop: 7, borderTopWidth: 1, borderTopColor: c.border,
   },
-  locationSubLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  locationAddressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 1,
-  },
-  locationMainText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.charcoal,
-    flexShrink: 1,
-    letterSpacing: -0.2,
-  },
-  locationChevron: {
-    marginTop: 1,
-  },
-
-  // 3. Main Heading: Clean Typographic Hierarchy
-  mainHeadingContainer: {
-    paddingHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 16,
-  },
-  mainHeadingTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.charcoal,
-    letterSpacing: -0.5,
-    lineHeight: 32,
-  },
-  mainHeadingSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-
-  // 4. Search Bar & Dedicated Vertically Aligned Filter Button
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 20,
-  },
-  searchBarContainer: {
-    flex: 1,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    paddingHorizontal: 14,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  searchLeftIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13.5,
-    fontWeight: '500',
-    color: colors.charcoal,
-    paddingVertical: 0,
-  },
-  filterIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  filterIconButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-
-  // 5. Category Horizontal Selector
-  categorySection: {
-    marginBottom: 22,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  sectionHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.charcoal,
-    letterSpacing: -0.3,
-  },
-  sectionHeaderSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  seeAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  categoryPillsScroll: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 19,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  categoryChipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  categoryChipIcon: {
-    marginRight: 6,
-  },
-  categoryChipLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: colors.charcoal,
-  },
-  categoryChipLabelSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  // 6. Curated Food Product Cards
-  featuredDishesSection: {
-    marginBottom: 24,
-  },
-  foodCardsScroll: {
-    paddingHorizontal: 20,
-    gap: 14,
-  },
-  foodCard: {
-    flexDirection: 'row',
-    width: 310,
-    height: 162,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    shadowColor: colors.charcoal,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  foodCardLeft: {
-    flex: 1,
-    height: '100%',
-    justifyContent: 'space-between',
-    paddingRight: 12,
-  },
-  cardHeaderMetadata: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 5,
-  },
-  foodPriceText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.charcoal,
-  },
-  foodBasePriceText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  kitchenBadge: {
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 8,
-    maxWidth: 110,
-  },
-  kitchenBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  foodTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.charcoal,
-    letterSpacing: -0.2,
-    marginTop: 2,
-  },
-  foodDescription: {
-    fontSize: 11.5,
-    color: colors.textSecondary,
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  foodCardCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  orderNowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.primary,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-  },
-  orderNowBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  foodImageContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceMuted,
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  foodImage: {
-    width: '100%',
-    height: '100%',
-  },
-  foodImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
-  },
+  foodPriceText: { color: '#202326', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  orderNowBtn: { ...row, gap: 3, backgroundColor: c.green, borderRadius: 16, paddingHorizontal: 7, paddingVertical: 5 },
+  orderNowBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   vegIndicatorPill: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    position: 'absolute', top: 7, right: 7, width: 15, height: 15,
+    borderRadius: 3, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center',
   },
-  vegIndicatorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-
-  // 7. Popular Near You Section Header
-  popularSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    marginBottom: 14,
-  },
-  popularTitleCol: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  popularSectionTitle: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: colors.charcoal,
-    letterSpacing: -0.3,
-  },
-  popularSectionSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  filterTogglePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  filterTogglePillActive: {
-    backgroundColor: colors.surfaceGreen,
-    borderColor: colors.primary,
-  },
-  filterToggleDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.textMuted,
-  },
-  filterToggleDotActive: {
-    backgroundColor: colors.primary,
-  },
-  filterToggleText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  filterToggleTextActive: {
-    color: colors.primary,
-  },
-
-  // States
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingTop: 80,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    paddingTop: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.charcoal,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
-  },
+  vegIndicatorDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.green },
+  popularSectionHeader: { marginHorizontal: gutter, marginBottom: 11 },
+  centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: c.secondary },
+  emptyContainer: { paddingVertical: 32, alignItems: 'center', paddingHorizontal: gutter, gap: 6 },
+  emptyIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: c.tint, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: c.ink },
+  emptySubtitle: { fontSize: 13, color: c.secondary, textAlign: 'center' },
+  retry: { backgroundColor: c.green, borderRadius: 12, padding: 12 },
 });

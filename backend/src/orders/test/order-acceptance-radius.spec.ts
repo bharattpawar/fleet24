@@ -11,6 +11,8 @@ import { FinancialSettingsService } from '../../admin/financial-settings.service
 import { isWithinDeliveryRadius } from '../../common/utils/geo';
 import { MenusService } from '../../restaurants/menus.service';
 import { OutletAuthorizationService } from '../../restaurants/outlet-auth.service';
+import { RoutingService } from '../../routing/routing.service';
+import { calculateDistanceKm } from '../../common/utils/geo';
 
 describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforcement', () => {
   let cartService: CartService;
@@ -18,6 +20,7 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
   let menusService: MenusService;
   let mockDb: any;
   let mockFinancialSettings: any;
+  let mockRoutingService: any;
 
   // Outlet in Indirapuram, Ghaziabad (28.6380, 77.3680) with 3.0 km radius
   const outlet3km = {
@@ -97,11 +100,16 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
 
     mockFinancialSettings = {
       getActiveSettings: jest.fn().mockResolvedValue({
+        versionId: 'test-v1',
+        versionNumber: 1,
         settings: {
           customerDeliveryFee: {
             baseFee: 30,
             freeDeliveryThresholdOrders: 3,
             cancelledOrdersConsumeFreeQuota: false,
+          },
+          deliveryServiceability: {
+            maxRoadDistanceMeters: 3000,
           },
         },
       }),
@@ -130,6 +138,44 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
         },
         { provide: DRIZZLE_CONNECTION, useValue: mockDb },
         { provide: FinancialSettingsService, useValue: mockFinancialSettings },
+        {
+          provide: RoutingService,
+          useFactory: () => {
+            mockRoutingService = {
+              getStraightLineDistanceKm: jest.fn((origin: any, dest: any) =>
+                calculateDistanceKm(origin.latitude, origin.longitude, dest.latitude, dest.longitude),
+              ),
+              getRoute: jest.fn(async ({ origin, destination }: any) => {
+                const d = calculateDistanceKm(origin.latitude, origin.longitude, destination.latitude, destination.longitude);
+                return {
+                  distanceMeters: Math.round(d * 1000),
+                  durationSeconds: Math.round(d * 100),
+                  provider: 'google',
+                  status: 'OK',
+                  calculatedAt: new Date(),
+                  cached: false,
+                };
+              }),
+              getBatchRoutes: jest.fn(async (items: any[]) => {
+                const resMap = new Map();
+                for (const item of items) {
+                  const d = calculateDistanceKm(item.origin.latitude, item.origin.longitude, item.destination.latitude, item.destination.longitude);
+                  resMap.set(item.id, {
+                    distanceMeters: Math.round(d * 1000),
+                    durationSeconds: Math.round(d * 100),
+                    provider: 'google',
+                    status: 'OK',
+                    calculatedAt: new Date(),
+                    cached: false,
+                  });
+                }
+                return resMap;
+              }),
+              isAvailable: jest.fn(() => true),
+            };
+            return mockRoutingService;
+          },
+        },
       ],
     }).compile();
 
@@ -299,7 +345,7 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
       expect(check6_5km.distanceKm).toBeLessThan(6.5);
     });
 
-    it('public outlet discovery filters out outlets outside the user delivery radius when coordinates are provided', async () => {
+    it('Option A discovery: public outlet discovery strictly enforces admin 3km road limit over outlet deliveryRadiusKm', async () => {
       // Mock db returns both outlets
       mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outlet3km, outlet6_5km]);
 
@@ -309,9 +355,167 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
 
       const discovered = await menusService.getPublicActiveOutlets(userLat, userLon);
 
-      // outlet3km should be filtered out; outlet6_5km should be present
+      // Under Option A, both outlets are filtered out because 4.0 km exceeds platform 3km limit
+      expect(discovered.length).toBe(0);
+    });
+
+    it('Option A discovery: discovers outlets within the platform limit when coordinates are within range', async () => {
+      mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outlet3km]);
+
+      // User is located ~1.5 km away
+      const userLat = 28.625;
+      const userLon = 77.368;
+
+      mockRoutingService.getBatchRoutes.mockResolvedValueOnce(
+        new Map([
+          [
+            outlet3km.id,
+            {
+              distanceMeters: 1600,
+              durationSeconds: 200,
+              provider: 'google',
+              status: 'OK',
+              calculatedAt: new Date(),
+              cached: false,
+            },
+          ],
+        ]),
+      );
+
+      const discovered = await menusService.getPublicActiveOutlets(userLat, userLon);
       expect(discovered.length).toBe(1);
-      expect(discovered[0].id).toBe(outlet6_5km.id);
+      expect(discovered[0].id).toBe(outlet3km.id);
+      expect(discovered[0].distanceKm).toBe(1.6);
+      expect(discovered[0].serviceabilityStatus).toBe('VERIFIED');
+    });
+
+    it('filters out outlet whose straight-line is <= 3 km but Google road distance exceeds 3000m', async () => {
+      // Outlet is located at 28.6380, 77.3680 with 3.0 km radius
+      // User is located ~2.2 km away straight-line
+      const userLat = 28.618;
+      const userLon = 77.368;
+
+      mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outlet3km]);
+
+      // But actual road distance has detours/flyovers making it 3,400 meters (> 3000m)
+      mockRoutingService.getBatchRoutes.mockResolvedValueOnce(
+        new Map([
+          [
+            outlet3km.id,
+            {
+              distanceMeters: 3400,
+              durationSeconds: 420,
+              provider: 'google',
+              status: 'OK',
+              calculatedAt: new Date(),
+              cached: false,
+            },
+          ],
+        ]),
+      );
+
+      const discovered = await menusService.getPublicActiveOutlets(userLat, userLon);
+
+      // Must be filtered out because road distance exceeds 3000m!
+      expect(discovered.length).toBe(0);
+    });
+
+    it('batches multiple candidate outlets into a single getBatchRoutes call', async () => {
+      const outletA = { ...outlet3km, id: 'outlet-a', name: 'Outlet A' };
+      const outletB = { ...outlet3km, id: 'outlet-b', name: 'Outlet B' };
+
+      // User ~1.5 km away
+      const userLat = 28.625;
+      const userLon = 77.368;
+
+      mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outletA, outletB]);
+
+      mockRoutingService.getBatchRoutes.mockResolvedValueOnce(
+        new Map([
+          [outletA.id, { distanceMeters: 1600, durationSeconds: 200, status: 'OK', provider: 'google', calculatedAt: new Date(), cached: false }],
+          [outletB.id, { distanceMeters: 1700, durationSeconds: 210, status: 'OK', provider: 'google', calculatedAt: new Date(), cached: false }],
+        ]),
+      );
+
+      const discovered = await menusService.getPublicActiveOutlets(userLat, userLon);
+
+      expect(discovered.length).toBe(2);
+      expect(mockRoutingService.getBatchRoutes).toHaveBeenCalledTimes(1);
+      expect(mockRoutingService.getBatchRoutes).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'outlet-a' }),
+          expect.objectContaining({ id: 'outlet-b' }),
+        ]),
+      );
+    });
+
+    it('marks outlet as UNVERIFIED with undefined distanceKm when routing provider fails without falsifying Haversine as road distance', async () => {
+      const userLat = 28.625;
+      const userLon = 77.368;
+
+      mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outlet3km]);
+
+      // Routing provider returns error/unavailable
+      mockRoutingService.getBatchRoutes.mockResolvedValueOnce(
+        new Map([
+          [
+            outlet3km.id,
+            {
+              distanceMeters: null,
+              durationSeconds: null,
+              provider: 'google',
+              status: 'ROUTING_UNAVAILABLE',
+              calculatedAt: new Date(),
+              cached: false,
+              errorMessage: 'Google Routes service unavailable',
+            },
+          ],
+        ]),
+      );
+
+      const discovered = await menusService.getPublicActiveOutlets(userLat, userLon);
+
+      expect(discovered.length).toBe(1);
+      // Distance must NEVER be straight-line distance; it must be undefined!
+      expect(discovered[0].distanceKm).toBeUndefined();
+      expect(discovered[0].isServiceable).toBe(false);
+      expect(discovered[0].serviceabilityStatus).toBe('UNVERIFIED');
+    });
+
+    it('returns compatible response shape for Customer App with all required fields', async () => {
+      const userLat = 28.625;
+      const userLon = 77.368;
+
+      mockDb.query.restaurantOutlets.findMany.mockResolvedValueOnce([outlet3km]);
+
+      mockRoutingService.getBatchRoutes.mockResolvedValueOnce(
+        new Map([
+          [
+            outlet3km.id,
+            {
+              distanceMeters: 1540,
+              durationSeconds: 190,
+              provider: 'google',
+              status: 'OK',
+              calculatedAt: new Date(),
+              cached: false,
+            },
+          ],
+        ]),
+      );
+
+      const [outlet] = await menusService.getPublicActiveOutlets(userLat, userLon);
+
+      expect(outlet).toMatchObject({
+        id: outlet3km.id,
+        restaurantName: outlet3km.restaurant.name,
+        outletName: outlet3km.name,
+        slug: outlet3km.restaurant.slug,
+        distanceKm: 1.54,
+        isServiceable: true,
+        serviceabilityStatus: 'VERIFIED',
+        isAcceptingOrders: true,
+      });
     });
   });
 });

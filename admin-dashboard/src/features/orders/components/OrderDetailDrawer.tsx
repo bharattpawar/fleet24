@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/orders';
@@ -17,12 +18,14 @@ import {
 
 interface OrderDetailDrawerProps {
   orderId: string;
+  readOnly?: boolean;
   onClose: () => void;
 }
 
 export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   orderId,
   onClose,
+  readOnly = false,
 }) => {
   const queryClient = useQueryClient();
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -62,6 +65,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     },
   });
 
+  const formatIst = (value: string) => new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
   const formatCurrency = (val?: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -78,21 +83,21 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex justify-end z-50">
-      <div className="w-full max-w-2xl bg-[#17211B] h-full shadow-2xl border-l border-[#24533F]/40 flex flex-col overflow-hidden">
+      <div className="w-full max-w-2xl bg-[#FFFFFF] h-full shadow-2xl border-l border-[#E3E7EC] flex flex-col overflow-hidden">
         {/* Drawer Header */}
-        <div className="p-6 border-b border-[#24533F]/30 flex items-center justify-between shrink-0 bg-[#121915]">
+        <div className="p-6 border-b border-[#E3E7EC] flex items-center justify-between shrink-0 bg-[#F5F6F8]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#24533F] border border-[#D9F078]/20 flex items-center justify-center text-[#D9F078] font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#205641] border border-[#205641]/20 flex items-center justify-center text-[#205641] font-bold">
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-[#F7F6F0]">
+                <h2 className="text-base font-bold text-[#171A21]">
                   {isLoading ? 'Loading Order...' : `#${order?.orderNumber}`}
                 </h2>
                 {order && <OrderStatusBadge type="order" status={order.status} />}
               </div>
-              <div className="text-[11px] font-mono text-[#F7F6F0]/40 mt-0.5">
+              <div className="text-[11px] tabular-nums text-slate-600 mt-0.5">
                 {order && new Date(order.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
               </div>
             </div>
@@ -100,7 +105,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-[#F7F6F0]/50 hover:text-[#F7F6F0] rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+            className="p-2 text-slate-600 hover:text-[#171A21] rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -108,31 +113,32 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
         {/* Global Error Banner */}
         {actionError && (
-          <div className="mx-6 mt-4 p-3 rounded-lg bg-[#E98755]/15 border border-[#E98755]/30 flex items-center gap-2 text-xs text-[#E98755]">
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-[#9A431F]/15 border border-[#9A431F]/30 flex items-center gap-2 text-xs text-[#9A431F]">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{actionError}</span>
           </div>
         )}
 
+        {order && <Link className="mx-6 my-2 self-start text-sm text-[#205641] underline" to={`/finance/ledger?orderId=${orderId}`}>View ledger entries</Link>}
         {/* Action Controls Bar */}
         {!isLoading && order && (
-          <div className="px-6 py-3 bg-black/20 border-b border-[#24533F]/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-6 py-3 bg-[#F5F6F8] border-b border-[#E3E7EC] flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2">
-              {isDispatchRetryEligible && (
+              {!readOnly && isDispatchRetryEligible && (
                 <button
                   disabled={retryDispatchMutation.isPending}
                   onClick={() => retryDispatchMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-[#D9F078] text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{retryDispatchMutation.isPending ? 'Retrying...' : 'Retry Dispatch Matching'}</span>
                 </button>
               )}
 
-              {isCancellable && (
+              {!readOnly && isCancellable && (
                 <button
                   onClick={() => setCancelModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E98755]/15 text-[#E98755] border border-[#E98755]/40 text-xs font-semibold hover:bg-[#E98755]/25 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#9A431F]/15 text-[#9A431F] border border-[#9A431F]/40 text-xs font-semibold hover:bg-[#9A431F]/25 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Administrative Cancel & Refund</span>
@@ -141,8 +147,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] text-[#F7F6F0]/40 uppercase">Total Payable</span>
-              <div className="font-mono text-sm font-bold text-[#D9F078]">
+              <span className="text-[10px] text-slate-600">Order total</span>
+              <div className="tabular-nums text-sm font-bold text-[#205641]">
                 {formatCurrency(order.totalPayable)}
               </div>
             </div>
@@ -154,11 +160,11 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 bg-white/5 animate-pulse rounded-xl" />
+                <div key={i} className="h-20 bg-slate-100 animate-pulse rounded-xl" />
               ))}
             </div>
           ) : isError ? (
-            <div className="p-6 rounded-xl bg-[#E98755]/15 border border-[#E98755]/30 text-xs text-[#E98755]">
+            <div className="p-6 rounded-xl bg-[#9A431F]/15 border border-[#9A431F]/30 text-xs text-[#9A431F]">
               Failed to load order details from backend.
             </div>
           ) : order ? (
@@ -166,33 +172,33 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               {/* Restaurant & Customer Dual Card */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Outlet */}
-                <div className="p-4 rounded-xl bg-black/20 border border-[#24533F]/30 space-y-2">
+                <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                   <div className="flex items-center gap-2">
-                    <Store className="w-4 h-4 text-[#D9F078]" />
-                    <span className="font-bold text-[#F7F6F0] uppercase tracking-wider text-[11px]">
+                    <Store className="w-4 h-4 text-[#205641]" />
+                    <span className="font-bold text-[#171A21]  text-[11px]">
                       Kitchen Outlet
                     </span>
                   </div>
                   <div>
-                    <div className="font-bold text-[#F7F6F0]">{order.restaurant.name}</div>
-                    <div className="text-[#D9F078] text-[11px] font-medium">{order.restaurant.outletName}</div>
-                    <div className="text-[#F7F6F0]/50 text-[11px] mt-1">{order.restaurant.outletAddress}</div>
+                    <div className="font-bold text-[#171A21]">{order.restaurant.name}</div>
+                    <div className="text-[#205641] text-[11px] font-medium">{order.restaurant.outletName}</div>
+                    <div className="text-slate-600 text-[11px] mt-1">{order.restaurant.address}</div>
                   </div>
                 </div>
 
                 {/* Customer */}
-                <div className="p-4 rounded-xl bg-black/20 border border-[#24533F]/30 space-y-2">
+                <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#D9F078]" />
-                    <span className="font-bold text-[#F7F6F0] uppercase tracking-wider text-[11px]">
+                    <User className="w-4 h-4 text-[#205641]" />
+                    <span className="font-bold text-[#171A21]  text-[11px]">
                       Customer Destination
                     </span>
                   </div>
                   <div>
-                    <div className="font-bold text-[#F7F6F0]">{order.customer.fullName || 'Anonymous User'}</div>
-                    <div className="font-mono text-[#F7F6F0]/70 text-[11px]">{order.customer.phone}</div>
-                    <div className="text-[#F7F6F0]/50 text-[11px] mt-1 flex items-start gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#E98755] shrink-0 mt-0.5" />
+                    <div className="font-bold text-[#171A21]">{order.customer.fullName || 'Anonymous User'}</div>
+                    <div className="tabular-nums text-slate-600 text-[11px]">{order.customer.phone}</div>
+                    <div className="text-slate-600 text-[11px] mt-1 flex items-start gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#9A431F] shrink-0 mt-0.5" />
                       <span>{order.deliveryAddress?.addressLine || 'Deliver to Pin Location'}</span>
                     </div>
                   </div>
@@ -200,52 +206,52 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               </div>
 
               {/* Items Breakdown Table */}
-              <div className="rounded-xl border border-[#24533F]/30 bg-black/20 overflow-hidden">
-                <div className="p-3 bg-black/30 border-b border-[#24533F]/20 text-[11px] font-bold uppercase tracking-wider text-[#F7F6F0]/60">
+              <div className="rounded-xl border border-[#E3E7EC] bg-[#F5F6F8] overflow-hidden">
+                <div className="p-3 bg-[#F5F6F8] border-b border-[#E3E7EC] text-[11px] font-bold  text-slate-600">
                   Ordered Items ({order.items?.length || 0})
                 </div>
-                <div className="divide-y divide-white/5 p-2">
+                <div className="divide-y divide-[#E3E7EC] p-2">
                   {order.items?.map((item) => (
                     <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs">
                       <div>
-                        <span className="font-semibold text-[#F7F6F0]">{item.name}</span>
-                        <span className="text-[#D9F078] font-mono ml-2">× {item.quantity}</span>
+                        <span className="font-semibold text-[#171A21]">{item.name}</span>
+                        <span className="text-[#205641] tabular-nums ml-2">× {item.quantity}</span>
                       </div>
-                      <div className="font-mono text-[#F7F6F0]/80">
+                      <div className="tabular-nums text-slate-600">
                         {formatCurrency(item.totalPrice)}
                       </div>
                     </div>
                   ))}
                 </div>
                 {/* Cost Breakdown */}
-                <div className="bg-black/40 p-4 border-t border-[#24533F]/20 space-y-1.5 text-[11px]">
-                  <div className="flex justify-between text-[#F7F6F0]/60">
+                <div className="bg-[#F5F6F8] p-4 border-t border-[#E3E7EC] space-y-1.5 text-[11px]">
+                  <div className="flex justify-between text-slate-600">
                     <span>Item Subtotal</span>
-                    <span className="font-mono text-[#F7F6F0]">{formatCurrency(order.itemSubtotal)}</span>
+                    <span className="tabular-nums text-[#171A21]">{formatCurrency(order.itemSubtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-[#F7F6F0]/60">
+                  <div className="flex justify-between text-slate-600">
                     <span>Delivery Charge</span>
-                    <span className="font-mono text-[#F7F6F0]">{formatCurrency(order.deliveryCharge)}</span>
+                    <span className="tabular-nums text-[#171A21]">{formatCurrency(order.deliveryCharge)}</span>
                   </div>
-                  <div className="flex justify-between text-[#F7F6F0]/60">
+                  <div className="flex justify-between text-slate-600">
                     <span>Packaging & Taxes</span>
-                    <span className="font-mono text-[#F7F6F0]">
+                    <span className="tabular-nums text-[#171A21]">
                       {formatCurrency((order.packagingCharge || 0) + (order.taxes || 0))}
                     </span>
                   </div>
-                  <div className="flex justify-between text-[#F7F6F0] font-bold pt-2 border-t border-white/5 text-xs">
+                  <div className="flex justify-between text-[#171A21] font-bold pt-2 border-t border-[#E3E7EC] text-xs">
                     <span>Total Charged</span>
-                    <span className="font-mono text-[#D9F078]">{formatCurrency(order.totalPayable)}</span>
+                    <span className="tabular-nums text-[#205641]">{formatCurrency(order.totalPayable)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Payment & Refunds Section */}
-              <div className="p-4 rounded-xl bg-black/20 border border-[#24533F]/30 space-y-3">
+              <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <IndianRupee className="w-4 h-4 text-[#D9F078]" />
-                    <span className="font-bold uppercase tracking-wider text-[11px] text-[#F7F6F0]">
+                    <IndianRupee className="w-4 h-4 text-[#205641]" />
+                    <span className="font-bold  text-[11px] text-[#171A21]">
                       Payment & Settlement Ledger
                     </span>
                   </div>
@@ -253,53 +259,57 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                 </div>
 
                 {order.payment ? (
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between text-[#F7F6F0]/70">
-                      <span>Gateway Reference:</span>
-                      <span className="font-mono text-[#F7F6F0]">{order.payment.gatewayPaymentId || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between text-[#F7F6F0]/70">
-                      <span>Method:</span>
-                      <span className="font-mono uppercase text-[#F7F6F0]">{order.payment.method}</span>
-                    </div>
-                    {order.payment.refunds && order.payment.refunds.length > 0 && (
-                      <div className="pt-2 border-t border-white/5 space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-[#E98755]">
-                          Processed Refunds:
-                        </span>
-                        {order.payment.refunds.map((ref) => (
-                          <div key={ref.id} className="flex justify-between font-mono text-[11px] text-[#E98755]">
-                            <span>{ref.reason}</span>
-                            <span>{formatCurrency(ref.amount)}</span>
+                  <div className="space-y-3 text-xs">
+                    <dl className="grid grid-cols-2 gap-2">
+                      <dt>{['captured', 'refunded', 'partially_refunded'].includes(order.payment.status) ? 'Captured amount' : 'Payment amount'}</dt>
+                      <dd>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: order.payment.currency }).format(order.payment.amount)}</dd>
+                      <dt>Payment record</dt><dd><Link className="text-[#205641] underline" to={`/finance/payments?record=${order.payment.id}`}>Open payment</Link></dd>
+                      <dt>Provider</dt><dd>{order.payment.provider}</dd>
+                      <dt>Currency</dt><dd>{order.payment.currency}</dd>
+                      <dt>Paid at (IST)</dt><dd>{order.payment.paidAt ? formatIst(order.payment.paidAt) : '—'}</dd>
+                      <dt>Provider order reference</dt><dd className="break-all">{order.payment.providerOrderId || '—'}</dd>
+                      <dt>Provider payment reference</dt><dd className="break-all">{order.payment.providerPaymentId || '—'}</dd>
+                    </dl>
+                    {order.payment.refunds.length > 0 && (
+                      <div className="border-t border-[#E3E7EC] pt-2">
+                        <h3 className="font-bold">Refunds</h3>
+                        {order.payment.refunds.map((refund) => (
+                          <div key={refund.id} className="mt-2 rounded-lg border border-[#E3E7EC] p-2">
+                            <p className="font-semibold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: order.payment!.currency }).format(refund.amount)} · {refund.status}</p>
+                            <p>{refund.reason}</p>
+                            <Link className="text-[#205641] underline" to={`/finance/refunds?record=${refund.id}`}>Open refund</Link>
+                            <p>Created {formatIst(refund.createdAt)} IST</p>
+                            {refund.providerRefundId && <p className="break-all">Provider reference {refund.providerRefundId}</p>}
+                            {refund.isManualReviewRequired && <p className="font-semibold text-amber-800">Manual review required</p>}
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-[#F7F6F0]/40 text-xs">No captured payment record attached.</div>
+                  <p className="text-xs text-slate-600">No payment record</p>
                 )}
               </div>
 
               {/* Order Status History Timeline */}
               {order.timeline && order.timeline.length > 0 && (
-                <div className="p-4 rounded-xl bg-black/20 border border-[#24533F]/30 space-y-3">
+                <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#D9F078]" />
-                    <span className="font-bold uppercase tracking-wider text-[11px] text-[#F7F6F0]">
+                    <Clock className="w-4 h-4 text-[#205641]" />
+                    <span className="font-bold  text-[11px] text-[#171A21]">
                       Lifecycle State Timeline
                     </span>
                   </div>
-                  <div className="space-y-2 border-l border-[#24533F]/50 pl-3 ml-1.5">
-                    {order.timeline.map((evt, idx) => (
-                      <div key={idx} className="relative space-y-0.5">
+                  <div className="space-y-2 border-l border-[#E3E7EC] pl-3 ml-1.5">
+                    {order.timeline.map((evt) => (
+                      <div key={evt.id} className="relative space-y-0.5">
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold uppercase text-[#D9F078]">{evt.status}</span>
-                          <span className="font-mono text-[#F7F6F0]/40">
+                          <span className="font-bold text-[#205641]">{evt.eventType.replaceAll('_', ' ')}</span>
+                          <span className="tabular-nums text-slate-600">
                             {new Date(evt.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
                           </span>
                         </div>
-                        {evt.reason && <p className="text-[11px] text-[#F7F6F0]/60">{evt.reason}</p>}
+                        {evt.description && <p className="text-[11px] text-slate-600">{evt.description}</p>}
                       </div>
                     ))}
                   </div>
@@ -312,16 +322,16 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
         {/* Modal: Administrative Cancellation */}
         {cancelModalOpen && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-            <div className="bg-[#17211B] border border-[#E98755] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-              <div className="flex items-center gap-2 text-[#E98755]">
+            <div className="bg-[#FFFFFF] border border-[#9A431F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center gap-2 text-[#9A431F]">
                 <RotateCcw className="w-5 h-5" />
                 <h3 className="text-sm font-bold">Cancel Order & Release Fleet</h3>
               </div>
-              <p className="text-xs text-[#F7F6F0]/70 leading-relaxed">
+              <p className="text-xs text-slate-600 leading-relaxed">
                 Cancelling this order will release the assigned delivery rider's capacity, notify the kitchen, and automatically initiate a customer refund if payment was already captured.
               </p>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-[#F7F6F0]/60">
+                <label className="text-[11px] font-semibold text-slate-600">
                   Mandatory Cancellation Reason
                 </label>
                 <textarea
@@ -329,20 +339,20 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Reason (e.g. restaurant unable to prepare, customer address unreachable)..."
                   rows={3}
-                  className="w-full text-xs p-2 rounded-lg bg-black/30 border border-[#E98755]/40 text-[#F7F6F0] focus:outline-none focus:border-[#E98755]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#9A431F]/40 text-[#171A21] focus:outline-none focus:border-[#9A431F]"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   onClick={() => setCancelModalOpen(false)}
-                  className="px-3 py-1.5 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
                 >
                   Keep Order
                 </button>
                 <button
                   disabled={!cancelReason.trim() || cancelMutation.isPending}
                   onClick={() => cancelMutation.mutate(cancelReason)}
-                  className="px-4 py-1.5 rounded-lg bg-[#E98755] text-black text-xs font-bold hover:bg-[#E98755]/80 disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-[#9A431F] text-black text-xs font-bold hover:bg-[#9A431F]/80 disabled:opacity-50 cursor-pointer"
                 >
                   {cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>
@@ -354,4 +364,3 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     </div>
   );
 };
-

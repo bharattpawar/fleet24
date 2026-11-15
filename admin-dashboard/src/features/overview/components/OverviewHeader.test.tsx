@@ -3,22 +3,19 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { OverviewHeader } from './OverviewHeader';
 
 describe('OverviewHeader', () => {
-  it('renders admin identity and current period correctly', () => {
+  it('renders the selected period and IST', () => {
     const handlePeriodChange = vi.fn();
     const handleRefresh = vi.fn();
 
     render(
       <OverviewHeader
-        adminName="Bharat Super Admin"
-        adminPhone="+919876543210"
         selectedPeriod="last_7_days"
         onPeriodChange={handlePeriodChange}
         onRefresh={handleRefresh}
       />
     );
 
-    expect(screen.getByText('Platform Overview')).toBeDefined();
-    expect(screen.getByText('Bharat Super Admin')).toBeDefined();
+    expect(screen.getByLabelText('Date range')).toHaveValue('last_7_days');
     expect(screen.getByText('Asia/Kolkata (IST)')).toBeDefined();
   });
 
@@ -28,15 +25,13 @@ describe('OverviewHeader', () => {
 
     render(
       <OverviewHeader
-        adminName="Super Admin"
         selectedPeriod="last_7_days"
         onPeriodChange={handlePeriodChange}
         onRefresh={handleRefresh}
       />
     );
 
-    const todayButton = screen.getByText('Today');
-    fireEvent.click(todayButton);
+    fireEvent.change(screen.getByLabelText('Date range'), { target: { value: 'today' } });
 
     expect(handlePeriodChange).toHaveBeenCalledWith('today');
   });
@@ -47,7 +42,6 @@ describe('OverviewHeader', () => {
 
     render(
       <OverviewHeader
-        adminName="Super Admin"
         selectedPeriod="last_7_days"
         onPeriodChange={handlePeriodChange}
         onRefresh={handleRefresh}

@@ -1,6 +1,7 @@
+import { useFonts } from 'expo-font';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from './src/theme/tokens';
 import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext';
@@ -40,7 +41,7 @@ const MainNavigator: React.FC = () => {
       </View>
 
       {/* 3-Tab Bottom Navigation Bar */}
-      <View style={styles.bottomNav}>
+      <SafeAreaView edges={['bottom']} style={styles.bottomNav}>
         {/* Tab 1: Home */}
         <TouchableOpacity
           style={styles.navItem}
@@ -60,6 +61,7 @@ const MainNavigator: React.FC = () => {
           >
             Home
           </Text>
+          {currentTab === 'home' && <View style={styles.navIndicator} />}
         </TouchableOpacity>
 
         {/* Tab 2: Earnings */}
@@ -81,6 +83,7 @@ const MainNavigator: React.FC = () => {
           >
             Earnings
           </Text>
+          {currentTab === 'earnings' && <View style={styles.navIndicator} />}
         </TouchableOpacity>
 
         {/* Tab 3: Account */}
@@ -102,13 +105,20 @@ const MainNavigator: React.FC = () => {
           >
             Account
           </Text>
+          {currentTab === 'account' && <View style={styles.navIndicator} />}
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     </View>
   );
 };
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
+  });
+
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <SafeAreaProvider>
       <RiderAuthProvider>
@@ -140,19 +150,28 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: 10,
-    paddingBottom: 20,
+    borderTopColor: colors.border,
+    paddingTop: 6,
+    paddingBottom: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 8,
   },
+  navIndicator: {
+    width: 40,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+    position: 'absolute',
+    bottom: -4,
+  },
   navItem: {
     flex: 1,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,

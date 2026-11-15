@@ -7,22 +7,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
   TextInput,
 } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../theme/tokens';
+import { colors, spacing } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '../api/client';
 import { MenuItemCard, MenuItemData } from '../components/MenuItemCard';
 import { OutletSummary } from '../components/RestaurantCard';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
+import { ExplorePhoto } from '../components/ExplorePhoto';
 import { USE_MOCK_DATA, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface RestaurantDetailScreenProps {
   outlet: OutletSummary;
+  featuredDishId?: string;
   onBack: () => void;
   onViewCart: () => void;
   onRequireAuth: () => void;
@@ -30,21 +30,25 @@ interface RestaurantDetailScreenProps {
 
 export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
   outlet,
+  featuredDishId,
   onBack,
   onViewCart,
-  onRequireAuth,
 }) => {
   const insets = useSafeAreaInsets();
   const { cart, addItem, updateQuantity, removeItem, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
   const [items, setItems] = useState<MenuItemData[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    let active = true;
     const fetchMenu = async () => {
+      setIsLoading(true);
+      setHasError(false);
       if (USE_MOCK_DATA) {
         const mockItems = MOCK_MENUS[outlet.id] || DEFAULT_MOCK_MENU;
         setItems(mockItems);
@@ -59,6 +63,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
 
       try {
         const data = await apiRequest<MenuItemData[]>(`/public/outlets/${outlet.id}/menu`);
+        if (!active) return;
         setItems(data);
 
         // Extract unique categories
@@ -68,13 +73,16 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
         });
         setCategories(['All', ...Array.from(catSet)]);
       } catch {
+        if (!active) return;
+        setHasError(true);
         setItems([]);
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
-    fetchMenu();
-  }, [outlet.id]);
+    void fetchMenu();
+    return () => { active = false; };
+  }, [outlet.id, reload]);
 
   const handleAddItem = async (item: MenuItemData) => {
     const itemDetails = {
@@ -148,16 +156,12 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
     return matchesCat && matchesSearch;
   });
 
-  const heroImage =
-    outlet.logoUrl ||
-    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80';
-
   const renderHeader = () => (
     <View style={styles.headerWrapper}>
       {/* Restaurant Hero Card */}
       <View style={styles.heroCard}>
         <View style={styles.imageBox}>
-          <Image source={{ uri: heroImage }} style={styles.heroImage} resizeMode="cover" />
+          <ExplorePhoto key={outlet.logoUrl} uri={outlet.logoUrl} />
           <View style={styles.imageGradientOverlay} />
 
           {/* Floating Status Pill */}
@@ -183,12 +187,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
             </Text>
           </View>
 
-          {/* Floating Rating Pill */}
-          <View style={styles.floatingRatingPill}>
-            <Ionicons name="star" size={12} color="#D99058" />
-            <Text style={styles.ratingText}>4.8</Text>
-            <Text style={styles.ratingCount}>(850+)</Text>
-          </View>
+
         </View>
 
         {/* Info Area */}
@@ -196,7 +195,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           <Text style={styles.restaurantName}>{outlet.restaurantName}</Text>
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
-            <Text style={styles.outletAddress} numberOfLines={1}>
+            <Text style={styles.outletAddress} numberOfLines={2}>
               {outlet.outletName} • {outlet.address}
             </Text>
           </View>
@@ -204,17 +203,10 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           {/* Delivery Details Pills */}
           <View style={styles.metaPillsRow}>
             <View style={styles.metaPill}>
-              <Ionicons name="time-outline" size={12} color={colors.primary} />
-              <Text style={styles.metaPillText}>25-35 min</Text>
-            </View>
-            <View style={styles.metaPill}>
               <Ionicons name="bicycle-outline" size={12} color={colors.primary} />
               <Text style={styles.metaPillText}>Up to {outlet.deliveryRadiusKm} km</Text>
             </View>
-            <View style={styles.metaPill}>
-              <Ionicons name="shield-checkmark-outline" size={12} color={colors.primary} />
-              <Text style={styles.metaPillText}>Hygiene Verified</Text>
-            </View>
+            {typeof outlet.distanceKm === 'number' && <View style={styles.metaPill}><Ionicons name="location-outline" size={12} color={colors.primary} /><Text style={styles.metaPillText}>{outlet.distanceKm.toFixed(1)} km away</Text></View>}
           </View>
         </View>
       </View>
@@ -267,7 +259,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
       {/* Section Headline */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>
-          {selectedCategory === 'All' ? 'Recommended Menu' : selectedCategory}
+          {selectedCategory === 'All' ? 'Explore the menu' : selectedCategory}
         </Text>
         <Text style={styles.sectionCount}>
           {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
@@ -283,6 +275,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
         <TouchableOpacity
           onPress={onBack}
           style={styles.navIconButton}
+          accessibilityRole="button"
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -296,6 +289,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
         <TouchableOpacity
           onPress={onViewCart}
           style={styles.navIconButton}
+          accessibilityRole="button"
           activeOpacity={0.7}
         >
           <Ionicons name="cart-outline" size={20} color={colors.textPrimary} />
@@ -315,7 +309,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
         </View>
       ) : (
         <FlatList
-          data={filteredItems}
+          data={featuredDishId ? [...filteredItems].sort((a, b) => Number(b.id === featuredDishId) - Number(a.id === featuredDishId)) : filteredItems}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.listContent}
@@ -332,10 +326,11 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="fast-food-outline" size={44} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No items match your search</Text>
+              <Text style={styles.emptyTitle}>{hasError ? 'Couldn’t load the menu' : 'No matching dishes'}</Text>
               <Text style={styles.emptySub}>
-                Try searching for another dish or clear category filters.
+                {hasError ? 'Please try again in a moment.' : 'Try another dish name or category.'}
               </Text>
+              {hasError && <TouchableOpacity accessibilityRole="button" onPress={() => setReload(value => value + 1)} style={styles.catChipActive}><Text style={{ color: '#FFFFFF', padding: 14, fontWeight: '700' }}>Try again</Text></TouchableOpacity>}
             </View>
           }
         />
@@ -350,7 +345,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   navBar: {
     flexDirection: 'row',
@@ -358,15 +353,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm + 4,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
     zIndex: 10,
   },
   navIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: colors.border,
@@ -406,6 +401,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: 110,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   headerWrapper: {
     paddingTop: spacing.md,
@@ -426,7 +424,7 @@ const styles = StyleSheet.create({
   },
   imageBox: {
     width: '100%',
-    height: 180,
+    aspectRatio: 2.1,
     position: 'relative',
     backgroundColor: '#EAE7DD',
   },
@@ -498,10 +496,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   heroInfoContent: {
-    padding: 18,
+    padding: 16,
   },
   restaurantName: {
-    fontSize: 22,
+    fontSize: 25,
+    lineHeight: 30,
     fontWeight: '800',
     color: colors.charcoal,
     letterSpacing: -0.4,
@@ -513,7 +512,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   outletAddress: {
-    fontSize: 13,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.textSecondary,
     flex: 1,
   },
@@ -566,15 +566,15 @@ const styles = StyleSheet.create({
   },
   catChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   catChipActive: {
-    backgroundColor: colors.charcoal,
-    borderColor: colors.charcoal,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   catChipText: {
     fontSize: 13,
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.charcoal,
     letterSpacing: -0.3,

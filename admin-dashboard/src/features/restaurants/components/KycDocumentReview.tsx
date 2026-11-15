@@ -53,19 +53,19 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
     switch (status) {
       case 'verified':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#24533F] text-[#D9F078]">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
             <CheckCircle2 className="w-3 h-3" /> VERIFIED
           </span>
         );
       case 'rejected':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#E98755]/20 text-[#E98755] border border-[#E98755]/40">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#9A431F]/20 text-[#9A431F] border border-[#9A431F]/40">
             <XCircle className="w-3 h-3" /> REJECTED
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/30">
             <Clock className="w-3 h-3" /> PENDING REVIEW
           </span>
         );
@@ -74,9 +74,9 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
 
   if (!documents || documents.length === 0) {
     return (
-      <div className="p-6 rounded-xl bg-black/20 border border-[#24533F]/20 text-center">
-        <FileText className="w-6 h-6 text-[#F7F6F0]/30 mx-auto mb-2" />
-        <p className="text-xs text-[#F7F6F0]/60">No legal KYC documents uploaded yet.</p>
+      <div className="p-6 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] text-center">
+        <FileText className="w-6 h-6 text-slate-600 mx-auto mb-2" />
+        <p className="text-xs text-slate-600">No legal KYC documents uploaded yet.</p>
       </div>
     );
   }
@@ -84,7 +84,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
   return (
     <div className="space-y-4">
       {actionError && (
-        <div className="p-3 rounded-lg bg-[#E98755]/15 border border-[#E98755]/30 text-xs text-[#E98755] flex items-center gap-2">
+        <div className="p-3 rounded-lg bg-[#9A431F]/15 border border-[#9A431F]/30 text-xs text-[#9A431F] flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{actionError}</span>
         </div>
@@ -97,14 +97,14 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
           return (
             <div
               key={doc.id}
-              className="p-4 rounded-xl bg-[#17211B] border border-[#24533F]/30 flex flex-col justify-between space-y-4"
+              className="p-4 rounded-xl bg-[#FFFFFF] border border-[#E3E7EC] flex flex-col justify-between space-y-4"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="text-xs font-bold text-[#F7F6F0]">{getDocTypeLabel(doc.documentType)}</h4>
+                    <h4 className="text-xs font-bold text-[#171A21]">{getDocTypeLabel(doc.documentType)}</h4>
                     {doc.documentNumber && (
-                      <span className="text-[11px] font-mono text-[#F7F6F0]/50">
+                      <span className="text-[11px] tabular-nums text-slate-600">
                         Doc No: {doc.documentNumber}
                       </span>
                     )}
@@ -113,7 +113,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                 </div>
 
                 {doc.notes && (
-                  <p className="text-[11px] text-[#F7F6F0]/60 bg-black/20 p-2 rounded border border-white/5 font-mono">
+                  <p className="text-[11px] text-slate-600 bg-[#F5F6F8] p-2 rounded border border-[#E3E7EC] tabular-nums">
                     Note: {doc.notes}
                   </p>
                 )}
@@ -123,7 +123,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                     href={doc.documentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-[#D9F078] hover:underline"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#205641] hover:underline"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Inspect Document Storage URL</span>
@@ -132,7 +132,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
               </div>
 
               {/* Action Controls for Super Admin */}
-              <div className="pt-3 border-t border-[#24533F]/20">
+              <div className="pt-3 border-t border-[#E3E7EC]">
                 {isRejectModalOpen ? (
                   <div className="space-y-2">
                     <textarea
@@ -140,7 +140,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                       onChange={(e) => setRejectReason(e.target.value)}
                       placeholder="Mandatory rejection notes (e.g. illegible scan, expired license)..."
                       rows={2}
-                      className="w-full text-xs p-2 rounded bg-black/30 border border-[#E98755]/50 text-[#F7F6F0] focus:outline-none focus:border-[#E98755]"
+                      className="w-full text-xs p-2 rounded bg-[#F5F6F8] border border-[#9A431F]/50 text-[#171A21] focus:outline-none focus:border-[#9A431F]"
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -148,7 +148,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                           setRejectingDocId(null);
                           setRejectReason('');
                         }}
-                        className="px-2.5 py-1 text-xs text-[#F7F6F0]/60 hover:text-[#F7F6F0] cursor-pointer"
+                        className="px-2.5 py-1 text-xs text-slate-600 hover:text-[#171A21] cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -161,7 +161,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                             notes: rejectReason,
                           })
                         }
-                        className="px-3 py-1 rounded bg-[#E98755] text-black text-xs font-bold hover:bg-[#E98755]/80 disabled:opacity-50 cursor-pointer"
+                        className="px-3 py-1 rounded bg-[#9A431F] text-black text-xs font-bold hover:bg-[#9A431F]/80 disabled:opacity-50 cursor-pointer"
                       >
                         {verifyDocMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
                       </button>
@@ -171,7 +171,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => setRejectingDocId(doc.id)}
-                      className="px-2.5 py-1 rounded bg-black/20 hover:bg-[#E98755]/20 text-xs font-medium text-[#E98755] border border-transparent hover:border-[#E98755]/30 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded bg-[#F5F6F8] hover:bg-[#9A431F]/20 text-xs font-medium text-[#9A431F] border border-transparent hover:border-[#9A431F]/30 transition-colors cursor-pointer"
                     >
                       Reject
                     </button>
@@ -184,7 +184,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                           notes: 'Verified by Super Admin',
                         })
                       }
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#24533F] hover:bg-[#24533F]/80 text-xs font-semibold text-[#D9F078] disabled:opacity-40 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#205641] hover:bg-[#205641]/80 text-xs font-semibold text-[#205641] disabled:opacity-40 cursor-pointer"
                     >
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>{doc.verificationStatus === 'verified' ? 'Verified' : 'Verify Document'}</span>

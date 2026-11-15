@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Dimensions,
   Animated,
   Easing,
   TouchableOpacity,
@@ -20,7 +19,6 @@ interface RiderMapProps {
   deliveryStatus?: string;
   isOnline: boolean;
   isMockMode?: boolean;
-  isSocketConnected?: boolean;
   gpsStatus?: GpsStatus;
   onRequestPermission?: () => void;
   onRecenter?: () => void;
@@ -30,8 +28,6 @@ interface RiderMapProps {
   height?: number;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export const RiderMap: React.FC<RiderMapProps> = ({
   riderLocation,
   outletLocation,
@@ -39,8 +35,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
   deliveryStatus,
   isOnline,
   isMockMode = false,
-  isSocketConnected = false,
-  gpsStatus = 'ready',
+  gpsStatus = 'initializing',
   onRequestPermission,
   onRecenter,
   onExpand,
@@ -95,47 +90,21 @@ export const RiderMap: React.FC<RiderMapProps> = ({
     outputRange: ['0deg', '360deg'],
   });
 
-  // Actual device GPS values
-  const hasCoordinates = !!riderLocation?.latitude && !!riderLocation?.longitude;
-  const latDisplay = hasCoordinates ? riderLocation!.latitude.toFixed(5) : null;
-  const lngDisplay = hasCoordinates ? riderLocation!.longitude.toFixed(5) : null;
-
-  let gpsBadgeLabel = 'INITIALIZING GPS...';
-  let gpsDotColor = colors.warning;
-
-  if (isMockMode) {
-    gpsBadgeLabel = `DEMO PREVIEW • ${latDisplay || '28.4744'}, ${lngDisplay || '77.5040'} (SIMULATED)`;
-    gpsDotColor = colors.warning;
-  } else if (gpsStatus === 'requesting_permission') {
-    gpsBadgeLabel = 'CHECKING PERMISSION...';
-    gpsDotColor = colors.warning;
-  } else if (gpsStatus === 'permission_denied') {
-    gpsBadgeLabel = 'PERMISSION REQUIRED';
-    gpsDotColor = colors.error;
-  } else if (gpsStatus === 'services_disabled') {
-    gpsBadgeLabel = 'LOCATION DISABLED';
-    gpsDotColor = colors.error;
-  } else if (gpsStatus === 'acquiring') {
-    gpsBadgeLabel = 'ACQUIRING GPS SIGNAL...';
-    gpsDotColor = colors.warning;
-  } else if (gpsStatus === 'stale') {
-    gpsBadgeLabel = `GPS STALE • ${latDisplay || '0'}, ${lngDisplay || '0'}`;
-    gpsDotColor = colors.warning;
-  } else if (gpsStatus === 'error') {
-    gpsBadgeLabel = 'GPS UNAVAILABLE';
-    gpsDotColor = colors.error;
-  } else if (hasCoordinates) {
-    if (!isOnline) {
-      gpsBadgeLabel = `GPS STANDBY • ${latDisplay}, ${lngDisplay}`;
-      gpsDotColor = colors.offline;
-    } else if (!isSocketConnected) {
-      gpsBadgeLabel = `GPS READY • DISPATCH RECONNECTING...`;
-      gpsDotColor = colors.warning;
-    } else {
-      gpsBadgeLabel = `GPS LIVE • ${latDisplay}, ${lngDisplay}`;
-      gpsDotColor = colors.online;
-    }
-  }
+  const hasCoordinates = Number.isFinite(riderLocation?.latitude) && Number.isFinite(riderLocation?.longitude);
+  const gpsActive = !isMockMode && hasCoordinates && gpsStatus === 'active';
+  const permissionRequired = gpsStatus === 'permission_denied' || gpsStatus === 'services_disabled';
+  const gpsLabels: Record<GpsStatus, string> = {
+    initializing: 'Finding location',
+    requesting_permission: 'Checking permission',
+    permission_denied: 'Location permission required',
+    services_disabled: 'Location services off',
+    acquiring: 'Finding location',
+    active: hasCoordinates ? 'GPS active' : 'Finding location',
+    stale: 'GPS signal stale',
+    error: 'GPS unavailable',
+  };
+  const gpsBadgeLabel = isMockMode ? 'Simulated location' : gpsLabels[gpsStatus];
+  const gpsDotColor = gpsActive ? colors.online : permissionRequired || gpsStatus === 'error' ? colors.error : colors.warning;
 
   return (
     <View style={[styles.container, isExpanded ? styles.containerExpanded : { height }]}>
@@ -151,7 +120,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
       </View>
 
       {/* Radar scanning circle when online and coordinates active */}
-      {isOnline && hasCoordinates && (
+      {isOnline && gpsActive && (
         <Animated.View
           style={[
             styles.radarBeam,
@@ -170,7 +139,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
             {
               transform: [{ scale: pulseAnim }],
               backgroundColor:
-                isOnline && hasCoordinates ? colors.onlineGlow : 'rgba(138, 146, 140, 0.25)',
+                isOnline && gpsActive ? colors.onlineGlow : 'rgba(138, 146, 140, 0.25)',
             },
           ]}
         />
@@ -240,6 +209,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
       {/* Top Right: Expand / Close Map Button */}
       {isExpanded ? (
         <TouchableOpacity
+          accessibilityLabel="Close map"
           style={styles.closeExpandedButton}
           activeOpacity={0.8}
           onPress={onCloseExpanded}
@@ -248,6 +218,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
         </TouchableOpacity>
       ) : onExpand ? (
         <TouchableOpacity
+          accessibilityLabel="Expand map"
           style={styles.expandButton}
           activeOpacity={0.8}
           onPress={onExpand}
@@ -260,23 +231,14 @@ export const RiderMap: React.FC<RiderMapProps> = ({
       <View style={[styles.sectorBadge, isExpanded ? styles.sectorBadgeExpanded : null]}>
         <Ionicons name="navigate-circle" size={14} color={isMockMode ? colors.warning : colors.primary} />
         <Text style={styles.sectorText}>
-          {isMockMode
-            ? `Simulated Coordinates • Demo Mode (${latDisplay || '28.4744'}, ${lngDisplay || '77.5040'})`
-            : hasCoordinates
-            ? `Device GPS: ${latDisplay}, ${lngDisplay} (${riderLocation?.accuracy ? `±${Math.round(riderLocation.accuracy)}m` : 'Verified'})`
-            : gpsStatus === 'permission_denied'
-            ? 'Location permission denied'
-            : gpsStatus === 'services_disabled'
-            ? 'GPS is disabled on device'
-            : gpsStatus === 'error'
-            ? 'GPS signal unavailable'
-            : 'Acquiring GPS Signal...'}
+          Schematic map preview
         </Text>
       </View>
 
       {/* Bottom Right: Recenter Button */}
       {onRecenter && (
         <TouchableOpacity
+          accessibilityLabel="Refresh rider location"
           style={[styles.recenterButton, isExpanded ? styles.recenterButtonExpanded : null]}
           activeOpacity={0.8}
           onPress={onRecenter}
@@ -290,23 +252,11 @@ export const RiderMap: React.FC<RiderMapProps> = ({
       )}
 
       {/* Permission Denied / Service Disabled Overlay Warning */}
-      {(gpsStatus === 'permission_denied' || gpsStatus === 'services_disabled') && (
+      {permissionRequired && onRequestPermission && (
         <View style={styles.permissionWarningOverlay}>
-          <Ionicons name="warning" size={18} color={colors.error} />
-          <Text style={styles.permissionWarningText}>
-            {gpsStatus === 'permission_denied'
-              ? 'Location permission denied.'
-              : 'Device Location Services disabled.'}
-          </Text>
-          {onRequestPermission && (
-            <TouchableOpacity
-              style={styles.enableButton}
-              onPress={onRequestPermission}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.enableButtonText}>Enable</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.enableButton} onPress={onRequestPermission}>
+            <Text style={styles.enableButtonText}>Location settings</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -640,34 +590,18 @@ const styles = StyleSheet.create({
   },
   permissionWarningOverlay: {
     position: 'absolute',
-    top: spacing.md,
-    right: 50,
-    backgroundColor: colors.errorLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.error,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: '50%',
-  },
-  permissionWarningText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.error,
-    flexShrink: 1,
+    alignSelf: 'center',
+    bottom: 52,
+    zIndex: 11,
   },
   enableButton: {
-    backgroundColor: colors.error,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: borderRadius.xs,
+    minHeight: 44,
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  enableButtonText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.textWhite,
-  },
+  enableButtonText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
 });

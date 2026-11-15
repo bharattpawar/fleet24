@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,14 @@ import {
   ConfirmedOrderDetails,
   OrderConfirmationModal,
 } from '../components/OrderConfirmationModal';
+import {
+  PaymentConflictDetails,
+  PaymentConflictModal,
+} from '../components/PaymentConflictModal';
+import {
+  ActiveOrderSummary,
+  ActiveOrderWarningModal,
+} from '../components/ActiveOrderWarningModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Ensures in-app browser handles complete auth/checkout sessions properly
@@ -32,13 +41,15 @@ WebBrowser.maybeCompleteAuthSession();
 
 interface CartScreenProps {
   onBack: () => void;
-  onOrderSuccess: (orderId: string) => void;
+  onViewOrders: () => void;
+  onTrackOrder: (orderId: string) => void;
   onRequireAuth?: () => void;
 }
 
 export const CartScreen: React.FC<CartScreenProps> = ({
   onBack,
-  onOrderSuccess,
+  onViewOrders,
+  onTrackOrder,
   onRequireAuth,
 }) => {
   const insets = useSafeAreaInsets();
@@ -53,8 +64,45 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
 
   // Confirmed order modal state
+  const [checkoutNotice, setCheckoutNotice] = useState<{ title: string; message: string }>();
   const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrderDetails | null>(null);
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+  const [conflictDetails, setConflictDetails] = useState<PaymentConflictDetails | null>(null);
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+
+  // Proactive active order detection & warning sheet state
+  const [activeOrder, setActiveOrder] = useState<ActiveOrderSummary | null>(null);
+  const [isActiveOrderModalOpen, setIsActiveOrderModalOpen] = useState(false);
+
+  // Proactively check for active fulfillment order
+  const checkActiveOrder = async () => {
+    if (USE_MOCK_DATA || !isAuthenticated) return;
+    try {
+      const res = await apiRequest<{
+        hasActiveOrder: boolean;
+        activeOrder: ActiveOrderSummary | null;
+      }>('/orders/active');
+      if (res && res.hasActiveOrder && res.activeOrder) {
+        setActiveOrder(res.activeOrder);
+      } else {
+        setActiveOrder(null);
+      }
+    } catch {
+      // Ignore background active-order check errors
+    }
+  };
+
+  useEffect(() => {
+    checkActiveOrder();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkActiveOrder();
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   // Fetch addresses
   const loadAddresses = async () => {
@@ -109,6 +157,56 @@ export const CartScreen: React.FC<CartScreenProps> = ({
     setSelectedAddress(created);
   };
 
+  const checkoutFeedback = (
+    <>
+      {checkoutNotice && (
+        <View style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Text accessibilityRole="alert">{checkoutNotice.title}. {checkoutNotice.message}</Text>
+          <Button title="View Orders" onPress={onViewOrders} />
+        </View>
+      )}
+      <OrderConfirmationModal
+        visible={isConfirmationOpen}
+        order={confirmedOrder}
+        onTrackOrder={confirmedOrder?.paymentStatus === 'captured' && confirmedOrder.status === 'placed' ? () => {
+          setIsConfirmationOpen(false);
+          onTrackOrder(confirmedOrder.id);
+        } : undefined}
+        onViewOrders={() => {
+          setIsConfirmationOpen(false);
+          if (confirmedOrder) {
+            onViewOrders();
+          }
+        }}
+        onClose={() => {
+          setIsConfirmationOpen(false);
+          onBack();
+        }}
+      />
+      <PaymentConflictModal
+        visible={isConflictModalOpen}
+        conflict={conflictDetails}
+        onViewOrders={() => {
+          setIsConflictModalOpen(false);
+          onViewOrders();
+        }}
+        onClose={() => {
+          setIsConflictModalOpen(false);
+          onBack();
+        }}
+      />
+      <ActiveOrderWarningModal
+        visible={isActiveOrderModalOpen}
+        activeOrder={activeOrder}
+        onTrackOrder={(orderId) => {
+          setIsActiveOrderModalOpen(false);
+          onTrackOrder(orderId);
+        }}
+        onClose={() => setIsActiveOrderModalOpen(false)}
+      />
+    </>
+  );
+
   if (!cart || cart.items.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: Math.max(insets.top, 14) }]}>
@@ -133,6 +231,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+        {checkoutFeedback}
       </View>
     );
   }
@@ -248,11 +347,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to initialize payment session';
-        Alert.alert(
-          'Payment Notice',
-          `${msg}. Your order #${order.orderNumber} is saved under Orders. You can pay from there.`,
-          [{ text: 'View Orders', onPress: () => onOrderSuccess(order.id) }],
-        );
+        setCheckoutNotice({ title: 'Payment Notice', message: `${msg}. Your order #${order.orderNumber} is saved under Orders. You can pay from there.` });
         return;
       }
 
@@ -265,8 +360,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
         browserResult = await WebBrowser.openAuthSessionAsync(checkoutEndpoint, returnUrl);
       } catch (launchErr: unknown) {
         const msg = launchErr instanceof Error ? launchErr.message : 'Browser launch failed';
-        Alert.alert('Checkout Notice', `${msg}. You can complete payment later from Orders.`);
-        onOrderSuccess(order.id);
+        setCheckoutNotice({ title: 'Checkout Notice', message: `${msg}. You can complete payment later from Orders.` });
         return;
       }
 
@@ -276,11 +370,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
         const params = parsed.queryParams || {};
 
         if (params.status === 'cancelled') {
-          Alert.alert(
-            'Payment Incomplete',
-            `Order #${order.orderNumber} is saved in your orders. You can complete payment whenever you are ready.`,
-            [{ text: 'View Orders', onPress: () => onOrderSuccess(order.id) }],
-          );
+          setCheckoutNotice({ title: 'Checkout Cancelled', message: `Order #${order.orderNumber} is saved in your orders. You can complete payment whenever you are ready.` });
           return;
         }
 
@@ -289,11 +379,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({
         const rzpSignature = params.razorpay_signature as string;
 
         if (!rzpPaymentId || !rzpSignature) {
-          Alert.alert(
-            'Verifying Payment',
-            'We did not receive a direct callback signature. Checking order status with the server...',
-          );
-          onOrderSuccess(order.id);
+          setCheckoutNotice({ title: 'Verifying Payment', message: 'We did not receive a direct callback signature. Open Orders to check the latest payment status.',
+           });
           return;
         }
 
@@ -307,6 +394,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             paymentId: string;
             paymentStatus: string;
             amount: string;
+            isConflict?: boolean;
           }>('/payments/verify', {
             method: 'POST',
             body: JSON.stringify({
@@ -316,7 +404,13 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             }),
           });
 
-          if (verifyResult.verified && verifyResult.orderStatus === 'placed') {
+          // Case A: Confirmed Placement into Fulfillment Queue
+          if (
+            verifyResult.verified &&
+            verifyResult.orderId === order.id &&
+            verifyResult.paymentStatus === 'captured' &&
+            verifyResult.orderStatus === 'placed'
+          ) {
             const confirmedSummary: ConfirmedOrderDetails = {
               id: order.id,
               orderNumber: order.orderNumber,
@@ -344,24 +438,59 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             setIsConfirmationOpen(true);
             return;
           }
+
+          // Case B: Captured Payment Conflict (Dual Active Fulfillment Order Detected)
+          if (
+            verifyResult.verified &&
+            verifyResult.orderId === order.id &&
+            verifyResult.paymentStatus === 'captured' &&
+            (verifyResult.orderStatus === 'payment_conflict' || verifyResult.isConflict)
+          ) {
+            setConflictDetails({
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              capturedAmount: verifyResult.amount || order.totalPayable,
+              currency: 'INR',
+              paymentId: verifyResult.paymentId,
+              providerPaymentId: rzpPaymentId,
+              restaurantName: cart.restaurantName,
+              outletName: cart.outletName,
+              detectedAt: new Date().toISOString(),
+            });
+            setIsConflictModalOpen(true);
+            return;
+          }
+
+          // Case C: Authorized / Awaiting Webhook Finalization / Unresolved Gateway Capture
+          setCheckoutNotice({
+            title: 'Verifying Payment',
+            message:
+              'Payment capture is being confirmed by your bank. Check Orders for the latest status.',
+          });
         } catch (verifyErr: unknown) {
           const msg = verifyErr instanceof Error ? verifyErr.message : 'Verification failed';
-          Alert.alert(
-            'Payment Verification Notice',
-            `${msg}. If money was debited, your order will update automatically via webhook.`,
-            [{ text: 'View Orders', onPress: () => onOrderSuccess(order.id) }],
-          );
+          setCheckoutNotice({
+            title: 'Payment Verification Notice',
+            message: `${msg}. If money was debited, your order will update automatically via webhook.`,
+          });
           return;
         }
       } else {
         // User closed the browser session manually
-        Alert.alert(
-          'Checkout Dismissed',
-          `Order #${order.orderNumber} is pending payment. You can pay from the Orders tab whenever you're ready.`,
-          [{ text: 'View Orders', onPress: () => onOrderSuccess(order.id) }],
-        );
+        setCheckoutNotice({
+          title: 'Checkout Dismissed',
+          message: `Order #${order.orderNumber} is pending payment. You can pay from the Orders tab whenever you're ready.`,
+        });
       }
     } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as any).code === 'ACTIVE_ORDER_IN_PROGRESS') {
+        const activeOrd = (err as any).activeOrder;
+        if (activeOrd) {
+          setActiveOrder(activeOrd);
+        }
+        setIsActiveOrderModalOpen(true);
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Checkout failed';
       Alert.alert('Checkout Notice', msg);
     } finally {
@@ -383,6 +512,31 @@ export const CartScreen: React.FC<CartScreenProps> = ({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Proactive Active Order Warning Banner */}
+        {activeOrder && (
+          <TouchableOpacity
+            style={styles.activeOrderBanner}
+            activeOpacity={0.88}
+            onPress={() => onTrackOrder(activeOrder.id)}
+          >
+            <View style={styles.activeOrderBannerLeft}>
+              <View style={styles.activeOrderPulseDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activeOrderBannerTitle}>
+                  Order #{activeOrder.orderNumber} is in progress
+                </Text>
+                <Text style={styles.activeOrderBannerSub}>
+                  You already have an active order in progress. Tap to track your delivery.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.activeOrderTrackBtn}>
+              <Text style={styles.activeOrderTrackText}>Track</Text>
+              <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Restaurant Header */}
         <View style={styles.outletBox}>
           <View style={styles.outletIconCircle}>
@@ -572,20 +726,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
       />
 
       {/* Order Confirmation Modal */}
-      <OrderConfirmationModal
-        visible={isConfirmationOpen}
-        order={confirmedOrder}
-        onViewOrders={() => {
-          setIsConfirmationOpen(false);
-          if (confirmedOrder) {
-            onOrderSuccess(confirmedOrder.id);
-          }
-        }}
-        onClose={() => {
-          setIsConfirmationOpen(false);
-          onBack();
-        }}
-      />
+      {checkoutFeedback}
     </View>
   );
 };
@@ -952,5 +1093,54 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  activeOrderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  activeOrderBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  activeOrderPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#D97706',
+  },
+  activeOrderBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  activeOrderBannerSub: {
+    fontSize: 11,
+    color: '#78350F',
+    marginTop: 1,
+    lineHeight: 15,
+  },
+  activeOrderTrackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  activeOrderTrackText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

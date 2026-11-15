@@ -1,3 +1,4 @@
+import { useFonts } from 'expo-font';
 import React, { useState } from 'react';
 import {
   View,
@@ -22,9 +23,9 @@ type MainTab = 'orders' | 'menu' | 'outlets' | 'profile';
 
 const MainNavigator: React.FC = () => {
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = width >= 1000;
 
-  const { isAuthenticated, isLoading, activeOutlet } = useRestaurantAuth();
+  const { isAuthenticated, isLoading } = useRestaurantAuth();
   const [currentTab, setCurrentTab] = useState<MainTab>('orders');
 
   if (isLoading) {
@@ -47,11 +48,11 @@ const MainNavigator: React.FC = () => {
     { key: 'orders', label: 'Kitchen', icon: 'restaurant-outline', iconActive: 'restaurant' },
     { key: 'menu', label: 'Menu & Stock', icon: 'fast-food-outline', iconActive: 'fast-food' },
     { key: 'outlets', label: 'Outlets', icon: 'storefront-outline', iconActive: 'storefront' },
-    { key: 'profile', label: 'Partner Profile', icon: 'person-outline', iconActive: 'person' },
+    { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person' },
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+    <SafeAreaView style={[styles.container, isWide && styles.railLayout]} edges={['top', 'left', 'right', 'bottom']}>
       {/* Desktop / Tablet Header Nav (Rendered on wide screens) */}
       {isWide && (
         <View style={styles.desktopNavBar}>
@@ -61,8 +62,8 @@ const MainNavigator: React.FC = () => {
                 <Ionicons name="restaurant" size={18} color={colors.limeAccent} />
               </View>
               <View>
-                <Text style={styles.desktopBrandTitle}>FLEET24</Text>
-                <Text style={styles.desktopBrandSub}>Kitchen Display & Terminal</Text>
+                <Text style={styles.desktopBrandTitle}>Fleet24</Text>
+                <Text style={styles.desktopBrandSub}>Restaurant Operations</Text>
               </View>
             </View>
 
@@ -82,7 +83,7 @@ const MainNavigator: React.FC = () => {
                     <Ionicons
                       name={isActive ? tab.iconActive : tab.icon}
                       size={18}
-                      color={isActive ? colors.surfaceDark : colors.textWhite}
+                      color={isActive ? colors.primary : colors.textPrimary}
                     />
                     <Text
                       style={[
@@ -97,22 +98,6 @@ const MainNavigator: React.FC = () => {
               })}
             </View>
 
-            {/* Active Outlet Quick Tag */}
-            <TouchableOpacity
-              style={styles.desktopOutletPill}
-              onPress={() => setCurrentTab('outlets')}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.desktopOutletDot,
-                  activeOutlet?.isAcceptingOrders ? styles.dotOpen : styles.dotPaused,
-                ]}
-              />
-              <Text style={styles.desktopOutletName} numberOfLines={1}>
-                {activeOutlet?.name || 'Select Outlet'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -164,8 +149,9 @@ const MainNavigator: React.FC = () => {
                     isActive ? styles.navLabelActive : null,
                   ]}
                 >
-                  {tab.label === 'Menu & Stock' ? 'Menu' : tab.label === 'Partner Profile' ? 'Profile' : tab.label}
+                  {tab.label === 'Menu & Stock' ? 'Menu' : tab.label}
                 </Text>
+                {isActive && <View style={styles.navIndicator} />}
               </TouchableOpacity>
             );
           })}
@@ -176,6 +162,12 @@ const MainNavigator: React.FC = () => {
 };
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
+  });
+
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <SafeAreaProvider>
       <RestaurantAuthProvider>
@@ -219,102 +211,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  desktopNavBar: {
-    backgroundColor: colors.surfaceDark,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
-  },
-  desktopNavInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  desktopBrandCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-  },
-  desktopLogoBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.limeAccent,
-  },
-  desktopBrandTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.textWhite,
-    letterSpacing: 1.5,
-  },
-  desktopBrandSub: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.limeAccent,
-  },
-  desktopTabsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  desktopTabBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: spacing.xs + 4,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    minHeight: minTouchTarget,
-  },
-  desktopTabBtnActive: {
-    backgroundColor: colors.limeAccent,
-  },
-  desktopTabLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textWhite,
-  },
-  desktopTabLabelActive: {
-    color: colors.surfaceDark,
-    fontWeight: '800',
-  },
-  desktopOutletPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    maxWidth: 200,
-  },
-  desktopOutletDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  dotOpen: {
-    backgroundColor: colors.online,
-  },
-  dotPaused: {
-    backgroundColor: colors.pending,
-  },
-  desktopOutletName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.limeAccent,
-  },
+  railLayout: { flexDirection: 'row', backgroundColor: '#FFFFFF' },
+  desktopNavBar: { width: 190, padding: 12, borderRightWidth: 1, borderColor: '#E2E5E3', backgroundColor: '#FFFFFF' },
+  desktopNavInner: { gap: 36, paddingTop: 18 },
+  desktopBrandCol: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  desktopLogoBox: { backgroundColor: colors.primary, width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  desktopBrandTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: '900' },
+  desktopBrandSub: { color: colors.textSecondary, fontSize: 10 },
+  desktopTabsRow: { gap: 6 },
+  desktopTabBtn: { flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: 46, borderRadius: 8, paddingHorizontal: 10 },
+  desktopTabBtnActive: { backgroundColor: colors.surfaceGreen },
+  desktopTabLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  desktopTabLabelActive: { color: colors.primary, fontWeight: '800' },
   bottomNav: {
     flexDirection: 'row',
     minHeight: 62,
@@ -324,6 +232,14 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'web' ? 10 : 6,
     paddingTop: 6,
     ...shadows.card,
+  },
+  navIndicator: {
+    width: 40,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+    position: 'absolute',
+    bottom: -4,
   },
   navItem: {
     flex: 1,
@@ -340,7 +256,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceGreen,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
     marginTop: 2,

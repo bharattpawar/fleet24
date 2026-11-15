@@ -41,6 +41,7 @@ export interface ActiveDeliverySummary {
 }
 
 export interface ActiveDeliveriesResponse {
+  totalPages?: number;
   total: number;
   data: ActiveDeliverySummary[];
 }

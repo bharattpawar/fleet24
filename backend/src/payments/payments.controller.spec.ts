@@ -35,16 +35,29 @@ describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
           findFirst: jest.fn(),
         },
       },
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+            for: jest.fn().mockResolvedValue([{ id: customerId }]),
+          }),
+        }),
+      }),
       transaction: jest.fn(async (cb) => {
         return cb(mockDb);
       }),
       update: jest.fn().mockReturnValue({
         set: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue([{}]),
+          where: jest.fn().mockReturnValue({
+            returning: jest.fn().mockResolvedValue([{ id: 'order-1' }]),
+          }),
         }),
       }),
       insert: jest.fn().mockReturnValue({
-        values: jest.fn().mockResolvedValue([{}]),
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([{}]),
+          onConflictDoNothing: jest.fn().mockReturnValue({ returning: jest.fn().mockResolvedValue([{}]) }),
+        }),
       }),
     };
 
@@ -104,6 +117,21 @@ describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
     service = module.get<PaymentsService>(PaymentsService);
     controller = module.get<PaymentsController>(PaymentsController);
     expect(controller).toBeDefined();
+
+    service['razorpayClient'] = {
+      payments: {
+        fetch: jest.fn().mockResolvedValue({
+          id: 'pay_RZP_456',
+          amount: 20000,
+          currency: 'INR',
+          order_id: 'order_RZP_123',
+          status: 'captured',
+        }),
+      },
+      orders: {
+        create: jest.fn().mockResolvedValue({ id: 'order_RZP_123', amount: 20000, currency: 'INR' }),
+      },
+    } as any;
   });
 
   describe('Payment Verification Flow', () => {
@@ -145,6 +173,7 @@ describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
         providerOrderId: rzpOrderId,
         status: 'pending',
         amount: '200.00',
+        currency: 'INR',
         order: {
           id: orderId,
           customerId,
@@ -169,6 +198,7 @@ describe('PaymentsController & PaymentsService - Step 2 Verification', () => {
         providerOrderId: rzpOrderId,
         status: 'pending',
         amount: '200.00',
+        currency: 'INR',
         order: {
           id: orderId,
           customerId,

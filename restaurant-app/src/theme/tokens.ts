@@ -1,22 +1,22 @@
 // Fleet24 Restaurant Design Tokens: "Warm Sage & Kitchen Operations UI"
 export const colors = {
   // Brand Backgrounds & Surfaces
-  background: '#F7F6F0',       // Warm Ivory / Cream base
+  background: '#F7F8F6',       // Warm Ivory / Cream base
   backgroundDark: '#121915',   // Deep Charcoal base
   surface: '#FFFFFF',          // Cards, sheets, modals
   surfaceElevated: '#FFFFFF',  // Floating bottom sheets & dialogs
-  surfaceMuted: '#EFEFE8',     // Muted dividers, subtle containers
-  surfaceGreen: '#EAF2EC',     // Soft Sage for highlights/badges
+  surfaceMuted: '#F0F2EF',     // Muted dividers, subtle containers
+  surfaceGreen: '#EAF3EC',     // Soft Sage for highlights/badges
   surfaceDark: '#193B2C',      // Deep Pine header & high-contrast cards
   surfaceDarkElevated: '#224B39',
   surfaceAmber: '#FFF9E6',     // Warning / Pending highlight
   surfaceWarning: '#FEF3C7',   // Alert banner
 
   // Primary Brand
-  primary: '#24533F',          // Forest Green (Primary action buttons)
+  primary: '#064B33',          // Forest Green (Primary action buttons)
   primaryDark: '#193B2C',      // Deep Pine
   primaryPressed: '#142E23',   // Deepest Pine for active press
-  primaryLight: '#EAF2EC',     // Soft Sage
+  primaryLight: '#E2EFDF',     // Soft Sage
   limeAccent: '#D9F078',       // Fleet24 Brand Lime accent
 
   // Accents & Indicators
@@ -57,7 +57,7 @@ export const colors = {
   nonVegRedLight: '#FEE2E2',
 
   // Typography (WCAG AA compliant contrast)
-  textPrimary: '#17211B',      // Dark Forest Charcoal on Light surface (Contrast > 12:1)
+  textPrimary: '#202622',      // Dark Forest Charcoal on Light surface (Contrast > 12:1)
   textSecondary: '#4B5563',    // Slate Neutral Secondary (Contrast > 5.5:1)
   textMuted: '#6B7280',        // Subtle / Disabled labels
   textWhite: '#FFFFFF',        // High contrast on dark surfaces
@@ -67,7 +67,7 @@ export const colors = {
   textRed: '#991B1B',
 
   // Dividers & Borders
-  border: '#E5E7EB',
+  border: '#E3E7E2',
   borderLight: '#F3F4F6',
   borderMedium: '#D1D5DB',
   borderDark: '#2C3A31',

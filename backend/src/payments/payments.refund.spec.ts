@@ -45,6 +45,7 @@ describe('PaymentsService - Automated Refunds & Concurrency / Reliability (Unit 
       insert: jest.fn().mockReturnValue({
         values: jest.fn().mockReturnValue({
           returning: jest.fn(),
+          onConflictDoNothing: jest.fn().mockReturnValue({ returning: jest.fn() }),
         }),
       }),
       update: jest.fn().mockReturnValue({

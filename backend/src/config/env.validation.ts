@@ -82,6 +82,42 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   DELIVERY_OTP_ENCRYPTION_KEY?: string;
+
+  /**
+   * Google Routes API key for authoritative road-distance routing and matrix computation.
+   * Configured locally via backend environment. Optional for development/testing without live routes.
+   */
+  @IsString()
+  @IsOptional()
+  GOOGLE_ROUTES_API_KEY?: string;
+
+  /**
+   * Primary routing provider ('google' by default).
+   */
+  @IsString()
+  @IsOptional()
+  ROUTING_PROVIDER: string = 'google';
+
+  /**
+   * Timeout in milliseconds for external routing requests (default: 3000ms).
+   */
+  @IsNumber()
+  @IsOptional()
+  ROUTING_TIMEOUT_MS: number = 3000;
+
+  /**
+   * Time-to-live in seconds for static point-to-point route cache entries (default: 3600s).
+   */
+  @IsNumber()
+  @IsOptional()
+  ROUTING_CACHE_TTL_SECONDS: number = 3600;
+
+  /**
+   * Maximum capacity for the in-memory LRU routing cache (default: 2000 entries).
+   */
+  @IsNumber()
+  @IsOptional()
+  ROUTING_CACHE_MAX_ENTRIES: number = 2000;
 }
 
 export function validate(config: Record<string, unknown>) {

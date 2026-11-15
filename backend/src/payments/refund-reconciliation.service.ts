@@ -186,6 +186,33 @@ export class RefundReconciliationService {
               updatedAt: new Date(),
             })
             .where(eq(schema.payments.id, payment.id));
+
+          // If the order was in payment_conflict, transition to cancelled on confirmed refund
+          if (payment.order && payment.order.status === 'payment_conflict') {
+            const existingDetails = (payment.order.paymentConflictDetails as any) || {};
+            await tx
+              .update(schema.orders)
+              .set({
+                status: 'cancelled',
+                cancellationReason: 'Payment conflict fully refunded to customer (reconciliation)',
+                cancelledAt: new Date(),
+                paymentConflictDetails: {
+                  ...existingDetails,
+                  resolutionStatus: 'refund_processed',
+                  resolvedAt: new Date().toISOString(),
+                },
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.orders.id, payment.order.id));
+
+            await tx.insert(schema.orderStatusHistory).values({
+              orderId: payment.order.id,
+              previousStatus: 'payment_conflict',
+              newStatus: 'cancelled',
+              reason: 'Full refund confirmed via background reconciliation',
+              changedByUserId: refund.approvedByUserId || null,
+            });
+          }
         }
       });
 

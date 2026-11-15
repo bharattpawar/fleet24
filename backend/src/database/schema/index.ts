@@ -12,3 +12,4 @@ export * from './auth';
 export * from './cart';
 export * from './finance';
 export * from './financial-settings';
+export * from './customer-home';

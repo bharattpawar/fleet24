@@ -84,6 +84,10 @@ export class AdminCancelOrderDto {
 
 export class AdminActiveDeliveriesQueryDto {
   @IsOptional()
+  @IsIn(['unassigned'])
+  status?: 'unassigned';
+
+  @IsOptional()
   @IsString()
   deliveryStatus?: string; // 'assigned', 'accepted', 'at_restaurant', 'picked_up', 'arrived_customer'
 
@@ -124,4 +128,35 @@ export class AdminActiveDeliveriesQueryDto {
   @Max(100)
   limit: number = 20;
 }
+
+export class AdminPaymentConflictQueryDto {
+  @IsOptional()
+  @IsString()
+  search?: string; // Order number, customer phone, customer name, provider payment ID
+
+  @IsOptional()
+  @IsIn(['all', 'pending_review', 'refund_pending', 'refund_failed', 'refund_completed'])
+  filterStatus?: 'all' | 'pending_review' | 'refund_pending' | 'refund_failed' | 'refund_completed' = 'all';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+}
+
+export class AdminApproveConflictRefundDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 

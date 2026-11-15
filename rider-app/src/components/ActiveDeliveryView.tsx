@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { ActiveDeliveryDetails, RiderLocationUpdate } from '../api/riderApi';
+import type { GpsStatus } from '../services/locationService';
 import { RiderMap } from './RiderMap';
 import { OtpVerificationSheet } from './OtpVerificationSheet';
 import { riderApi } from '../api/riderApi';
@@ -20,6 +21,8 @@ import { useRiderAuth } from '../context/RiderAuthContext';
 
 interface ActiveDeliveryViewProps {
   delivery: ActiveDeliveryDetails;
+  gpsStatus?: GpsStatus;
+  isMockMode?: boolean;
   riderLocation?: RiderLocationUpdate | null;
   onRefresh: () => Promise<any>;
 }
@@ -27,6 +30,8 @@ interface ActiveDeliveryViewProps {
 export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
   delivery,
   riderLocation,
+  gpsStatus,
+  isMockMode,
   onRefresh,
 }) => {
   const { refreshProfile } = useRiderAuth();
@@ -154,17 +159,36 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
 
   return (
     <ScrollView style={styles.container} bounces={false}>
-      {/* Top Map Tracker (40-50% screen height) */}
-      <RiderMap
-        height={260}
-        riderLocation={riderLocation}
-        outletLocation={delivery.outlet}
-        customerLocation={delivery.deliveryAddress}
-        deliveryStatus={status}
-        isOnline={true}
-      />
-
       <View style={styles.sheetContent}>
+        {/* Contextual Action Button */}
+        <TouchableOpacity
+          style={[
+            styles.primaryActionButton,
+            status === 'arrived_customer' ? styles.actionButtonOtp : null,
+          ]}
+          onPress={handleStageAction}
+          disabled={isActionLoading}
+          activeOpacity={0.85}
+        >
+          {isActionLoading ? (
+            <ActivityIndicator color={colors.textWhite} />
+          ) : (
+            <>
+              <Ionicons
+                name={
+                  status === 'arrived_customer'
+                    ? 'keypad'
+                    : status === 'picked_up'
+                    ? 'home'
+                    : 'checkmark-circle'
+                }
+                size={20}
+                color={colors.textWhite}
+              />
+              <Text style={styles.primaryActionText}>{actionTitle}</Text>
+            </>
+          )}
+        </TouchableOpacity>
         {/* Order Identifier & Active Status Banner */}
         <View style={styles.orderBanner}>
           <View>
@@ -303,36 +327,19 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
           </View>
         )}
 
-        {/* Contextual Action Button */}
-        <TouchableOpacity
-          style={[
-            styles.primaryActionButton,
-            status === 'arrived_customer' ? styles.actionButtonOtp : null,
-          ]}
-          onPress={handleStageAction}
-          disabled={isActionLoading}
-          activeOpacity={0.85}
-        >
-          {isActionLoading ? (
-            <ActivityIndicator color={colors.textWhite} />
-          ) : (
-            <>
-              <Ionicons
-                name={
-                  status === 'arrived_customer'
-                    ? 'keypad'
-                    : status === 'picked_up'
-                    ? 'home'
-                    : 'checkmark-circle'
-                }
-                size={20}
-                color={colors.textWhite}
-              />
-              <Text style={styles.primaryActionText}>{actionTitle}</Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
+
+      {/* Top Map Tracker (40-50% screen height) */}
+      <RiderMap
+        height={180}
+        riderLocation={riderLocation}
+        outletLocation={delivery.outlet}
+        customerLocation={delivery.deliveryAddress}
+        deliveryStatus={status}
+        isOnline={true}
+        gpsStatus={gpsStatus}
+        isMockMode={isMockMode}
+      />
 
       {/* OTP Modal Sheet */}
       <OtpVerificationSheet
@@ -354,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
-    marginTop: -spacing.lg,
+
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxxl,

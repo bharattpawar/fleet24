@@ -43,6 +43,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
     checkForPendingOffers,
     refreshAvailableOrders,
     availableOrders,
+    availableOrdersError,
     claimOrder,
     acceptActiveOffer,
     rejectActiveOffer,
@@ -52,6 +53,8 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
   const [earningsSummary, setEarningsSummary] = useState<RiderEarningsSummary | null>(null);
   const [currentLocation, setCurrentLocation] = useState<RiderLocationUpdate | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('initializing');
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
@@ -119,32 +122,39 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
       setEarningsSummary(mockRiderData.getSummary());
       return;
     }
+    await Promise.all([
+      riderApi.getEarningsSummary().then(setEarningsSummary).catch(() => undefined),
+      refreshActiveDelivery(),
+    ]);
+  }, [isMockSession, refreshActiveDelivery]);
 
+  const refreshQueue = useCallback(async () => {
+    setPoolLoading(true);
     try {
-      const summary = await riderApi.getEarningsSummary();
-      setEarningsSummary(summary);
-      await Promise.all([
-        refreshActiveDelivery(),
-        refreshAvailableOrders(),
-      ]);
-    } catch {
-      // ignore
+      await refreshAvailableOrders();
+    } finally {
+      setPoolLoading(false);
     }
-  }, [isMockSession, refreshActiveDelivery, refreshAvailableOrders]);
+  }, [refreshAvailableOrders]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    void loadData();
+    void refreshQueue();
+  }, [loadData, refreshQueue]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([
-      refreshProfile(),
-      loadData(),
-      refreshAvailableOrders(),
-      riderLocationService.getCurrentPosition(),
-    ]);
-    setIsRefreshing(false);
+    try {
+      await Promise.all([
+        refreshProfile(),
+        loadData(),
+        refreshQueue(),
+        checkForPendingOffers(),
+        riderLocationService.getCurrentPosition(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleClaimOrder = async (orderId: string) => {
@@ -171,13 +181,18 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
       return;
     }
 
+    setAvailabilityError(null);
     setIsTogglingStatus(true);
     try {
       const ok = await toggleAvailability();
+      if (ok) void refreshQueue();
+      if (!ok) setAvailabilityError('Could not update availability. Try again.');
       if (ok && !currentLocation) {
         const loc = await riderLocationService.getCurrentPosition();
         if (loc) setCurrentLocation(loc);
       }
+    } catch {
+      setAvailabilityError('Could not update availability. Try again.');
     } finally {
       setIsTogglingStatus(false);
     }
@@ -216,49 +231,37 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
     setIsConnectingLive(false);
   };
 
-  const handleCheckOffers = async () => {
-    setIsRefreshing(true);
-    try {
-      await checkForPendingOffers();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   // If rider has an active delivery in progress, present the Active Delivery View
   if (activeDelivery) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.frame}>
         <RiderHeader
-          riderName={profile?.fullName}
           profileImageUrl={profile?.profileImageUrl}
-          isOnline={isOnline}
-          isSocketConnected={isSocketConnected}
-          isMockMode={isMockSession}
           onProfilePress={() => onNavigateToTab?.('account')}
         />
         <ActiveDeliveryView
           delivery={activeDelivery}
+          gpsStatus={gpsStatus}
+          isMockMode={isMockSession}
           riderLocation={currentLocation}
           onRefresh={async () => {
             await refreshActiveDelivery();
             await loadData();
           }}
         />
-      </SafeAreaView>
+        </View>
+    </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.frame}>
       <RiderHeader
-        riderName={profile?.fullName}
-        profileImageUrl={profile?.profileImageUrl}
-        isOnline={isOnline}
-        isSocketConnected={isSocketConnected}
-        isMockMode={isMockSession}
-        onProfilePress={() => onNavigateToTab?.('account')}
-      />
+          profileImageUrl={profile?.profileImageUrl}
+          onProfilePress={() => onNavigateToTab?.('account')}
+        />
 
       <ScrollView
         style={styles.scroll}
@@ -308,40 +311,23 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
         <AvailabilityControl
           isOnline={isOnline}
           isLoading={isTogglingStatus}
-          isMockMode={isMockSession}
+          error={availabilityError}
           onToggle={handleToggle}
         />
 
-        {/* Permission Denied Callout Banner */}
-        {gpsStatus === 'permission_denied' && (
-          <View style={styles.permissionCard}>
-            <View style={styles.permissionIconCircle}>
-              <Ionicons name="location-outline" size={20} color={colors.error} />
-            </View>
-            <View style={styles.permissionInfo}>
-              <Text style={styles.permissionTitle}>Location Access Required</Text>
-              <Text style={styles.permissionSub}>
-                Allow Fleet24 Rider to access your real GPS location to receive delivery orders.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.permissionButton}
-              onPress={handleOpenSettings}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.permissionButtonText}>SETTINGS</Text>
-            </TouchableOpacity>
-          </View>
+        {isOnline && !isSocketConnected && !isMockSession && (
+          <Text accessibilityLiveRegion="polite" style={styles.connectionNotice}>
+            Live dispatch is reconnecting. Refresh to check for orders.
+          </Text>
         )}
 
         {/* Map View (~40% of screen height) with Expand Button */}
         <View style={styles.mapCard}>
           <RiderMap
-            height={260}
+            height={236}
             riderLocation={currentLocation}
             isOnline={isOnline}
             isMockMode={isMockSession}
-            isSocketConnected={isSocketConnected}
             gpsStatus={gpsStatus}
             onRequestPermission={handleOpenSettings}
             onRecenter={handleRecenter}
@@ -349,66 +335,21 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
           />
         </View>
 
-        {/* Status Callout / Empty State */}
-        {isOnline ? (
-          <View style={styles.radarCard}>
-            <View style={styles.radarIconBox}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-            <View style={styles.radarInfo}>
-              <Text style={styles.radarTitle}>
-                {isMockSession ? 'Demo Mode Active' : 'Searching for Live Orders...'}
-              </Text>
-              <Text style={styles.radarSubtitle}>
-                {isMockSession
-                  ? 'Simulated offline preview mode. Tap "Connect to Live Backend" above to join live dispatch.'
-                  : currentLocation?.latitude
-                  ? `Active on live network at GPS: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}. Standing by for dispatch offers.`
-                  : 'Acquiring GPS location... Standing by for delivery offers.'}
-              </Text>
-              {!isMockSession && (
-                <View style={styles.liveEmptyStateRow}>
-                  <Text style={styles.liveEmptyStateText}>
-                    No active delivery offers right now. Standing by for incoming orders.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.checkOffersBtn}
-                    onPress={handleCheckOffers}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="refresh" size={14} color={colors.primary} />
-                    <Text style={styles.checkOffersBtnText}>Check for Orders</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        ) : (
-          <View style={styles.offlineCard}>
-            <Text style={styles.offlineTitle}>
-              {isMockSession ? 'Demo Preview: Currently Offline' : 'Live Dispatch: Currently Offline'}
-            </Text>
-            <Text style={styles.offlineSubtitle}>
-              Toggle your status switch above to go online and start receiving orders with Fleet24.
-            </Text>
-          </View>
-        )}
-
-        {/* Open Delivery Pool / Available Orders from Database */}
         <View style={styles.poolSection}>
           <View style={styles.poolHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={styles.poolIconBadge}>
                 <Ionicons name="cube" size={16} color={colors.primary} />
               </View>
-              <Text style={styles.poolTitle}>Available Orders Pool</Text>
+              <Text style={styles.poolTitle}>Available orders</Text>
               <View style={styles.poolCountBadge}>
-                <Text style={styles.poolCountText}>{availableOrders.length}</Text>
+                <Text style={styles.poolCountText}>{isOnline ? availableOrders.length : 0}</Text>
               </View>
             </View>
             <TouchableOpacity
               style={styles.poolRefreshBtn}
-              onPress={() => refreshAvailableOrders()}
+              onPress={handleRefresh}
+              disabled={isRefreshing || poolLoading}
               activeOpacity={0.7}
             >
               <Ionicons name="refresh" size={14} color={colors.primary} />
@@ -416,14 +357,20 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
             </TouchableOpacity>
           </View>
 
-          {availableOrders.length === 0 ? (
+          {!isOnline || poolLoading || availableOrdersError || availableOrders.length === 0 ? (
             <View style={styles.poolEmptyCard}>
-              <Text style={styles.poolEmptyText}>
-                No pending orders waiting for pickup in database right now.
-              </Text>
-              <Text style={styles.poolEmptySub}>
-                When a customer order is confirmed or marked ready, it will appear here so you can pick it up immediately.
-              </Text>
+              {isOnline && poolLoading ? <ActivityIndicator color={colors.primary} /> :
+                <Ionicons name={!isOnline ? 'moon-outline' : availableOrdersError ? 'alert-circle-outline' : 'receipt-outline'} size={24} color={colors.primary} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.poolEmptyText}>
+                  {!isOnline ? 'You’re offline' : poolLoading ? 'Checking for orders…' :
+                    availableOrdersError ? 'Couldn’t load orders' : 'Waiting for orders'}
+                </Text>
+                <Text style={styles.poolEmptySub}>
+                  {!isOnline ? 'Go online to receive delivery offers.' : poolLoading ? 'Looking for available deliveries.' :
+                    availableOrdersError ? 'Tap Refresh to try again.' : 'New deliveries will appear here.'}
+                </Text>
+              </View>
             </View>
           ) : (
             availableOrders.map((item) => (
@@ -510,7 +457,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                   ) : (
                     <>
                       <Ionicons name="flash" size={16} color="#FFFFFF" />
-                      <Text style={styles.claimBtnText}>⚡ Pick Up / Claim This Order</Text>
+                      <Text style={styles.claimBtnText}>⚡ Claim order</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -538,6 +485,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
             riderLocation={currentLocation}
             isOnline={isOnline}
             gpsStatus={gpsStatus}
+            isMockMode={isMockSession}
             isExpanded={true}
             onCloseExpanded={() => setIsMapExpanded(false)}
             onRecenter={handleRecenter}
@@ -554,6 +502,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
           onReject={rejectActiveOffer}
         />
       )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -561,63 +510,20 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.surfaceDark,
+    backgroundColor: colors.background,
   },
+  frame: { flex: 1, alignSelf: 'center', width: '100%', maxWidth: 680 },
+  connectionNotice: { color: colors.textSecondary, fontSize: 13, lineHeight: 19, paddingHorizontal: 4 },
   scroll: {
     flex: 1,
     backgroundColor: colors.background,
   },
   scrollContent: {
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
-  },
-  permissionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.errorLight,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(199, 71, 64, 0.3)',
-    gap: spacing.sm,
-  },
-  permissionIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  permissionInfo: {
-    flex: 1,
-  },
-  permissionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.error,
-  },
-  permissionSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  permissionButton: {
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: borderRadius.xs,
-  },
-  permissionButtonText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textWhite,
-    letterSpacing: 0.5,
+    gap: spacing.md,
   },
   mapCard: {
-    marginHorizontal: spacing.lg,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
@@ -628,62 +534,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  radarCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceGreen,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(40, 84, 63, 0.2)',
-  },
-  radarIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radarInfo: {
-    flex: 1,
-  },
-  radarTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  radarSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  offlineCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  offlineTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  offlineSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
-  },
   fullScreenMapContainer: {
     flex: 1,
     backgroundColor: '#EBE9DF',
@@ -691,9 +541,6 @@ const styles = StyleSheet.create({
   demoWarningBanner: {
     flexDirection: 'row',
     backgroundColor: '#FFF3E0',
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
@@ -743,41 +590,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 6,
   },
-  liveEmptyStateRow: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(40, 84, 63, 0.12)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  liveEmptyStateText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  checkOffersBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: borderRadius.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  checkOffersBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
   poolSection: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
   },
   poolHeader: {
     flexDirection: 'row',
@@ -826,23 +639,23 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   poolEmptyCard: {
-    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.md,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
   },
   poolEmptyText: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.textSecondary,
-    textAlign: 'center',
   },
   poolEmptySub: {
     fontSize: 11,
     color: colors.textMuted,
-    textAlign: 'center',
     marginTop: 4,
     lineHeight: 15,
   },

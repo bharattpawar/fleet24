@@ -73,7 +73,12 @@ export interface RestaurantOrder {
   customerId: string;
   customerName?: string | null;
   customerPhone?: string | null;
-  totalPayable: number;
+  itemTotal?: string | number;
+  taxAmount?: string | number;
+  deliveryFee?: string | number;
+  discountAmount?: string | number;
+  customer?: { fullName?: string | null };
+  totalPayable: number | string;
   rejectionReason?: string | null;
   items: OrderItem[];
   itemCount: number;
