@@ -347,7 +347,9 @@ export class RiderOffersService {
         },
         deliveryAddress: {
           addressLine1: address?.addressLine1 || address?.address || 'Customer Location',
+          addressLine2: address?.addressLine2,
           city: address?.city,
+          postalCode: address?.postalCode,
           landmark: address?.landmark,
           latitude: destLat,
           longitude: destLon,
@@ -592,6 +594,7 @@ export class RiderOffersService {
         deliveryAddress: {
           label: addressSnapshot?.label,
           addressLine1: addressSnapshot?.addressLine1 || addressSnapshot?.address,
+          addressLine2: addressSnapshot?.addressLine2,
           city: addressSnapshot?.city,
           postalCode: addressSnapshot?.postalCode,
           landmark: addressSnapshot?.landmark,

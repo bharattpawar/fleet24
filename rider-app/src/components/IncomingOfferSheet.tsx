@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { DeliveryOfferItem } from '../api/riderApi';
+import { addressDetail, addressTitle } from '../utils/address';
 
 interface IncomingOfferSheetProps {
   offer: DeliveryOfferItem;
@@ -140,9 +141,11 @@ export const IncomingOfferSheet: React.FC<IncomingOfferSheetProps> = ({
               <Text style={styles.locationName} numberOfLines={1}>
                 {offer.outlet?.name || (offer as any).outletName || 'Restaurant Partner'}
               </Text>
-              <Text style={styles.locationAddress} numberOfLines={1}>
-                {offer.outlet?.address || (offer as any).outletAddress || 'Greater Noida Food Hub'}
-              </Text>
+              {offer.outlet?.address || (offer as any).outletAddress ? (
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {offer.outlet?.address || (offer as any).outletAddress}
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -157,13 +160,13 @@ export const IncomingOfferSheet: React.FC<IncomingOfferSheetProps> = ({
             <View style={styles.locationTextContainer}>
               <Text style={styles.locationType}>CUSTOMER DROPOFF</Text>
               <Text style={styles.locationName} numberOfLines={1}>
-                {offer.deliveryAddress?.addressLine1 || offer.deliveryAddress?.street || offer.deliveryAddress?.label || 'Customer Delivery Address'}
+                {addressTitle(offer.deliveryAddress, offer.deliveryAddress?.label || 'Customer address')}
               </Text>
-              <Text style={styles.locationAddress} numberOfLines={1}>
-                {offer.deliveryAddress?.city
-                  ? `${offer.deliveryAddress?.landmark ? offer.deliveryAddress.landmark + ', ' : ''}${offer.deliveryAddress.city}`
-                  : 'Greater Noida'}
-              </Text>
+              {addressDetail(offer.deliveryAddress) ? (
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {addressDetail(offer.deliveryAddress)}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>

@@ -24,6 +24,7 @@ import { ActiveDeliveryView } from '../components/ActiveDeliveryView';
 import { riderApi, RiderEarningsSummary, RiderLocationUpdate } from '../api/riderApi';
 import { riderLocationService, GpsStatus } from '../services/locationService';
 import { mockRiderData } from '../api/mockData';
+import { addressDetail, addressTitle } from '../utils/address';
 
 interface RiderHomeScreenProps {
   onNavigateToTab?: (tab: 'earnings' | 'account') => void;
@@ -410,9 +411,11 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                     <Text style={styles.orderPoolOutletName}>
                       {item.outlet?.name || 'Restaurant Outlet'}
                     </Text>
-                    <Text style={styles.orderPoolOutletAddress} numberOfLines={1}>
-                      {item.outlet?.address || 'Knowledge Park III'}
-                    </Text>
+                    {item.outlet?.address ? (
+                      <Text style={styles.orderPoolOutletAddress} numberOfLines={1}>
+                        {item.outlet.address}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -421,10 +424,10 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                   <Ionicons name="location" size={15} color="#D32F2F" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.orderPoolOutletName}>Deliver To</Text>
-                    <Text style={styles.orderPoolOutletAddress} numberOfLines={1}>
-                      {item.deliveryAddress?.addressLine1 ||
-                        item.deliveryAddress?.city ||
-                        'Customer Address'}
+                    <Text style={styles.orderPoolOutletAddress} numberOfLines={2}>
+                      {[addressTitle(item.deliveryAddress), addressDetail(item.deliveryAddress)]
+                        .filter(Boolean)
+                        .join(', ')}
                     </Text>
                   </View>
                 </View>

@@ -42,6 +42,8 @@ export interface DeliveryOfferItem {
     label?: string;
     street?: string;
     addressLine1?: string;
+    addressLine2?: string;
+    postalCode?: string;
     city?: string;
     latitude?: number;
     longitude?: number;
@@ -71,6 +73,8 @@ export interface ActiveDeliveryDetails {
   deliveryAddress: {
     street?: string;
     addressLine1?: string;
+    addressLine2?: string;
+    postalCode?: string;
     city?: string;
     latitude?: number;
     longitude?: number;
@@ -113,6 +117,8 @@ export interface AvailableDeliveryOrder {
   };
   deliveryAddress: {
     addressLine1: string;
+    addressLine2?: string;
+    postalCode?: string;
     city?: string;
     landmark?: string;
     latitude?: number;

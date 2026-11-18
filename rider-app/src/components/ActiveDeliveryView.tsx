@@ -18,6 +18,7 @@ import { RiderMap } from './RiderMap';
 import { OtpVerificationSheet } from './OtpVerificationSheet';
 import { riderApi } from '../api/riderApi';
 import { useRiderAuth } from '../context/RiderAuthContext';
+import { addressDetail, addressTitle } from '../utils/address';
 
 interface ActiveDeliveryViewProps {
   delivery: ActiveDeliveryDetails;
@@ -275,7 +276,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
             <View style={styles.addressInfo}>
               <Text style={styles.addressType}>RESTAURANT PICKUP</Text>
               <Text style={styles.addressName}>{delivery.outlet?.name || 'Restaurant'}</Text>
-              <Text style={styles.addressSub}>{delivery.outlet?.address || 'Greater Noida'}</Text>
+              {delivery.outlet?.address ? <Text style={styles.addressSub}>{delivery.outlet.address}</Text> : null}
             </View>
             {delivery.outlet?.phone && (
               <TouchableOpacity
@@ -296,12 +297,10 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
             </View>
             <View style={styles.addressInfo}>
               <Text style={styles.addressType}>CUSTOMER DROPOFF</Text>
-              <Text style={styles.addressName}>
-                {delivery.deliveryAddress?.addressLine1 || delivery.deliveryAddress?.street || 'Delivery Address'}
-              </Text>
-              <Text style={styles.addressSub}>
-                Sector Alpha 1, Greater Noida
-              </Text>
+              <Text style={styles.addressName}>{addressTitle(delivery.deliveryAddress, 'Delivery address')}</Text>
+              {addressDetail(delivery.deliveryAddress) ? (
+                <Text style={styles.addressSub}>{addressDetail(delivery.deliveryAddress)}</Text>
+              ) : null}
             </View>
             {delivery.customer?.phone && (
               <TouchableOpacity
