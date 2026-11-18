@@ -1,3 +1,4 @@
+import { useDeliveryLocation } from '../context/DeliveryLocationContext';
 import React, { useState } from 'react';
 import {
   View,
@@ -26,6 +27,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenRiderDashboard,
 }) => {
   const insets = useSafeAreaInsets();
+  const { addresses } = useDeliveryLocation();
+  const defaultCity = addresses.find((address) => address.isDefault)?.city;
   const { user, isAuthenticated, logout, refreshProfile } = useAuth();
   const activeUser = USE_MOCK_DATA ? MOCK_USER_PROFILE : user;
   const isUserAuthenticated = USE_MOCK_DATA ? true : isAuthenticated;
@@ -140,13 +143,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
         <View style={styles.divider} />
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Primary Service Area</Text>
-          <View style={styles.locationCapsule}>
-            <Ionicons name="location-sharp" size={12} color={colors.primary} />
-            <Text style={styles.infoValue}>Greater Noida, UP</Text>
+        {defaultCity && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Primary Service Area</Text>
+            <View style={styles.locationCapsule}>
+              <Ionicons name="location-sharp" size={12} color={colors.primary} />
+              <Text style={styles.infoValue}>{defaultCity}</Text>
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.btnRow}>
           {isEditing ? (

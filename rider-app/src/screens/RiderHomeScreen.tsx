@@ -1,3 +1,4 @@
+import { useRiderServiceArea } from '../hooks/useRiderServiceArea';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -53,6 +54,8 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
 
   const [earningsSummary, setEarningsSummary] = useState<RiderEarningsSummary | null>(null);
   const [currentLocation, setCurrentLocation] = useState<RiderLocationUpdate | null>(null);
+  const serviceArea = useRiderServiceArea(currentLocation);
+  const targetPhone = profile?.user?.phone;
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('initializing');
   const [poolLoading, setPoolLoading] = useState(true);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -211,11 +214,10 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
   };
 
   const handleConnectLive = async () => {
-    if (isConnectingLive) return;
+    if (isConnectingLive || !targetPhone) return;
     setIsConnectingLive(true);
     setConnectionError(null);
 
-    const targetPhone = profile?.user?.phone || '1234567890';
     const result = await connectToLiveBackend(targetPhone);
 
     if (result.success) {
@@ -238,6 +240,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
       <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.frame}>
         <RiderHeader
+          serviceArea={serviceArea}
           profileImageUrl={profile?.profileImageUrl}
           onProfilePress={() => onNavigateToTab?.('account')}
         />
@@ -260,6 +263,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.frame}>
       <RiderHeader
+          serviceArea={serviceArea}
           profileImageUrl={profile?.profileImageUrl}
           onProfilePress={() => onNavigateToTab?.('account')}
         />
@@ -289,7 +293,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
               <TouchableOpacity
                 style={styles.connectLiveBtn}
                 activeOpacity={0.85}
-                disabled={isConnectingLive}
+                disabled={isConnectingLive || !targetPhone}
                 onPress={handleConnectLive}
               >
                 {isConnectingLive ? (
@@ -301,6 +305,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                   </>
                 )}
               </TouchableOpacity>
+              {!targetPhone && <Text style={styles.connectErrorText}>Add a phone number to connect to the live backend.</Text>}
               {connectionError ? (
                 <Text style={styles.connectErrorText}>⚠️ {connectionError}</Text>
               ) : null}

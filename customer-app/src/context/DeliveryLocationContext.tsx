@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../api/client';
 import { preferenceStorage } from '../api/storage';
 import { USE_MOCK_DATA } from '../api/mockData';
@@ -52,7 +52,7 @@ function describeZone(z: ServiceZone): DeliveryLocation {
     latitude: String(z.centerLatitude),
     longitude: String(z.centerLongitude),
     title: z.name,
-    subtitle: 'Greater Noida service area',
+    subtitle: 'Delivery service area',
   };
 }
 
@@ -64,11 +64,14 @@ export function DeliveryLocationProvider({ children }: { children: React.ReactNo
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const zoneRequest = useRef<Promise<ServiceZone[]> | null>(null);
   const loadZones = useCallback(async () => {
     if (USE_MOCK_DATA) return;
     try {
-      setZones(await apiRequest<ServiceZone[]>('/public/service-zones'));
+      zoneRequest.current ??= apiRequest<ServiceZone[]>('/public/service-zones');
+      setZones(await zoneRequest.current);
     } catch {
+      zoneRequest.current = null;
       setZones([]);
     }
   }, []);
@@ -145,4 +148,16 @@ export function useDeliveryLocation() {
   const ctx = useContext(DeliveryLocationContext);
   if (!ctx) throw new Error('useDeliveryLocation must be used inside DeliveryLocationProvider');
   return ctx;
+}
+
+export function formatServiceAreas(zones: ServiceZone[]): string {
+  const names = [...new Set(zones.map((zone) => zone.name.trim()).filter(Boolean))];
+  if (!names.length) return 'our delivery area';
+  if (names.length === 1) return names[0];
+  return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+
+export function useServiceAreas(): string {
+  const delivery = useContext(DeliveryLocationContext);
+  return formatServiceAreas(delivery?.zones ?? []);
 }

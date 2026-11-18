@@ -580,7 +580,7 @@ export class RiderAssignmentService {
           estimatedEarnings: '45.00',
           outlet: {
             name: outlet.name,
-            address: outlet.address || 'Knowledge Park III, Greater Noida',
+            address: outlet.address || outlet.name,
             phone: outlet.phone || '',
             latitude: outletLat,
             longitude: outletLon,

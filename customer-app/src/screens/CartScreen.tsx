@@ -1,3 +1,4 @@
+import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -56,6 +57,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   onTrackOrder,
   onRequireAuth,
 }) => {
+  const serviceAreas = useServiceAreas();
   const insets = useSafeAreaInsets();
   const { cart, updateQuantity, removeItem, clearCart, fetchCart, applyPromo, removePromo } = useCart();
   const { isAuthenticated } = useAuth();
@@ -220,7 +222,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
           </View>
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptySubtitle}>
-            Browse our favourite neighbourhood kitchens in Greater Noida and add delicious artisanal food!
+            Browse our favourite neighbourhood kitchens in {serviceAreas} and add delicious artisanal food!
           </Text>
           <TouchableOpacity style={styles.exploreBtn} activeOpacity={0.85} onPress={onBack}>
             <Text style={styles.exploreBtnText}>Browse Restaurants</Text>
@@ -256,7 +258,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
     if (selectedAddress.isServiceable === false) {
       Alert.alert(
         'We don’t deliver here yet',
-        'Fleet24 currently delivers in Knowledge Park II and III, Greater Noida. Choose another address.',
+        `Fleet24 currently delivers in ${serviceAreas}. Choose another address.`,
       );
       setIsAddressModalOpen(true);
       return;

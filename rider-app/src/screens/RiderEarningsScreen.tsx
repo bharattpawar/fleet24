@@ -1,3 +1,5 @@
+import { useRiderServiceArea } from '../hooks/useRiderServiceArea';
+import { riderLocationService } from '../services/locationService';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -20,6 +22,16 @@ import { mockRiderData } from '../api/mockData';
 
 export const RiderEarningsScreen: React.FC = () => {
   const { isMockSession } = useRiderAuth();
+  const [position, setPosition] = useState<Awaited<ReturnType<typeof riderLocationService.getCurrentPosition>>>(null);
+  const serviceArea = useRiderServiceArea(position);
+
+  useEffect(() => {
+    let active = true;
+    void riderLocationService.getCurrentPosition().then((point) => {
+      if (active) setPosition(point);
+    });
+    return () => { active = false; };
+  }, [isMockSession]);
   const [summary, setSummary] = useState<RiderEarningsSummary | null>(null);
   const [earningsList, setEarningsList] = useState<RiderEarningRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,7 +125,7 @@ export const RiderEarningsScreen: React.FC = () => {
       {/* Top Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Earnings & Payouts</Text>
-        <Text style={styles.headerSub}>Greater Noida Delivery Partner</Text>
+        <Text style={styles.headerSub}>{serviceArea}</Text>
       </View>
 
       <ScrollView

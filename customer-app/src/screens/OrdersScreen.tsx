@@ -1,3 +1,4 @@
+import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -53,6 +54,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   onExploreFood,
   onTrackOrder,
 }) => {
+  const serviceAreas = useServiceAreas();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuth();
   const [orders, setOrders] = useState<OrderItemSummary[]>(USE_MOCK_DATA ? MOCK_ORDERS : []);
@@ -592,7 +594,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
               </View>
               <Text style={styles.emptyTitle}>No orders placed yet</Text>
               <Text style={styles.emptySub}>
-                Explore delicious meals from top restaurants in Greater Noida and enjoy lightning-fast delivery.
+                Explore delicious meals from top restaurants in {serviceAreas} and enjoy lightning-fast delivery.
               </Text>
               {onExploreFood && (
                 <TouchableOpacity

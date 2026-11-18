@@ -1,3 +1,4 @@
+import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React from 'react';
 import {
   View,
@@ -51,6 +52,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   onTrackOrder,
   onClose,
 }) => {
+  const serviceAreas = useServiceAreas();
   if (!order) return null;
 
   return (
@@ -87,7 +89,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             <Text style={styles.statusDescription}>
               {order.status === 'pending_payment'
                 ? 'Your order request has been created in Fleet24. Orders are sent to the restaurant once payment verification completes.'
-                : 'Your order has been received by the restaurant partner in Greater Noida.'}
+                : `Your order has been received by the restaurant partner in ${serviceAreas}.`}
             </Text>
           </View>
 
@@ -114,7 +116,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
                   {order.deliveryAddress.addressLine2 ? `, ${order.deliveryAddress.addressLine2}` : ''}
                 </Text>
                 <Text style={styles.cardSubText}>
-                  {order.deliveryAddress.city || 'Greater Noida'} ({order.deliveryAddress.postalCode})
+                  {[order.deliveryAddress.city, order.deliveryAddress.postalCode].filter(Boolean).join(' ')}
                 </Text>
               </View>
             </View>

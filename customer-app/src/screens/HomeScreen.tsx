@@ -1,3 +1,4 @@
+import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -62,6 +63,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onRequireAuth,
   onOpenProfile,
 }) => {
+  const serviceAreas = useServiceAreas();
   const { cart } = useCart();
   const { user, isAuthenticated } = useAuth();
   const [outlets, setOutlets] = useState<OutletSummary[]>([]);
@@ -370,7 +372,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Ionicons name="location-outline" size={22} color="#8C3A1C" />
           <View style={{ flex: 1 }}>
             <Text style={styles.outOfAreaTitle}>We don’t deliver here yet</Text>
-            <Text style={styles.outOfAreaText}>Fleet24 currently delivers in Knowledge Park II and III, Greater Noida.</Text>
+            <Text style={styles.outOfAreaText}>Fleet24 currently delivers in {serviceAreas}.</Text>
           </View>
           <TouchableOpacity onPress={openAddressPicker} accessibilityRole="button" style={styles.outOfAreaBtn}>
             <Text style={styles.outOfAreaBtnText}>Change</Text>

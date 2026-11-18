@@ -1,3 +1,4 @@
+import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useEffectEvent } from 'react';
 import {
   View,
@@ -43,6 +44,7 @@ interface AuthModalScreenProps {
 }
 
 export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuccess }) => {
+  const serviceAreas = useServiceAreas();
   const { requestOtp, verifyOtp, loginWithGoogle } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -262,7 +264,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
           </View>
           <View style={styles.regionBadge}>
             <Ionicons name="location-sharp" size={11} color={colors.primary} />
-            <Text style={styles.regionText}>Greater Noida</Text>
+            <Text style={styles.regionText}>{serviceAreas}</Text>
           </View>
         </View>
 
@@ -368,7 +370,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
           <>
             <Text style={styles.title}>Link Phone Number</Text>
             <Text style={styles.subtitle}>
-              Riders and restaurants need a mobile number to contact you regarding deliveries in Greater Noida.
+              Riders and restaurants need a mobile number to contact you regarding deliveries in {serviceAreas}.
             </Text>
 
             <View style={styles.inputContainer}>

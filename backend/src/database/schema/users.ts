@@ -82,7 +82,7 @@ export const customerAddresses = pgTable(
     addressLine1: text('address_line1').notNull(),
     addressLine2: text('address_line2'),
     landmark: varchar('landmark', { length: 100 }),
-    city: varchar('city', { length: 50 }).default('Greater Noida').notNull(),
+    city: varchar('city', { length: 50 }).notNull(),
     postalCode: varchar('postal_code', { length: 10 }).notNull(),
     latitude: numeric('latitude', { precision: 10, scale: 7 }).notNull(),
     longitude: numeric('longitude', { precision: 10, scale: 7 }).notNull(),

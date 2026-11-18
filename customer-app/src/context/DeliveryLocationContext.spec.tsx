@@ -27,7 +27,8 @@ jest.mock('../api/client', () => ({
   apiRequest: jest.fn(async (path: string) => (path === '/public/service-zones' ? zones : addresses)),
 }));
 
-import { DeliveryLocationProvider, useDeliveryLocation } from './DeliveryLocationContext';
+import { apiRequest } from '../api/client';
+import { DeliveryLocationProvider, formatServiceAreas, useDeliveryLocation } from './DeliveryLocationContext';
 
 function capture() {
   const seen: { current: ReturnType<typeof useDeliveryLocation> | null } = { current: null };
@@ -55,7 +56,19 @@ async function mount() {
 
 describe('DeliveryLocationContext', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     for (const k of Object.keys(store)) delete store[k];
+  });
+
+  it('formats active names and uses generic copy without zones', () => {
+    expect(formatServiceAreas([...zones, zones[0]])).toBe('Knowledge Park II and Knowledge Park III');
+    expect(formatServiceAreas([])).toBe('our delivery area');
+  });
+
+  it('reuses the zone request when refreshing', async () => {
+    const seen = await mount();
+    await act(async () => seen.current!.refresh());
+    expect(jest.mocked(apiRequest).mock.calls.filter(([path]) => path === '/public/service-zones')).toHaveLength(1);
   });
 
   it('signed out: browses the first service area, never a hard-coded address', async () => {

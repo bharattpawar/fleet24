@@ -4,16 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/tokens';
 
 interface RiderHeaderProps {
+  serviceArea: string;
   profileImageUrl?: string | null;
   onProfilePress?: () => void;
 }
 
-export function RiderHeader({ profileImageUrl, onProfilePress }: RiderHeaderProps) {
+export function RiderHeader({ serviceArea, profileImageUrl, onProfilePress }: RiderHeaderProps) {
   return (
     <View style={styles.header}>
       <View>
         <Text accessibilityRole="header" style={styles.title}>Fleet24 <Text style={styles.rider}>Rider</Text></Text>
-        <Text style={styles.area}>Greater Noida Central</Text>
+        <Text style={styles.area}>{serviceArea}</Text>
       </View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open account" onPress={onProfilePress} style={styles.profile}>
         {profileImageUrl ? <Image source={{ uri: profileImageUrl }} style={styles.avatar} /> :
