@@ -146,7 +146,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             </View>
 
             <View style={styles.billRow}>
-              <Text style={styles.billLabel}>Govt Taxes (GST 5%)</Text>
+              <Text style={styles.billLabel}>Govt Taxes (GST)</Text>
               <Text style={styles.billValue}>₹{parseFloat(order.taxAmount).toFixed(0)}</Text>
             </View>
 

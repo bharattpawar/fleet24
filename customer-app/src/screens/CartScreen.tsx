@@ -37,6 +37,7 @@ import {
   ActiveOrderWarningModal,
 } from '../components/ActiveOrderWarningModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { taxLabel } from '../utils/taxes';
 
 // Ensures in-app browser handles complete auth/checkout sessions properly
 WebBrowser.maybeCompleteAuthSession();
@@ -685,7 +686,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
           </View>
 
           <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Govt Taxes (GST 5%)</Text>
+            <Text style={styles.billLabel}>{taxLabel(cart.taxes)}</Text>
             <Text style={styles.billValue}>₹{cart.taxAmount.toFixed(0)}</Text>
           </View>
 

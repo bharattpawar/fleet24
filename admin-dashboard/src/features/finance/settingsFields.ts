@@ -7,6 +7,8 @@ export interface SettingsField {
   optional?: boolean;
   options?: string[];
   checkbox?: boolean;
+  /** Shown when a saved version has no value yet (e.g. settings added later). */
+  defaultValue?: number;
 }
 
 export const sections: { key: string; title: string; fields: SettingsField[] }[] = [
@@ -46,6 +48,10 @@ export const sections: { key: string; title: string; fields: SettingsField[] }[]
     { key: 'minDeliveryMinutes', label: 'Minimum delivery time shown to customers (minutes)', integer: true, min: 5, max: 120, optional: true },
     { key: 'handlingMinutes', label: 'Prep + pickup time added to travel (minutes)', integer: true, min: 0, max: 120, optional: true },
     { key: 'riderPickupRadiusMeters', label: 'Rider search radius around the restaurant (meters)', integer: true, min: 500, max: 20000, optional: true },
+  ] },
+  { key: 'taxes', title: 'Taxes (GST)', fields: [
+    { key: 'foodGstPercent', label: 'GST on food (%)', max: 28, defaultValue: 5 },
+    { key: 'deliveryFeeGstPercent', label: 'GST on delivery fee (%)', max: 28, defaultValue: 0 },
   ] },
 ];
 

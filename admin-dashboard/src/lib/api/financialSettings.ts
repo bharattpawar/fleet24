@@ -37,6 +37,7 @@ export interface SettingsPayload {
     handlingMinutes?: number;
     riderPickupRadiusMeters?: number;
   };
+  taxes?: { foodGstPercent: number; deliveryFeeGstPercent: number };
 }
 
 export interface SettingsVersion {

@@ -33,6 +33,13 @@ export interface DeliveryServiceabilityConfig {
   riderPickupRadiusMeters?: number;
 }
 
+export interface TaxesConfig {
+  /** GST charged on the food (item total), in percent. Default 5. */
+  foodGstPercent: number;
+  /** GST charged on the customer delivery fee, in percent. Default 0. */
+  deliveryFeeGstPercent: number;
+}
+
 export interface FinancialSettingsPayload {
   riderEarnings: {
     calculationStrategy: 'fixed_per_delivery' | 'distance_rate' | 'base_plus_distance' | 'distance_slabs';
@@ -68,6 +75,7 @@ export interface FinancialSettingsPayload {
     peakBonusFlat?: number;
   };
   deliveryServiceability?: DeliveryServiceabilityConfig;
+  taxes?: TaxesConfig;
 }
 
 /**

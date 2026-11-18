@@ -62,6 +62,10 @@ export class FinancialSettingsService {
       handlingMinutes: 10,
       riderPickupRadiusMeters: 3000,
     },
+    taxes: {
+      foodGstPercent: 5,
+      deliveryFeeGstPercent: 0,
+    },
   };
 
   constructor(
@@ -880,6 +884,15 @@ export class FinancialSettingsService {
         !Number.isInteger(p.deliveryServiceability.maxRoadDistanceMeters)
       ) {
         throw new BadRequestException('maxRoadDistanceMeters must be a positive whole integer');
+      }
+    }
+
+    if (p.taxes) {
+      for (const key of ['foodGstPercent', 'deliveryFeeGstPercent'] as const) {
+        const value = p.taxes[key];
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 28) {
+          throw new BadRequestException(`${key} must be between 0 and 28`);
+        }
       }
     }
   }

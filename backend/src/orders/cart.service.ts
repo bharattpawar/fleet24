@@ -16,6 +16,8 @@ import { calculateDistanceKm } from '../common/utils/geo';
 import { isUsableLocation } from '../users/address-location.util';
 import { DeliveryEtaSettings, estimateDeliveryEta } from '../common/utils/delivery-eta';
 import { RoutingService } from '../routing/routing.service';
+import { computeTaxes, type TaxBreakdown } from '../common/utils/taxes';
+import type { FinancialSettingsPayload } from '../database/schema/financial-settings';
 
 export interface CalculatedCartItem {
   id: string; // cart item id
@@ -39,6 +41,8 @@ export interface CalculatedCartSummary {
   itemTotal: number;
   deliveryFee: number;
   taxAmount: number;
+  /** Split of taxAmount, with the GST rates the admin set. */
+  taxes: TaxBreakdown;
   discountAmount: number;
   totalPayable: number;
 }
@@ -191,9 +195,11 @@ export class CartService {
 
     // Dynamic Delivery Fee & Free Delivery calculation based on Financial Settings
     let deliveryFee = 0.0;
+    let activeSettings: FinancialSettingsPayload | null = null;
     if (itemTotal > 0) {
       try {
         const { settings } = await this.financialSettingsService.getActiveSettings(client);
+        activeSettings = settings;
         const cfg = settings.customerDeliveryFee;
 
         // Count prior eligible orders for this customer (Delivered or actively confirmed/preparing orders)
@@ -225,8 +231,9 @@ export class CartService {
       }
     }
 
-    // Standard 5% GST on restaurant services
-    const taxAmount = this.toMoney(itemTotal * 0.05);
+    // GST on food and on the delivery fee, at the rates set by the admin
+    const taxes = computeTaxes({ itemTotal, deliveryFee, settings: activeSettings });
+    const taxAmount = taxes.taxAmount;
     const discountAmount = 0.0;
     const totalPayable = this.toMoney(itemTotal + deliveryFee + taxAmount - discountAmount);
 
@@ -241,6 +248,7 @@ export class CartService {
       itemTotal,
       deliveryFee,
       taxAmount,
+      taxes,
       discountAmount,
       totalPayable,
     };

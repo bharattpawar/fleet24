@@ -196,6 +196,18 @@ export class DeliveryServiceabilityConfigDto {
   riderPickupRadiusMeters?: number;
 }
 
+export class TaxesConfigDto {
+  @IsNumber()
+  @Min(0)
+  @Max(28)
+  foodGstPercent!: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(28)
+  deliveryFeeGstPercent!: number;
+}
+
 export class FinancialSettingsPayloadDto {
   @IsNotEmpty()
   @ValidateNested()
@@ -226,6 +238,11 @@ export class FinancialSettingsPayloadDto {
   @ValidateNested()
   @Type(() => DeliveryServiceabilityConfigDto)
   deliveryServiceability?: DeliveryServiceabilityConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TaxesConfigDto)
+  taxes?: TaxesConfigDto;
 }
 
 export class CreateFinancialSettingsDraftDto {

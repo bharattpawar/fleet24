@@ -299,6 +299,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       itemTotal: 200,
       deliveryFee: 30,
       taxAmount: 10,
+      taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 10, deliveryFeeTax: 0, taxAmount: 10 },
       discountAmount: 0,
       totalPayable: 240,
     };
@@ -400,6 +401,60 @@ describe('Cart & Orders Management (Unit Tests)', () => {
         routingProvider: 'google',
       });
       expect(mockDb.delete).toHaveBeenCalled(); // Cart consumed after successful commit
+    });
+
+    it('charges the GST rates the admin set on food and on the delivery fee', async () => {
+      jest.spyOn(cartService, 'getCart').mockResolvedValue(validCart);
+      mockFinancialSettingsService.getActiveSettings.mockResolvedValue({
+        versionId: 'test-v1',
+        versionNumber: 1,
+        settings: {
+          customerDeliveryFee: { freeOrderThresholdCount: 0, baseDeliveryFeeAfterFree: 30.0, cancelledOrdersConsumeFreeQuota: false },
+          deliveryServiceability: { maxRoadDistanceMeters: 3000 },
+          taxes: { foodGstPercent: 12, deliveryFeeGstPercent: 18 },
+        },
+      });
+      mockDb.query.customerAddresses.findFirst.mockResolvedValueOnce({
+        id: 'addr-kp3',
+        userId: customerId,
+        label: 'Hostel',
+        addressLine1: 'Room 312, Boys Hostel',
+        city: 'Greater Noida',
+        postalCode: '201306',
+        latitude: '28.4744000',
+        longitude: '77.4912000',
+      });
+      mockDb.query.restaurantOutlets.findFirst.mockResolvedValueOnce({
+        id: outletId,
+        latitude: outletLatitude,
+        longitude: outletLongitude,
+        deliveryRadiusKm: '3.00',
+      });
+      mockRoutingService.getRoute.mockResolvedValueOnce({
+        distanceMeters: 2200,
+        durationSeconds: 300,
+        provider: 'google',
+        status: 'OK',
+        calculatedAt: new Date(),
+        cached: false,
+      });
+
+      let insertedPayload: any = null;
+      mockDb.insert.mockReturnValue({
+        values: jest.fn().mockImplementation((payload) => {
+          if (payload.orderNumber) insertedPayload = payload;
+          return {
+            returning: jest.fn().mockResolvedValue([
+              { id: 'order-gst', orderNumber: 'FL-GST', status: 'pending_payment', deliveryAddressSnapshot: payload.deliveryAddressSnapshot, placedAt: new Date() },
+            ]),
+          };
+        }),
+      });
+
+      await ordersService.checkout(customerId, { deliveryAddressId: 'addr-kp3' });
+      // 12% of 200 = 24, 18% of 30 = 5.40
+      expect(insertedPayload.taxAmount).toBe('29.40');
+      expect(insertedPayload.totalPayable).toBe('259.40');
     });
 
     it('2. Address beyond 3 km: checkout rejected with clear error', async () => {
@@ -686,6 +741,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       itemTotal: 300,
       deliveryFee: 30,
       taxAmount: 15,
+      taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 15, deliveryFeeTax: 0, taxAmount: 15 },
       discountAmount: 0,
       totalPayable: 345,
     };
@@ -1087,6 +1143,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       itemTotal: 200.0,
       deliveryFee: 30.0,
       taxAmount: 10.0,
+      taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 10.0, deliveryFeeTax: 0, taxAmount: 10.0 },
       discountAmount: 0.0,
       totalPayable: 240.0,
     };
@@ -1465,6 +1522,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       itemTotal: 250.0,
       deliveryFee: 30.0,
       taxAmount: 12.5,
+      taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 12.5, deliveryFeeTax: 0, taxAmount: 12.5 },
       discountAmount: 0.0,
       totalPayable: 292.5,
       itemCount: 1,

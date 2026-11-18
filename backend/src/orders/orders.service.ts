@@ -23,6 +23,7 @@ import { TrackingPublisherService } from '../tracking/tracking-publisher.service
 import { FinancialSettingsService } from '../admin/financial-settings.service';
 import { RiderOffersService } from '../riders/rider-offers.service';
 import { RoutingService } from '../routing/routing.service';
+import { computeTaxes } from '../common/utils/taxes';
 
 @Injectable()
 export class OrdersService {
@@ -449,7 +450,11 @@ export class OrdersService {
         });
 
         const deliveryFee = feeResult.deliveryFee;
-        const taxAmount = txCart.taxAmount;
+        const taxAmount = computeTaxes({
+          itemTotal: txCart.itemTotal,
+          deliveryFee,
+          settings: effectiveSettings.settings,
+        }).taxAmount;
         const totalPayable = this.cartService.toMoney(
           txCart.itemTotal + deliveryFee + taxAmount - txCart.discountAmount,
         );

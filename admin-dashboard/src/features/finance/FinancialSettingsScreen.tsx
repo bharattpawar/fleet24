@@ -8,9 +8,9 @@ type Values = Record<string, string>;
 const allFields = sections.flatMap((section) => section.fields.map((field) => ({
   ...field, key: section.key + '.' + field.key,
 })));
-const readValues = (payload: SettingsPayload): Values => Object.fromEntries(allFields.map(({ key }) => {
+const readValues = (payload: SettingsPayload): Values => Object.fromEntries(allFields.map(({ key, defaultValue }) => {
   const [group, name] = key.split('.');
-  const value = (payload[group as keyof SettingsPayload] as Record<string, unknown> | undefined)?.[name];
+  const value = (payload[group as keyof SettingsPayload] as Record<string, unknown> | undefined)?.[name] ?? defaultValue;
   return [key, value == null ? '' : String(value)];
 }));
 const display = (value: string) => value === 'true' ? 'Yes' : value === 'false' ? 'No' : value.replaceAll('_', ' ') || '—';

@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { apiRequest } from '../api/client';
 import { useAuth } from './AuthContext';
 import { USE_MOCK_DATA, MOCK_CART, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
+import { estimateTaxes, type CartTaxes } from '../utils/taxes';
 
 export interface CartItem {
   id: string; // cart item id
@@ -27,6 +28,8 @@ export interface CartData {
   itemTotal: number;
   deliveryFee: number;
   taxAmount: number;
+  /** GST rates and split, set by the admin (missing on older servers). */
+  taxes?: CartTaxes;
   discountAmount: number;
   totalPayable: number;
 }
@@ -98,7 +101,8 @@ const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const itemTotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const deliveryFee = items.length > 0 ? 30.0 : 0.0;
-  const taxAmount = Number((itemTotal * 0.05).toFixed(2));
+  const taxes = estimateTaxes(itemTotal, deliveryFee, currentCart.taxes);
+  const taxAmount = taxes.taxAmount;
   const discountAmount = 0.0;
   const totalPayable = Number((itemTotal + deliveryFee + taxAmount - discountAmount).toFixed(2));
 
@@ -109,6 +113,7 @@ const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => 
     itemTotal,
     deliveryFee,
     taxAmount,
+    taxes,
     discountAmount,
     totalPayable,
   };
