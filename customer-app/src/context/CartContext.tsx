@@ -42,6 +42,7 @@ export interface CartData {
   itemCount: number;
   itemTotal: number;
   deliveryFee: number;
+  deliveryFeePending?: boolean;
   taxAmount: number;
   /** GST rates and split, set by the admin (missing on older servers). */
   taxes?: CartTaxes;
@@ -105,24 +106,33 @@ const saveGuestCartToStorage = async (guestCart: CartData | null): Promise<void>
 };
 
 // Helper to safely load guest cart
+const restoreGuestCart = (data: string): CartData => {
+  const stored: CartData = JSON.parse(data);
+  // Legacy guest carts persisted a locally invented fee.
+  return stored.deliveryFeePending === undefined
+    ? recalculateCart({ ...stored, deliveryFeePending: true }, stored.items)
+    : stored;
+};
+
 const getGuestCartFromStorage = async (): Promise<CartData | null> => {
   try {
     if (Platform.OS === 'web') {
       const data = localStorage.getItem(GUEST_CART_STORAGE_KEY);
-      return data ? JSON.parse(data) : null;
+      return data ? restoreGuestCart(data) : null;
     }
     const data = await SecureStore.getItemAsync(GUEST_CART_STORAGE_KEY);
-    return data ? JSON.parse(data) : null;
+    return data ? restoreGuestCart(data) : null;
   } catch {
     return null;
   }
 };
 
 // Helper to recalculate cart totals
-const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => {
+export const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const itemTotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const deliveryFee = items.length > 0 ? 30.0 : 0.0;
+  const deliveryFeePending = currentCart.deliveryFeePending === true;
+  const deliveryFee = items.length > 0 && !deliveryFeePending ? currentCart.deliveryFee : 0;
   const taxes = estimateTaxes(itemTotal, deliveryFee, currentCart.taxes);
   const taxAmount = taxes.taxAmount;
   const discountAmount = 0.0;
@@ -134,6 +144,7 @@ const recalculateCart = (currentCart: CartData, items: CartItem[]): CartData => 
     itemCount,
     itemTotal,
     deliveryFee,
+    deliveryFeePending,
     taxAmount,
     taxes,
     discountAmount,
@@ -277,6 +288,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               itemCount: 0,
               itemTotal: 0,
               deliveryFee: 0,
+              deliveryFeePending: true,
               taxAmount: 0,
               discountAmount: 0,
               totalPayable: 0,

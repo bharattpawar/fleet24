@@ -99,16 +99,14 @@ describe('Step 6 Backend Verification: Order Acceptance & Delivery Radius Enforc
     };
 
     mockFinancialSettings = {
+      calculateCustomerDeliveryFee: FinancialSettingsService.prototype.calculateCustomerDeliveryFee,
       getActiveSettings: jest.fn().mockResolvedValue({
         versionId: 'test-v1',
         versionNumber: 1,
         settings: {
-          customerDeliveryFee: {
-            baseFee: 30,
-            freeDeliveryThresholdOrders: 3,
-            cancelledOrdersConsumeFreeQuota: false,
-          },
+          ...FinancialSettingsService.DEFAULT_SETTINGS,
           deliveryServiceability: {
+            ...FinancialSettingsService.DEFAULT_SETTINGS.deliveryServiceability,
             maxRoadDistanceMeters: 3000,
           },
         },

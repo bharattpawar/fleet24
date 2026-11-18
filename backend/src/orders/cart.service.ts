@@ -5,6 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, inArray, sql } from 'drizzle-orm';
@@ -61,6 +62,8 @@ export interface CalculatedCartSummary {
 
 @Injectable()
 export class CartService {
+  private readonly logger = new Logger(CartService.name);
+
   constructor(
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
@@ -221,7 +224,14 @@ export class CartService {
       try {
         const { settings } = await this.financialSettingsService.getActiveSettings(client);
         activeSettings = settings;
-        const cfg = settings.customerDeliveryFee;
+      } catch {
+        this.logger.warn('Could not read financial settings for cart pricing. Using defaults.');
+        activeSettings = FinancialSettingsService.DEFAULT_SETTINGS;
+      }
+
+      let priorEligibleOrdersCount: number;
+      try {
+        const cfg = activeSettings.customerDeliveryFee;
 
         // Count prior eligible orders for this customer (Delivered or actively confirmed/preparing orders)
         // Orders with pending_payment do NOT permanently consume quota; however active checkouts are guarded during atomic checkout creation.
@@ -239,17 +249,17 @@ export class CartService {
             ),
           );
 
-        const priorOrdersCount = orderCountResult?.count ?? 0;
-        const feeResult = this.financialSettingsService.calculateCustomerDeliveryFee({
-          settings,
-          priorEligibleOrdersCount: priorOrdersCount,
-        });
-
-        deliveryFee = feeResult.deliveryFee;
-      } catch (err) {
-        // Fallback to approved baseline 30.00
-        deliveryFee = 30.0;
+        priorEligibleOrdersCount = orderCountResult?.count ?? 0;
+      } catch {
+        this.logger.warn('Could not check the cart free delivery quota. Using the standard default fee.');
+        activeSettings = FinancialSettingsService.DEFAULT_SETTINGS;
+        priorEligibleOrdersCount = activeSettings.customerDeliveryFee.freeOrderThresholdCount;
       }
+
+      deliveryFee = this.financialSettingsService.calculateCustomerDeliveryFee({
+        settings: activeSettings,
+        priorEligibleOrdersCount,
+      }).deliveryFee;
     }
 
     // Admin coupon, re-checked on every read (dates, limits, minimum order)

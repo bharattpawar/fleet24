@@ -698,7 +698,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
 
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>Delivery Partner Fee</Text>
-            <Text style={styles.billValue}>₹{cart.deliveryFee.toFixed(0)}</Text>
+            <Text style={styles.billValue}>{cart.deliveryFeePending ? 'at checkout' : `₹${cart.deliveryFee.toFixed(0)}`}</Text>
           </View>
 
           {cart.discountAmount > 0 && (
