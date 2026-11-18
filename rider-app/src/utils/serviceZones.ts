@@ -29,3 +29,9 @@ export function zoneAtLocation(zones: ServiceZone[], point: Point | null): strin
   }
   return nearestName;
 }
+
+export function firstZoneCenter(zones: ServiceZone[]): Point | null {
+  const first = zones[0];
+  if (!first) return null;
+  return { latitude: first.centerLatitude, longitude: first.centerLongitude };
+}

@@ -1,3 +1,5 @@
+import { loadServiceZones } from '../api/serviceZones';
+import { firstZoneCenter } from '../utils/serviceZones';
 import { Platform, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import { riderApi, RiderLocationUpdate } from '../api/riderApi';
@@ -33,7 +35,11 @@ class RiderLocationService {
   private offlinePendingLocation: RiderLocationUpdate | null = null;
 
   public setMockMode(enabled: boolean) {
-    this.isMockMode = enabled;
+    const mockMode = __DEV__ && enabled;
+    if (mockMode === this.isMockMode) return;
+    this.isMockMode = mockMode;
+    this.lastLocation = null;
+    this.lastAcquiredMs = 0;
   }
 
   public setDelivering(delivering: boolean) {
@@ -223,9 +229,15 @@ class RiderLocationService {
   public async getCurrentPosition(): Promise<RiderLocationUpdate | null> {
     // 1. Explicit Mock Mode check
     if (this.isMockMode) {
+      const zones = await loadServiceZones().catch(() => []);
+      if (!this.isMockMode) return null;
+      const point = firstZoneCenter(zones);
+      if (!point) {
+        this.setStatus('error');
+        return null;
+      }
       const mockUpdate: RiderLocationUpdate = {
-        latitude: 28.4744,
-        longitude: 77.504,
+        ...point,
         accuracy: 5,
         heading: 90,
         speed: 0,
