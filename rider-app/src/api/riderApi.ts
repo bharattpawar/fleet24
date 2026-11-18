@@ -13,6 +13,8 @@ export interface RiderProfile {
   availabilityStatus: 'available' | 'busy' | 'offline';
   isSuspended: boolean;
   suspensionReason: string | null;
+  /** Why admin rejected the application (only when verificationStatus is 'rejected'). */
+  rejectionReason?: string | null;
   approvedAt: string | null;
   user: {
     id: string;

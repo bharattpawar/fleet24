@@ -10,6 +10,8 @@ import {
   smallint,
   uniqueIndex,
   index,
+  jsonb,
+  date,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { restaurantVerificationStatusEnum } from './enums';
@@ -59,6 +61,40 @@ export const restaurantDocuments = pgTable(
   },
   (table) => [
     index('restaurant_documents_restaurant_id_idx').on(table.restaurantId),
+  ],
+);
+
+/**
+ * Self-registration details a restaurant owner submits from the restaurant app.
+ * One row per restaurant; restaurants created by admin have none. Admin verifies these
+ * numbers (by call or visit) before approving the restaurant.
+ */
+export const restaurantApplications = pgTable(
+  'restaurant_applications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    restaurantId: uuid('restaurant_id')
+      .notNull()
+      .references(() => restaurants.id, { onDelete: 'cascade' }),
+    applicantUserId: uuid('applicant_user_id').references(() => users.id, { onDelete: 'set null' }),
+    ownerName: varchar('owner_name', { length: 100 }).notNull(),
+    ownerEmail: varchar('owner_email', { length: 255 }),
+    contactPhone: varchar('contact_phone', { length: 20 }).notNull(),
+    cuisines: jsonb('cuisines').$type<string[]>().default([]).notNull(),
+    fssaiNumber: varchar('fssai_number', { length: 14 }).notNull(),
+    fssaiExpiry: date('fssai_expiry'),
+    panNumber: varchar('pan_number', { length: 10 }).notNull(),
+    gstin: varchar('gstin', { length: 15 }),
+    bankAccountHolder: varchar('bank_account_holder', { length: 100 }).notNull(),
+    bankAccountNumber: varchar('bank_account_number', { length: 20 }).notNull(),
+    bankIfsc: varchar('bank_ifsc', { length: 11 }).notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('restaurant_applications_restaurant_id_idx').on(table.restaurantId),
+    index('restaurant_applications_applicant_idx').on(table.applicantUserId),
   ],
 );
 
@@ -113,6 +149,14 @@ export const restaurantsRelations = relations(restaurants, ({ one, many }) => ({
   }),
   outlets: many(restaurantOutlets),
   documents: many(restaurantDocuments),
+  application: one(restaurantApplications),
+}));
+
+export const restaurantApplicationsRelations = relations(restaurantApplications, ({ one }) => ({
+  restaurant: one(restaurants, {
+    fields: [restaurantApplications.restaurantId],
+    references: [restaurants.id],
+  }),
 }));
 
 export const restaurantDocumentsRelations = relations(restaurantDocuments, ({ one }) => ({

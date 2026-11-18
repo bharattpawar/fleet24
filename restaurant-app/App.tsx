@@ -18,6 +18,9 @@ import { RestaurantOrdersScreen } from './src/screens/RestaurantOrdersScreen';
 import { RestaurantMenuScreen } from './src/screens/RestaurantMenuScreen';
 import { RestaurantOutletsScreen } from './src/screens/RestaurantOutletsScreen';
 import { RestaurantProfileScreen } from './src/screens/RestaurantProfileScreen';
+import { RestaurantRegistrationScreen } from './src/screens/RestaurantRegistrationScreen';
+import { RestaurantApplicationStatusScreen } from './src/screens/RestaurantApplicationStatusScreen';
+import { restaurantGate } from './src/utils/restaurantOnboarding';
 
 type MainTab = 'orders' | 'menu' | 'outlets' | 'profile';
 
@@ -25,8 +28,9 @@ const MainNavigator: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWide = width >= 1000;
 
-  const { isAuthenticated, isLoading } = useRestaurantAuth();
+  const { isAuthenticated, isLoading, applicationStatus } = useRestaurantAuth();
   const [currentTab, setCurrentTab] = useState<MainTab>('orders');
+  const [isEditingApplication, setIsEditingApplication] = useState(false);
 
   if (isLoading) {
     return (
@@ -40,8 +44,24 @@ const MainNavigator: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
+  // New restaurants register, then wait for admin approval before the kitchen opens.
+  const gate = restaurantGate({ isAuthenticated, applicationStatus, isEditingApplication });
+
+  if (gate === 'login') {
     return <RestaurantLoginScreen />;
+  }
+
+  if (gate === 'register') {
+    return (
+      <RestaurantRegistrationScreen
+        onCancel={isEditingApplication ? () => setIsEditingApplication(false) : undefined}
+        onSubmitted={() => setIsEditingApplication(false)}
+      />
+    );
+  }
+
+  if (gate !== 'app') {
+    return <RestaurantApplicationStatusScreen onEditApplication={() => setIsEditingApplication(true)} />;
   }
 
   const navItems: Array<{ key: MainTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [

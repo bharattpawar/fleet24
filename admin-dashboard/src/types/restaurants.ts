@@ -79,6 +79,23 @@ export interface RestaurantDetail {
   owner: RestaurantOwner | null;
   outlets: RestaurantOutlet[];
   documents: RestaurantDocument[];
+  /** Details the owner submitted from the restaurant app; null for restaurants set up by admin. */
+  application?: RestaurantSelfApplication | null;
+}
+
+export interface RestaurantSelfApplication {
+  ownerName: string;
+  ownerEmail: string | null;
+  contactPhone: string;
+  cuisines: string[];
+  fssaiNumber: string;
+  fssaiExpiry: string | null;
+  panNumber: string;
+  gstin: string | null;
+  bankAccountHolder: string;
+  bankAccountNumber: string;
+  bankIfsc: string;
+  submittedAt: string;
 }
 
 export interface RestaurantApplicationsQuery {

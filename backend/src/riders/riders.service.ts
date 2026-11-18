@@ -53,8 +53,12 @@ export class RidersService {
       where: eq(schema.riders.userId, userId),
     });
 
+    // A rejected applicant may correct their details and apply again.
     if (existingRider) {
-      throw new ConflictException('Rider profile already exists for this user');
+      if (existingRider.verificationStatus !== 'rejected') {
+        throw new ConflictException('Rider profile already exists for this user');
+      }
+      return this.resubmitRejectedProfile(existingRider.id, userId, dto);
     }
 
     // Verify user exists and is active
@@ -95,8 +99,8 @@ export class RidersService {
           userId,
           fullName: dto.fullName || user.fullName,
           vehicleType: dto.vehicleType,
-          vehicleNumber: dto.vehicleNumber,
-          licenseNumber: dto.licenseNumber,
+          vehicleNumber: dto.vehicleNumber?.trim().toUpperCase() || null,
+          licenseNumber: dto.licenseNumber?.trim().toUpperCase() || null,
           dateOfBirth,
           profileImageUrl: dto.profileImageUrl ?? null,
           verificationStatus: 'pending',
@@ -105,6 +109,14 @@ export class RidersService {
           isVerified: false,
         })
         .returning();
+
+      // Keep the account name in step with the application when the user had none.
+      if (!user.fullName && dto.fullName?.trim()) {
+        await tx
+          .update(schema.users)
+          .set({ fullName: dto.fullName.trim(), updatedAt: new Date() })
+          .where(eq(schema.users.id, userId));
+      }
 
       this.logger.log(`Created rider profile ${rider.id} for user ${userId}`);
 
@@ -117,6 +129,30 @@ export class RidersService {
         },
       };
     });
+  }
+
+  /** Rejected applicant re-applies: details are replaced and the application goes back to pending. */
+  private async resubmitRejectedProfile(riderId: string, userId: string, dto: CreateRiderProfileDto) {
+    const [rider] = await this.db
+      .update(schema.riders)
+      .set({
+        fullName: dto.fullName.trim(),
+        vehicleType: dto.vehicleType,
+        vehicleNumber: dto.vehicleNumber?.trim().toUpperCase() || null,
+        licenseNumber: dto.licenseNumber?.trim().toUpperCase() || null,
+        verificationStatus: 'pending',
+        suspensionReason: null, // held the rejection reason
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.riders.id, riderId))
+      .returning();
+
+    const user = await this.db.query.users.findFirst({ where: eq(schema.users.id, userId) });
+    this.logger.log(`Rider ${riderId} (user ${userId}) re-applied after rejection`);
+    return {
+      ...rider,
+      user: { id: userId, phone: user?.phone ?? null, email: user?.email ?? null },
+    };
   }
 
   /**
@@ -144,8 +180,10 @@ export class RidersService {
       vehicleNumber: rider.vehicleNumber,
       licenseNumber: rider.licenseNumber,
       verificationStatus: rider.verificationStatus,
+      // Rejection reasons are stored in suspensionReason; expose them under a clear name for the app.
+      rejectionReason: rider.verificationStatus === 'rejected' ? rider.suspensionReason : null,
       availabilityStatus: rider.availabilityStatus,
-      isSuspended: !!rider.suspensionReason,
+      isSuspended: rider.verificationStatus !== 'rejected' && !!rider.suspensionReason,
       suspensionReason: rider.suspensionReason,
       approvedAt: rider.approvedAt,
       createdAt: rider.createdAt,
@@ -454,6 +492,8 @@ export class RidersService {
     if (isApproval) {
       updates.approvedAt = new Date();
       updates.approvedBy = adminUserId;
+      // Approving a previously rejected rider clears the old rejection reason.
+      if (rider.verificationStatus === 'rejected') updates.suspensionReason = null;
     } else {
       // Rejection: reset approval info and force offline
       updates.approvedAt = null;

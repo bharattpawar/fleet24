@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { authStorage } from '../api/storage';
+import { ApiError, refreshSession } from '../api/client';
 import { riderApi, RiderProfile, ActiveDeliveryDetails, DeliveryOfferItem, AvailableDeliveryOrder } from '../api/riderApi';
 import { riderSocket } from '../services/riderSocket';
 import { riderLocationService } from '../services/locationService';
@@ -12,6 +13,10 @@ interface RiderAuthContextType {
   isMockSession: boolean;
   isLoading: boolean;
   profile: RiderProfile | null;
+  /** Signed in, but no rider profile yet: show the registration form. */
+  needsRegistration: boolean;
+  /** Submit (or re-submit after rejection) the rider application. */
+  registerRider: (payload: { fullName: string; vehicleType: string; vehicleNumber?: string; licenseNumber?: string }) => Promise<RiderProfile>;
   activeDelivery: ActiveDeliveryDetails | null;
   activeOffer: DeliveryOfferItem | null;
   isOnline: boolean;
@@ -40,6 +45,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isMockSession, setIsMockSession] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [profile, setProfile] = useState<RiderProfile | null>(null);
+  const [needsRegistration, setNeedsRegistration] = useState<boolean>(false);
   const [activeDelivery, setActiveDelivery] = useState<ActiveDeliveryDetails | null>(null);
   const [activeOffer, setActiveOffer] = useState<DeliveryOfferItem | null>(null);
   const [availableOrdersError, setAvailableOrdersError] = useState(false);
@@ -91,9 +97,17 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const data = await riderApi.getProfile();
       setProfile(data);
+      setNeedsRegistration(false);
       setIsAuthenticated(true);
       return data;
     } catch (err: any) {
+      // Signed in but no rider profile yet (customer-only account, or rider role without a profile).
+      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+        setProfile(null);
+        setNeedsRegistration(true);
+        setIsAuthenticated(true);
+        return null;
+      }
       if (err.message && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
         await authStorage.clear();
         setIsAuthenticated(false);
@@ -169,8 +183,10 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         try {
           const prof = await refreshProfile();
           if (prof && isMounted) {
-            await refreshActiveDelivery();
-            await checkForPendingOffers();
+            if (prof.verificationStatus === 'approved') {
+              await refreshActiveDelivery();
+              await checkForPendingOffers();
+            }
             setIsLoading(false);
             return;
           }
@@ -349,21 +365,23 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsMockSession(false);
     setIsAuthenticated(true);
 
-    let prof = await refreshProfile();
-    if (!prof) {
-      // Auto-create rider profile if user is approved/onboarding
-      try {
-        prof = await riderApi.createProfile({
-          fullName: res.user?.fullName || 'Fleet24 Rider',
-          vehicleType: 'motorcycle',
-        });
-        setProfile(prof);
-      } catch (err: any) {
-        console.warn('Profile creation/fetch error:', err?.message);
-      }
+    // New riders get the registration form (needsRegistration); nothing is auto-created.
+    const prof = await refreshProfile();
+    if (prof?.verificationStatus === 'approved') {
+      await refreshActiveDelivery();
+      await checkForPendingOffers();
     }
-    await refreshActiveDelivery();
-    await checkForPendingOffers();
+  };
+
+  const registerRider: RiderAuthContextType['registerRider'] = async (payload) => {
+    const created = await riderApi.createProfile(payload);
+    // The rider role was just added on the server: get a token that carries it.
+    await refreshSession();
+    const fresh = await refreshProfile();
+    const result = fresh ?? created;
+    setProfile(result);
+    setNeedsRegistration(false);
+    return result;
   };
 
   /**
@@ -493,6 +511,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsAuthenticated(false);
     setIsMockSession(false);
     setProfile(null);
+    setNeedsRegistration(false);
     setActiveDelivery(null);
     setActiveOffer(null);
     setIsSocketConnected(false);
@@ -569,6 +588,8 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isMockSession,
         isLoading,
         profile,
+        needsRegistration,
+        registerRider,
         activeDelivery,
         activeOffer,
         availableOrders,

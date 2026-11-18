@@ -36,7 +36,7 @@ export function resetAuthFailureState() {
  * Single-flight refresh token rotation handler.
  * Concurrently queued requests await the same refresh operation.
  */
-async function attemptTokenRefresh(): Promise<string | null> {
+export async function attemptTokenRefresh(): Promise<string | null> {
   if (refreshPromise) {
     return refreshPromise;
   }

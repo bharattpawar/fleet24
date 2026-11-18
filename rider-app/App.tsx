@@ -9,12 +9,16 @@ import { RiderHomeScreen } from './src/screens/RiderHomeScreen';
 import { RiderEarningsScreen } from './src/screens/RiderEarningsScreen';
 import { RiderAccountScreen } from './src/screens/RiderAccountScreen';
 import { RiderLoginScreen } from './src/screens/RiderLoginScreen';
+import { RiderRegistrationScreen } from './src/screens/RiderRegistrationScreen';
+import { RiderApplicationStatusScreen } from './src/screens/RiderApplicationStatusScreen';
+import { riderGate, type RiderVehicleType } from './src/utils/riderOnboarding';
 
 type Tab = 'home' | 'earnings' | 'account';
 
 const MainNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading } = useRiderAuth();
+  const { isAuthenticated, isLoading, isMockSession, needsRegistration, profile } = useRiderAuth();
   const [currentTab, setCurrentTab] = useState<Tab>('home');
+  const [isEditingApplication, setIsEditingApplication] = useState(false);
 
   if (isLoading) {
     return (
@@ -25,8 +29,40 @@ const MainNavigator: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
+  // New riders register, then wait for admin approval before reaching the rider app.
+  const gate = riderGate({
+    isAuthenticated,
+    isMockSession,
+    needsRegistration,
+    isEditingApplication,
+    verificationStatus: profile?.verificationStatus ?? null,
+  });
+
+  if (gate === 'login') {
     return <RiderLoginScreen />;
+  }
+
+  if (gate === 'register') {
+    return (
+      <RiderRegistrationScreen
+        initial={
+          isEditingApplication && profile
+            ? {
+                fullName: profile.fullName ?? '',
+                vehicleType: profile.vehicleType as RiderVehicleType,
+                vehicleNumber: profile.vehicleNumber ?? '',
+                licenseNumber: profile.licenseNumber ?? '',
+              }
+            : undefined
+        }
+        onCancel={isEditingApplication ? () => setIsEditingApplication(false) : undefined}
+        onSubmitted={() => setIsEditingApplication(false)}
+      />
+    );
+  }
+
+  if (gate === 'pending' || gate === 'rejected') {
+    return <RiderApplicationStatusScreen onEditApplication={() => setIsEditingApplication(true)} />;
   }
 
   return (

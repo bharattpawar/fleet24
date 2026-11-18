@@ -17,6 +17,38 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+/** An error from the API that keeps the HTTP status (e.g. 403/404 = no rider profile yet). */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Exchanges the refresh token for a new session. Needed right after registering, because the
+ * rider role is added on the server and the current access token was issued without it.
+ */
+export async function refreshSession(): Promise<boolean> {
+  const refreshToken = await authStorage.getRefreshToken();
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    const tokens = body?.data?.tokens || body?.tokens;
+    if (!tokens?.accessToken) return false;
+    await authStorage.setTokens(tokens.accessToken, tokens.refreshToken || refreshToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -89,7 +121,7 @@ export async function apiRequest<T>(
       const errorMsg = Array.isArray(data?.message)
         ? data.message.join(', ')
         : data?.message || `Request failed with status ${response.status}`;
-      throw new Error(errorMsg);
+      throw new ApiError(errorMsg, response.status);
     }
 
     // Unpack NestJS response wrapper if present

@@ -420,6 +420,7 @@ export class AdminManagementService {
         owner: true,
         outlets: true,
         documents: true,
+        application: true,
       },
     });
 
@@ -451,6 +452,23 @@ export class AdminManagementService {
         : null,
       outlets: restaurant.outlets,
       documents: restaurant.documents,
+      // Self-registration details to verify (null for restaurants set up by admin).
+      application: restaurant.application
+        ? {
+            ownerName: restaurant.application.ownerName,
+            ownerEmail: restaurant.application.ownerEmail,
+            contactPhone: restaurant.application.contactPhone,
+            cuisines: restaurant.application.cuisines,
+            fssaiNumber: restaurant.application.fssaiNumber,
+            fssaiExpiry: restaurant.application.fssaiExpiry,
+            panNumber: restaurant.application.panNumber,
+            gstin: restaurant.application.gstin,
+            bankAccountHolder: restaurant.application.bankAccountHolder,
+            bankAccountNumber: restaurant.application.bankAccountNumber,
+            bankIfsc: restaurant.application.bankIfsc,
+            submittedAt: restaurant.application.submittedAt,
+          }
+        : null,
     };
   }
 

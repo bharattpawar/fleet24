@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Alert } from 'react-native';
 import { authStorage } from '../api/storage';
 import { restaurantApi } from '../api/restaurantApi';
-import { setAuthFailureListener, resetAuthFailureState } from '../api/client';
+import { setAuthFailureListener, resetAuthFailureState, attemptTokenRefresh } from '../api/client';
+import { onboardingApi, MyApplication } from '../api/onboardingApi';
+import type { ApplicationStatus } from '../utils/restaurantOnboarding';
 import { disconnectRestaurantSocket } from '../api/restaurantSocket';
 import { StaffUser, OperatingOutlet } from '../types';
 import { resolvePermissions, RestaurantPermissions } from '../utils/permissions';
@@ -20,6 +22,12 @@ interface RestaurantAuthContextType {
   refreshProfile: () => Promise<void>;
   toggleOrderAcceptance: (isAccepting: boolean, targetOutletId?: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Self-registration state: none = show the form; pending/rejected/suspended = status screen; approved = app. */
+  applicationStatus: ApplicationStatus | null;
+  myApplication: MyApplication | null;
+  /** Re-checks the application (used by the waiting screen); loads the kitchen once approved. */
+  checkApplication: () => Promise<ApplicationStatus>;
+  submitApplication: (payload: Record<string, unknown>) => Promise<void>;
 }
 
 const RestaurantAuthContext = createContext<RestaurantAuthContextType | undefined>(undefined);
@@ -30,6 +38,8 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
   const [staffUser, setStaffUser] = useState<StaffUser | null>(null);
   const [outlets, setOutlets] = useState<OperatingOutlet[]>([]);
   const [activeOutlet, setActiveOutletState] = useState<OperatingOutlet | null>(null);
+  const [myApplication, setMyApplication] = useState<MyApplication | null>(null);
+  const applicationStatus = myApplication?.status ?? null;
 
   /**
    * Centralized complete logout cleanup
@@ -46,6 +56,7 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
     setStaffUser(null);
     setOutlets([]);
     setActiveOutletState(null);
+    setMyApplication(null);
   }, []);
 
   /**
@@ -120,6 +131,19 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   /**
+   * Where this account stands: no restaurant yet, under review, rejected, or approved.
+   * Approved (or a restaurant set up by admin) loads the kitchen profile as before.
+   */
+  const checkApplication = useCallback(async (): Promise<ApplicationStatus> => {
+    const mine = await onboardingApi.getMyApplication();
+    if (mine.status === 'approved') {
+      if (!(await loadProfile())) throw new Error('This account does not have restaurant access.');
+    }
+    setMyApplication(mine);
+    return mine.status;
+  }, [loadProfile]);
+
+  /**
    * Initialize session restoration on mount
    */
   const initAuth = useCallback(async () => {
@@ -131,12 +155,8 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
         return;
       }
 
-      const success = await loadProfile();
-      if (success) {
-        setIsAuthenticated(true);
-      } else {
-        await logout();
-      }
+      await checkApplication();
+      setIsAuthenticated(true);
     } catch (err: any) {
       const isAuthError =
         err?.message?.includes('expired') ||
@@ -152,7 +172,7 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
     } finally {
       setIsLoading(false);
     }
-  }, [loadProfile, logout]);
+  }, [checkApplication, logout]);
 
   // Setup single-flight auth failure listener
   useEffect(() => {
@@ -185,7 +205,8 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       await authStorage.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
       resetAuthFailureState();
-      if (!(await loadProfile())) throw new Error('This account does not have restaurant access.');
+      // New owners land on the registration form; existing restaurants open the kitchen.
+      await checkApplication();
       setIsAuthenticated(true);
     } catch (error) {
       await logout();
@@ -195,6 +216,13 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
 
   const refreshProfile = async () => {
     await loadProfile();
+  };
+
+  const submitApplication = async (payload: Record<string, unknown>) => {
+    await onboardingApi.submitApplication(payload);
+    // The restaurant_staff role was just added on the server: get a token that carries it.
+    await attemptTokenRefresh();
+    await checkApplication();
   };
 
   const toggleOrderAcceptance = async (isAccepting: boolean, targetOutletId?: string) => {
@@ -246,6 +274,10 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
         refreshProfile,
         toggleOrderAcceptance,
         logout,
+        applicationStatus,
+        myApplication,
+        checkApplication,
+        submitApplication,
       }}
     >
       {children}

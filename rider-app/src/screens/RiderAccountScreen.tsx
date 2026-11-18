@@ -72,7 +72,7 @@ export const RiderAccountScreen: React.FC = () => {
     ]);
   };
 
-  const verificationStatus = profile?.verificationStatus || 'approved';
+  const verificationStatus = profile?.verificationStatus || 'pending';
   const isApproved = verificationStatus === 'approved';
 
   return (

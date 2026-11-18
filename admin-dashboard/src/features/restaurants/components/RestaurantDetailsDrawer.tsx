@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { restaurantsApi } from '@/lib/api/restaurants';
 import { KycDocumentReview } from './KycDocumentReview';
+import { ApplicationDetailsCard } from './ApplicationDetailsCard';
 import { OutletManagementTable } from './OutletManagementTable';
 import { MenuManagementTab } from './MenuManagementTab';
 import { EditRestaurantModal } from './EditRestaurantModal';
@@ -323,6 +324,9 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                       <p className="text-[11px] text-slate-600">No owner account linked.</p>
                     )}
                   </div>
+
+                  {/* Self-registration details (restaurants that signed up from the app) */}
+                  {data?.application && <ApplicationDetailsCard application={data.application} />}
 
                   {/* Suspension / Rejection Audit notes */}
                   {restaurant?.suspensionReason && (

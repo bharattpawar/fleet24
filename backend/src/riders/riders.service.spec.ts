@@ -148,6 +148,40 @@ describe('RidersService', () => {
     });
   });
 
+  describe('createProfile: re-applying after rejection', () => {
+    it('lets a rejected rider correct details and go back to pending', async () => {
+      mockDb.query.riders.findFirst.mockResolvedValueOnce({
+        ...mockRiderRecord,
+        verificationStatus: 'rejected',
+        suspensionReason: 'Licence photo unclear',
+      });
+      mockDb.query.users.findFirst.mockResolvedValueOnce(mockUser);
+      const set = jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValueOnce([{ ...mockRiderRecord, verificationStatus: 'pending' }]),
+        }),
+      });
+      mockDb.update.mockReturnValueOnce({ set });
+
+      const result = await service.createProfile('user-uuid-1', {
+        fullName: 'Ravi Kumar',
+        vehicleType: 'scooter',
+        vehicleNumber: ' up16cd9876 ',
+        licenseNumber: 'dl-456',
+      });
+
+      expect(result.verificationStatus).toBe('pending');
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verificationStatus: 'pending',
+          suspensionReason: null,
+          vehicleNumber: 'UP16CD9876',
+          licenseNumber: 'DL-456',
+        }),
+      );
+    });
+  });
+
   describe('updateAvailability', () => {
     const mockRiderSelect = (riderData: any, activeDeliveries: any[] = []) => {
       mockDb.select.mockImplementation(() => ({

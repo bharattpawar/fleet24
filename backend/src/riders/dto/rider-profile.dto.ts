@@ -8,6 +8,7 @@ import { IsLatitude, IsLongitude,
   IsInt,
   Min,
   Max,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -27,15 +28,19 @@ export class CreateRiderProfileDto {
   })
   vehicleType!: RiderVehicleType;
 
-  @IsNotEmpty()
+  /** Required for motor vehicles; optional for a bicycle. */
+  @ValidateIf((o: CreateRiderProfileDto) => o.vehicleType !== 'bicycle' || !!o.vehicleNumber)
+  @IsNotEmpty({ message: 'Vehicle number is required for this vehicle type.' })
   @IsString()
   @MaxLength(30)
-  vehicleNumber!: string;
+  vehicleNumber?: string;
 
-  @IsNotEmpty()
+  /** Driving licence number. Required for motor vehicles; optional for a bicycle. */
+  @ValidateIf((o: CreateRiderProfileDto) => o.vehicleType !== 'bicycle' || !!o.licenseNumber)
+  @IsNotEmpty({ message: 'Driving licence number is required for this vehicle type.' })
   @IsString()
   @MaxLength(50)
-  licenseNumber!: string;
+  licenseNumber?: string;
 
   @IsOptional()
   @IsDateString()
