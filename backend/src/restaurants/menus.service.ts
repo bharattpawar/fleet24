@@ -6,7 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { calculateDistanceKm, isWithinDeliveryRadius } from '../common/utils/geo';
@@ -221,6 +221,40 @@ export class MenusService {
         isOverridden: !!override,
       };
     });
+  }
+
+  /**
+   * Names of active menu categories that have at least one dish available at each outlet
+   * (outlet override first, else the dish's own availability). One query for all outlets.
+   */
+  async listAvailableCategoryNamesByOutlet(outletIds: string[]): Promise<Record<string, string[]>> {
+    const result: Record<string, string[]> = Object.fromEntries(outletIds.map((id) => [id, []]));
+    if (outletIds.length === 0) return result;
+
+    const rows = await this.db
+      .selectDistinct({ outletId: schema.restaurantOutlets.id, name: schema.menuCategories.name })
+      .from(schema.restaurantOutlets)
+      .innerJoin(schema.menuItems, eq(schema.menuItems.restaurantId, schema.restaurantOutlets.restaurantId))
+      .innerJoin(
+        schema.menuCategories,
+        and(eq(schema.menuCategories.id, schema.menuItems.categoryId), eq(schema.menuCategories.isActive, true)),
+      )
+      .leftJoin(
+        schema.outletMenuItemOverrides,
+        and(
+          eq(schema.outletMenuItemOverrides.outletId, schema.restaurantOutlets.id),
+          eq(schema.outletMenuItemOverrides.menuItemId, schema.menuItems.id),
+        ),
+      )
+      .where(
+        and(
+          inArray(schema.restaurantOutlets.id, outletIds),
+          sql`coalesce(${schema.outletMenuItemOverrides.isAvailable}, ${schema.menuItems.isAvailable}) = true`,
+        ),
+      );
+
+    for (const row of rows) result[row.outletId]?.push(row.name);
+    return result;
   }
 
   async getMenuItemById(itemId: string) {

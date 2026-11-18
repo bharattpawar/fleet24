@@ -94,15 +94,22 @@ export class CustomerHomeController {
     const sections = (records[0]?.published as Section[] | undefined)?.filter(section => !section.hidden) ?? [];
     const eligible = outlets.filter(outlet => outlet.isAcceptingOrders &&
       (lat === undefined || (outlet.latitude != null && outlet.longitude != null)));
-    const menus = new Map(await Promise.all(outlets.map(async outlet =>
-      [outlet.id, (await this.menus.listMenuItemsForOutlet(outlet.id))
-        .filter(item => item.effectiveIsAvailable && item.categoryIsActive)] as const,
-    )));
+    // Full menus only when a published section points at a dish or a category
+    const needsMenu = sections.some(section => section.targets.some(target => target.type === 'dish' || target.type === 'category'));
+    const [menuEntries, categoriesByOutlet] = await Promise.all([
+      needsMenu
+        ? Promise.all(eligible.map(async outlet =>
+            [outlet.id, (await this.menus.listMenuItemsForOutlet(outlet.id))
+              .filter(item => item.effectiveIsAvailable && item.categoryIsActive)] as const,
+          ))
+        : Promise.resolve([] as const),
+      // Cuisine chips: one query for all outlets instead of loading every menu
+      this.menus.listAvailableCategoryNamesByOutlet(outlets.map(outlet => outlet.id)),
+    ]);
+    const menus = new Map(menuEntries);
     return {
       outlets,
-      categoriesByOutlet: Object.fromEntries([...menus].map(([outletId, items]) =>
-        [outletId, [...new Set(items.map(item => item.categoryName).filter(Boolean))]],
-      )),
+      categoriesByOutlet,
       sections: sections.flatMap(section => {
         const cards = section.targets.flatMap(target => {
           const matches = eligible.flatMap(outlet => {

@@ -14,17 +14,17 @@ describe('Customer Home discovery', () => {
     }] }) };
     const menus = {
       getPublicActiveOutlets: jest.fn().mockResolvedValue([outlet('a'), outlet('b'), outlet('closed', false)]),
-      listMenuItemsForOutlet: jest.fn().mockResolvedValue([
-        { categoryName: 'Main Course', effectiveIsAvailable: true, categoryIsActive: true },
-        { categoryName: 'Main Course', effectiveIsAvailable: true, categoryIsActive: true },
-        { categoryName: 'Sides', effectiveIsAvailable: false, categoryIsActive: true },
-      ]),
+      listMenuItemsForOutlet: jest.fn().mockResolvedValue([]),
+      listAvailableCategoryNamesByOutlet: jest.fn().mockResolvedValue({ a: ['Main Course'], b: ['Main Course'], closed: ['Main Course'] }),
     };
     const controller = new CustomerHomeController(db as never, menus as never);
     const result = await controller.feed('28.48', '77.51');
     expect(menus.getPublicActiveOutlets).toHaveBeenCalledWith(28.48, 77.51);
     expect(result.outlets).toHaveLength(3);
     expect(result.categoriesByOutlet).toEqual({ a: ['Main Course'], b: ['Main Course'], closed: ['Main Course'] });
+    expect(menus.listAvailableCategoryNamesByOutlet).toHaveBeenCalledWith(['a', 'b', 'closed']);
+    // Only outlet rows are published, so no full menu is loaded
+    expect(menus.listMenuItemsForOutlet).not.toHaveBeenCalled();
     expect(result.sections.map(section => section.title)).toEqual(['Featured']);
     expect(result.sections[0].cards.map(card => card.outlet.id)).toEqual(['b', 'a']);
   });
