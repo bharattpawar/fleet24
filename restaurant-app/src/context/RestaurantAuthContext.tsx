@@ -17,7 +17,6 @@ interface RestaurantAuthContextType {
   setActiveOutlet: (outlet: OperatingOutlet) => Promise<void>;
   requestOtp: (phone: string) => Promise<{ cooldownSeconds: number; expiresInSeconds: number }>;
   verifyOtp: (phone: string, otp: string) => Promise<void>;
-  loginWithPhoneOnly: (phone: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   toggleOrderAcceptance: (isAccepting: boolean, targetOutletId?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -182,28 +181,15 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
 
   const verifyOtp = async (phone: string, otp: string) => {
     const res = await restaurantApi.verifyOtp(phone, otp);
-    if (res.tokens?.accessToken) {
+    if (!res.tokens?.accessToken) throw new Error('Sign-in did not return an access token.');
+    try {
       await authStorage.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
       resetAuthFailureState();
-      const success = await loadProfile();
-      if (success) {
-        setIsAuthenticated(true);
-      }
-    }
-  };
-
-  const loginWithPhoneOnly = async (phone: string) => {
-    // 1. Request OTP (creates OTP challenge on backend)
-    await restaurantApi.requestOtp(phone);
-    // 2. Immediately verify with dev bypass OTP '123456'
-    const res = await restaurantApi.verifyOtp(phone, '123456');
-    if (res.tokens?.accessToken) {
-      await authStorage.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
-      resetAuthFailureState();
-      const success = await loadProfile();
-      if (success) {
-        setIsAuthenticated(true);
-      }
+      if (!(await loadProfile())) throw new Error('This account does not have restaurant access.');
+      setIsAuthenticated(true);
+    } catch (error) {
+      await logout();
+      throw error;
     }
   };
 
@@ -257,7 +243,6 @@ export const RestaurantAuthProvider: React.FC<{ children: React.ReactNode }> = (
         setActiveOutlet,
         requestOtp,
         verifyOtp,
-        loginWithPhoneOnly,
         refreshProfile,
         toggleOrderAcceptance,
         logout,

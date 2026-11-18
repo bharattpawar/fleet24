@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { canVerifyOtp, otpDeadlines, secondsRemaining } from '../utils/otp';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -17,31 +18,62 @@ import { colors } from '../theme/tokens';
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
 
 export const RestaurantLoginScreen: React.FC = () => {
-  const { loginWithPhoneOnly } = useRestaurantAuth();
+  const { requestOtp, verifyOtp } = useRestaurantAuth();
   const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [challenge, setChallenge] = useState<({ phone: string } & ReturnType<typeof otpDeadlines>) | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const devAuth = __DEV__ && process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS === 'true';
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    if (!challenge) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [challenge]);
+
+  const sendCode = async () => {
+    if (isLoading || (challenge && secondsRemaining(challenge.resendAt, Date.now()) > 0)) return;
     setError(null);
-    if (loading) return;
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length !== 10) {
+    if (!challenge && !(/^[6-9]\d{9}$/.test(phone) || (devAuth && /^\d{10}$/.test(phone)))) {
       setError('Enter a valid 10-digit mobile number.');
       return;
     }
 
-    setLoading(true);
+    const targetPhone = challenge?.phone ?? `+91${phone}`;
+    setIsLoading(true);
     try {
-      await loginWithPhoneOnly(`+91${cleaned}`);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to authenticate. Please check phone number.');
+      const response = await requestOtp(targetPhone);
+      const issuedAt = Date.now();
+      setNow(issuedAt);
+      setChallenge({ phone: targetPhone, ...otpDeadlines(response, issuedAt) });
+      setOtp('');
+      if (devAuth && !challenge) await verifyOtp(targetPhone, '123456');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not send the verification code.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const isLoading = loading;
+  const verifyCode = async () => {
+    if (isLoading || !challenge || !canVerifyOtp(otp, challenge.expiresAt, Date.now())) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await verifyOtp(challenge.phone, otp);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not verify the code.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resendIn = challenge ? secondsRemaining(challenge.resendAt, now) : 0;
+  const expiresIn = challenge ? secondsRemaining(challenge.expiresAt, now) : 0;
+  const submitDisabled = isLoading || (challenge !== null && !canVerifyOtp(otp, challenge.expiresAt, now));
+  const submit = challenge ? verifyCode : sendCode;
   const { width } = useWindowDimensions();
   const wide = width >= 800;
 
@@ -59,49 +91,78 @@ export const RestaurantLoginScreen: React.FC = () => {
             </View>
             <View style={[styles.form, wide && styles.formWide]}>
 
-              <Text style={styles.intro}>Enter your registered mobile number.</Text>
-              <Text style={styles.label}>Mobile number</Text>
-              <View style={styles.field}>
-                <Text style={styles.prefix}>+91</Text>
-                <TextInput
-                  accessibilityLabel="Mobile number"
-                  style={styles.input}
-                  value={phone}
-                  onChangeText={value => {
-                    setError(null);
-                    setPhone(value.replace(/\D/g, ''));
-                  }}
-                  placeholder="Enter mobile number"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType={"phone-pad"}
-                  autoComplete={"tel-national"}
-                  editable={!isLoading}
-                  maxLength={10}
-                  onSubmitEditing={handleLogin}
-                />
-              </View>
+              {challenge ? (
+                <>
+                  <Text style={styles.intro}>Enter the verification code sent to {challenge.phone}.</Text>
+                  <Text style={styles.label}>Verification code</Text>
+                  <View style={styles.field}>
+                    <TextInput
+                      accessibilityLabel="Verification code"
+                      style={styles.input}
+                      value={otp}
+                      onChangeText={(value) => { setOtp(value.replace(/\D/g, '').slice(0, 6)); setError(null); }}
+                      keyboardType="number-pad"
+                      autoComplete="one-time-code"
+                      editable={!isLoading && expiresIn > 0}
+                      maxLength={6}
+                      onSubmitEditing={verifyCode}
+                    />
+                  </View>
+                  <Text style={styles.label}>{expiresIn > 0 ? `Code expires in ${expiresIn}s` : 'Code expired'}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.intro}>Enter your registered mobile number.</Text>
+                  <Text style={styles.label}>Mobile number</Text>
+                  <View style={styles.field}>
+                    <Text style={styles.prefix}>+91</Text>
+                    <TextInput
+                      accessibilityLabel="Mobile number"
+                      style={styles.input}
+                      value={phone}
+                      onChangeText={value => {
+                        setError(null);
+                        setPhone(value.replace(/\D/g, ''));
+                      }}
+                      placeholder="Enter mobile number"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType={"phone-pad"}
+                      autoComplete={"tel-national"}
+                      editable={!isLoading}
+                      maxLength={10}
+                      onSubmitEditing={sendCode}
+                    />
+                  </View>
+                </>
+              )}
               {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityState={{ disabled: isLoading, busy: isLoading }}
-                style={[styles.button, isLoading && styles.busy]}
-                disabled={isLoading}
-                onPress={handleLogin}
+                accessibilityState={{ disabled: submitDisabled, busy: isLoading }}
+                style={[styles.button, submitDisabled && styles.busy]}
+                disabled={submitDisabled}
+                onPress={submit}
               >
                 {isLoading ? <ActivityIndicator color={colors.textWhite} /> : (
                   <>
-                    <Text style={styles.buttonText}>Continue</Text>
+                    <Text style={styles.buttonText}>{challenge ? 'Verify code' : 'Send code'}</Text>
                     <Ionicons name="arrow-forward" size={21} color={colors.textWhite} />
                   </>
                 )}
               </TouchableOpacity>
-              {__DEV__ && (
-                <TouchableOpacity accessibilityRole="button" style={styles.link} disabled={isLoading} onPress={() => {
-                  setPhone('9876543210');
-                  setError(null);
-                }}>
-                  <Text style={styles.linkText}>Use test number</Text>
-                </TouchableOpacity>
+              {challenge && (
+                <>
+                  <TouchableOpacity accessibilityRole="button" style={styles.link} disabled={isLoading || resendIn > 0} onPress={sendCode}>
+                    <Text style={styles.linkText}>{resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={styles.link} disabled={isLoading} onPress={() => {
+                    setChallenge(null);
+                    setOtp('');
+                    setError(null);
+                  }}>
+                    <Text style={styles.linkText}>Change mobile number</Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </View>
