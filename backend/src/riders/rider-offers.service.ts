@@ -98,6 +98,29 @@ export class RiderOffersService {
   }
 
   /**
+   * Throws unless the rider may see or take deliveries: verified by an admin and not suspended.
+   * Self-registration grants the `rider` role while verification is still 'pending', so role
+   * checks alone are not enough for any path that exposes orders or customer addresses.
+   */
+  static assertRiderCanTakeDeliveries(rider: { verificationStatus?: string | null; suspensionReason?: string | null }) {
+    if (rider.verificationStatus !== 'approved') {
+      throw new ForbiddenException(
+        `Rider verification status is '${rider.verificationStatus}'. Only approved riders can take deliveries.`,
+      );
+    }
+    if (rider.suspensionReason) {
+      throw new ForbiddenException('Rider is currently suspended and cannot take deliveries.');
+    }
+  }
+
+  /** Resolves the rider for the user and asserts they are approved and not suspended. */
+  async getEligibleRiderForUser(userId: string) {
+    const rider = await this.getRiderForUser(userId);
+    RiderOffersService.assertRiderCanTakeDeliveries(rider);
+    return rider;
+  }
+
+  /**
    * GET /api/v1/riders/orders/offers
    * Returns active, unexpired delivery offers belonging to the authenticated rider.
    */
@@ -201,7 +224,7 @@ export class RiderOffersService {
    * Enables manual browsing and self-claiming for QA testing or open marketplace mode.
    */
   async getAvailableDeliveriesPool(userId: string) {
-    const rider = await this.getRiderForUser(userId);
+    const rider = await this.getEligibleRiderForUser(userId);
 
     // Fetch active non-delivered orders
     const claimableOrders = await this.db.query.orders.findMany({
@@ -322,7 +345,7 @@ export class RiderOffersService {
    * Assigns the delivery to the authenticated rider and transitions to active delivery.
    */
   async claimDelivery(userId: string, orderId: string) {
-    const rider = await this.getRiderForUser(userId);
+    const rider = await this.getEligibleRiderForUser(userId);
 
     return await this.db.transaction(async (tx) => {
       const now = new Date();
@@ -337,6 +360,8 @@ export class RiderOffersService {
       if (!riderRow) {
         throw new NotFoundException('Rider profile record not found');
       }
+      // Re-check under the row lock: an admin may have suspended or rejected the rider meanwhile.
+      RiderOffersService.assertRiderCanTakeDeliveries(riderRow);
 
       if (riderRow.currentActiveOrdersCount >= riderRow.maxActiveOrders) {
         throw new ConflictException(
@@ -569,7 +594,7 @@ export class RiderOffersService {
    * Atomically locks delivery and rider, checks unexpired status, converts pending offer to active delivery.
    */
   async acceptOffer(userId: string, orderId: string) {
-    const rider = await this.getRiderForUser(userId);
+    const rider = await this.getEligibleRiderForUser(userId);
 
     return await this.db.transaction(async (tx) => {
       const now = new Date();
@@ -622,6 +647,8 @@ export class RiderOffersService {
       if (!riderRow) {
         throw new NotFoundException('Rider profile record not found');
       }
+      // Re-check under the row lock: an admin may have suspended or rejected the rider meanwhile.
+      RiderOffersService.assertRiderCanTakeDeliveries(riderRow);
 
       if (riderRow.currentActiveOrdersCount >= riderRow.maxActiveOrders) {
         throw new ConflictException('Rider maximum active orders capacity reached');

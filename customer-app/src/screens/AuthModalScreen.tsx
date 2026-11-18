@@ -161,6 +161,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
    * Instantly authenticates as verified Demo Customer with bypass 123456
    */
   const handleQuickDemoLogin = async () => {
+    if (!__DEV__) return;
     const targetPhone = '+919876543210';
     setIsLoading(true);
     setErrorMessage(null);
@@ -278,7 +279,8 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
               Fast, hot meals from your favorite campus & neighborhood outlets.
             </Text>
 
-            {/* Quick Demo Customer Sign-In (1-Tap Fast Testing) */}
+            {/* Quick Demo Customer Sign-In (1-Tap Fast Testing) — development builds only */}
+            {__DEV__ && (
             <TouchableOpacity
               style={styles.demoLoginButton}
               onPress={handleQuickDemoLogin}
@@ -296,6 +298,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
                 </>
               )}
             </TouchableOpacity>
+            )}
 
             {/* Google Sign-In Primary / One-Tap Button */}
             <TouchableOpacity
@@ -416,15 +419,17 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
               </Text>
             </Text>
 
-            {/* Quick Autofill Dev Code Button */}
-            <TouchableOpacity
-              style={styles.autofillDevBtn}
-              onPress={() => setOtp('123456')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="key" size={14} color="#166534" />
-              <Text style={styles.autofillDevText}>⚡ Tap to autofill test OTP: 123456</Text>
-            </TouchableOpacity>
+            {/* Quick Autofill Dev Code Button — development builds only */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={styles.autofillDevBtn}
+                onPress={() => setOtp('123456')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="key" size={14} color="#166534" />
+                <Text style={styles.autofillDevText}>⚡ Tap to autofill test OTP: 123456</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.otpInputContainer}>
               <TextInput
