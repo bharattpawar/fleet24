@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { plainToInstance } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
 
@@ -19,13 +20,18 @@ export class EnvironmentVariables {
   @IsString()
   DATABASE_URL!: string;
 
+  /** Comma-separated allowed browser origins. Required in production. */
   @IsString()
   @IsOptional()
-  CORS_ORIGINS: string = 'http://localhost:3000,http://localhost:8081,http://172.20.10.2:4000';
+  CORS_ORIGINS?: string;
 
+  /**
+   * Required in production (min 32 chars). Outside production, a per-installation secret is
+   * derived from DATABASE_URL when unset, so no secret published in source ever signs tokens.
+   */
   @IsString()
   @IsOptional()
-  JWT_ACCESS_SECRET: string = 'fleet24_dev_super_secret_access_jwt_key_2026';
+  JWT_ACCESS_SECRET?: string;
 
   @IsString()
   @IsOptional()
@@ -47,6 +53,14 @@ export class EnvironmentVariables {
   @IsOptional()
   OTP_MAX_ATTEMPTS: number = 5;
 
+  /**
+   * Enables the development OTP (123456/000000) and mock Google token shortcuts.
+   * Honoured only when NODE_ENV=development; ignored everywhere else.
+   */
+  @IsString()
+  @IsOptional()
+  ALLOW_DEV_AUTH_BYPASS: string = 'false';
+
   @IsString()
   @IsOptional()
   SMS_PROVIDER: string = 'mock'; // 'mock' | 'twilio' | 'msg91'
@@ -54,6 +68,19 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   GOOGLE_CLIENT_ID?: string;
+
+  /** Comma-separated Google OAuth client IDs (web, iOS, Android) accepted as ID-token audiences. */
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_IDS?: string;
+
+  /**
+   * Comma-separated allowlist of payment return URL prefixes (deep-link schemes or https origins).
+   * Defaults to the Fleet24 app scheme plus Expo development schemes.
+   */
+  @IsString()
+  @IsOptional()
+  PAYMENT_RETURN_URL_ALLOWLIST?: string;
 
   @IsString()
   @IsOptional()
@@ -77,7 +104,7 @@ export class EnvironmentVariables {
 
   /**
    * 256-bit (32-byte) hex-encoded key for AES-256-GCM delivery OTP encryption.
-   * If not explicitly provided, a default dev key is used in development/test.
+   * Required in production. A fixed dev key is used only when NODE_ENV is development or test.
    */
   @IsString()
   @IsOptional()
@@ -142,5 +169,34 @@ export function validate(config: Record<string, unknown>) {
     );
   }
 
+  if (validatedConfig.NODE_ENV === Environment.Production) {
+    const missing: string[] = [];
+    if (!validatedConfig.JWT_ACCESS_SECRET || validatedConfig.JWT_ACCESS_SECRET.length < 32) {
+      missing.push('JWT_ACCESS_SECRET (at least 32 characters)');
+    }
+    if (!validatedConfig.DELIVERY_OTP_ENCRYPTION_KEY) missing.push('DELIVERY_OTP_ENCRYPTION_KEY');
+    if (!validatedConfig.RAZORPAY_WEBHOOK_SECRET) missing.push('RAZORPAY_WEBHOOK_SECRET');
+    if (!validatedConfig.CORS_ORIGINS) missing.push('CORS_ORIGINS');
+    if (!validatedConfig.GOOGLE_CLIENT_IDS && !validatedConfig.GOOGLE_CLIENT_ID) {
+      missing.push('GOOGLE_CLIENT_IDS');
+    }
+    if (missing.length > 0) {
+      throw new Error(
+        `[Fleet24 Backend Startup Error] Refusing to start in production. Missing or weak: ${missing.join(', ')}`,
+      );
+    }
+  } else if (!validatedConfig.JWT_ACCESS_SECRET) {
+    // Never sign tokens with a secret that is published in source code. Derive a per-installation
+    // dev secret from DATABASE_URL so it stays stable across dev-server restarts.
+    validatedConfig.JWT_ACCESS_SECRET = createHash('sha256')
+      .update(`fleet24-dev-jwt:${validatedConfig.DATABASE_URL}`)
+      .digest('hex');
+  }
+
   return validatedConfig;
+}
+
+/** True only for an explicit development opt-in; never true in production, test or when NODE_ENV is unset. */
+export function isDevAuthBypassEnabled(env: { NODE_ENV?: string; ALLOW_DEV_AUTH_BYPASS?: string }): boolean {
+  return env.NODE_ENV === Environment.Development && env.ALLOW_DEV_AUTH_BYPASS === 'true';
 }

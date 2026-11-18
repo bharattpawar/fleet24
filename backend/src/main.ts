@@ -59,12 +59,14 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
-      if (
-        allowedOrigins.length === 0 ||
-        allowedOrigins.includes(origin) ||
+      const isProduction = configService.get<string>('NODE_ENV') === 'production';
+      const isLocalDevOrigin =
         origin.startsWith('http://localhost:') ||
         origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('http://172.20.10.2:')
+        origin.startsWith('http://172.20.10.2:');
+      if (
+        allowedOrigins.includes(origin) ||
+        (!isProduction && (allowedOrigins.length === 0 || isLocalDevOrigin))
       ) {
         return callback(null, true);
       }
