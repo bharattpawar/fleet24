@@ -60,6 +60,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [customerInstructions, setCustomerInstructions] = useState('');
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [repinTarget, setRepinTarget] = useState<Address | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
 
@@ -157,6 +158,17 @@ export const CartScreen: React.FC<CartScreenProps> = ({
     setSelectedAddress(created);
   };
 
+  const handleUpdateAddress = async (addressId: string, changes: Partial<Omit<Address, 'id'>>) => {
+    const updated = await apiRequest<Address>(`/users/addresses/${addressId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    });
+    setAddresses((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    setSelectedAddress(updated);
+    setRepinTarget(null);
+    return updated;
+  };
+
   const checkoutFeedback = (
     <>
       {checkoutNotice && (
@@ -247,6 +259,12 @@ export const CartScreen: React.FC<CartScreenProps> = ({
     }
 
     if (!selectedAddress) {
+      setIsAddressModalOpen(true);
+      return;
+    }
+
+    if (selectedAddress.needsLocationConfirmation) {
+      setRepinTarget(selectedAddress);
       setIsAddressModalOpen(true);
       return;
     }
@@ -572,7 +590,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             <TouchableOpacity
               style={styles.selectedAddressPreview}
               activeOpacity={0.7}
-              onPress={() => setIsAddressModalOpen(true)}
+              onPress={() => {
+                if (selectedAddress.needsLocationConfirmation) setRepinTarget(selectedAddress);
+                setIsAddressModalOpen(true);
+              }}
             >
               <View style={styles.selectedAddressBadge}>
                 <Text style={styles.selectedAddressBadgeText}>
@@ -584,8 +605,11 @@ export const CartScreen: React.FC<CartScreenProps> = ({
               </Text>
               <Text style={styles.selectedAddress2} numberOfLines={1}>
                 {selectedAddress.addressLine2 ? `${selectedAddress.addressLine2}, ` : ''}
-                {selectedAddress.city || 'Greater Noida'} ({selectedAddress.postalCode})
+                {[selectedAddress.city, selectedAddress.postalCode].filter(Boolean).join(' ')}
               </Text>
+              {selectedAddress.needsLocationConfirmation ? (
+                <Text style={styles.confirmLocationHint}>Tap to confirm this location on the map</Text>
+              ) : null}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -705,9 +729,11 @@ export const CartScreen: React.FC<CartScreenProps> = ({
               <Text style={styles.checkoutBtnText}>
                 {!isAuthenticated
                   ? 'Sign In to Order'
-                  : selectedAddress
-                  ? 'Proceed to Pay'
-                  : 'Select Address'}
+                  : !selectedAddress
+                  ? 'Select Address'
+                  : selectedAddress.needsLocationConfirmation
+                  ? 'Confirm delivery location'
+                  : 'Proceed to Pay'}
               </Text>
               <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
             </>
@@ -722,7 +748,12 @@ export const CartScreen: React.FC<CartScreenProps> = ({
         selectedAddressId={selectedAddress?.id || null}
         onSelectAddress={(addr) => setSelectedAddress(addr)}
         onAddAddress={handleAddNewAddress}
-        onClose={() => setIsAddressModalOpen(false)}
+        onUpdateAddress={handleUpdateAddress}
+        repinAddress={repinTarget}
+        onClose={() => {
+          setIsAddressModalOpen(false);
+          setRepinTarget(null);
+        }}
       />
 
       {/* Order Confirmation Modal */}
@@ -732,6 +763,12 @@ export const CartScreen: React.FC<CartScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  confirmLocationHint: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8C3A1C',
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

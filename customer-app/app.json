@@ -12,7 +12,7 @@
       "bundleIdentifier": "com.fleet24.app",
       "infoPlist": {
         "UIBackgroundModes": ["location", "fetch", "remote-notification"],
-        "NSLocationWhenInUseUsageDescription": "Fleet24 needs your location to track deliveries in real time.",
+        "NSLocationWhenInUseUsageDescription": "Fleet24 uses your location to set your delivery address and track your order.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Fleet24 requires background location to dispatch and track active delivery operations.",
         "NSLocationAlwaysUsageDescription": "Fleet24 requires background location to track active delivery routes."
       }

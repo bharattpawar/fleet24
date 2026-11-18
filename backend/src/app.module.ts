@@ -13,6 +13,7 @@ import { RidersModule } from './riders/riders.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { AdminDashboardModule } from './admin/admin-dashboard.module';
 import { RoutingModule } from './routing/routing.module';
+import { GeoModule } from './geo/geo.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RoutingModule } from './routing/routing.module';
     TrackingModule,
     AdminDashboardModule,
     RoutingModule,
+    GeoModule,
   ],
 })
 export class AppModule {}

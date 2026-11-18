@@ -4,12 +4,14 @@ import {
   Post,
   Patch,
   Body,
+  Param,
+  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from '../auth/dto/auth.dto';
-import { CreateAddressDto } from './dto/address.dto';
+import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
 
@@ -50,5 +52,16 @@ export class UsersController {
   ) {
     return this.usersService.createAddress(user.userId, dto);
   }
-}
 
+  /**
+   * Update a saved address, e.g. to re-pin its location on the map.
+   */
+  @Patch('addresses/:addressId')
+  async updateAddress(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('addressId', new ParseUUIDPipe()) addressId: string,
+    @Body() dto: UpdateAddressDto,
+  ) {
+    return this.usersService.updateAddress(user.userId, addressId, dto);
+  }
+}

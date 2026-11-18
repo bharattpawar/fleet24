@@ -11,6 +11,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { isUsableLocation } from '../users/address-location.util';
 import { CheckoutDto, CancelOrderDto, OrderPaginationDto } from './dto/order.dto';
 import { CartService } from './cart.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -143,6 +144,12 @@ export class OrdersService {
     ) {
       throw new BadRequestException(
         'Selected delivery address is missing location coordinates.',
+      );
+    }
+
+    if (!isUsableLocation(address.latitude, address.longitude)) {
+      throw new BadRequestException(
+        'Please confirm this delivery address on the map before placing the order.',
       );
     }
 

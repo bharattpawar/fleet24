@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
-  TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from './Button';
+import { LocationPicker, PickedAddress } from './location/LocationPicker';
 
 export interface Address {
   id: string;
@@ -24,6 +22,8 @@ export interface Address {
   latitude: string;
   longitude: string;
   isDefault?: boolean;
+  /** Set by the API for addresses saved before map pinning; they must be re-pinned before checkout. */
+  needsLocationConfirmation?: boolean;
 }
 
 interface AddressSelectionModalProps {
@@ -32,6 +32,10 @@ interface AddressSelectionModalProps {
   selectedAddressId: string | null;
   onSelectAddress: (address: Address) => void;
   onAddAddress: (newAddress: Omit<Address, 'id'>) => Promise<void>;
+  /** Saves a re-pinned/edited address. Without it, unconfirmed addresses cannot be re-pinned here. */
+  onUpdateAddress?: (addressId: string, changes: Partial<Omit<Address, 'id'>>) => Promise<Address>;
+  /** Open straight into re-pinning this address (e.g. checkout found an unconfirmed location). */
+  repinAddress?: Address | null;
   onClose: () => void;
 }
 
@@ -41,58 +45,39 @@ export const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({
   selectedAddressId,
   onSelectAddress,
   onAddAddress,
+  onUpdateAddress,
+  repinAddress,
   onClose,
 }) => {
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [label, setLabel] = useState('Home');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
-  const [landmark, setLandmark] = useState('');
-  const [city, setCity] = useState('Greater Noida');
-  const [postalCode, setPostalCode] = useState('201310');
-  const [isSaving, setIsSaving] = useState(false);
+  const [picker, setPicker] = useState<null | { mode: 'create' } | { mode: 'repin'; address: Address }>(null);
 
-  const resetForm = () => {
-    setLabel('Home');
-    setAddressLine1('');
-    setAddressLine2('');
-    setLandmark('');
-    setCity('Greater Noida');
-    setPostalCode('201310');
-    setIsAddingNew(false);
+  useEffect(() => {
+    if (visible && repinAddress && onUpdateAddress) setPicker({ mode: 'repin', address: repinAddress });
+    if (!visible) setPicker(null);
+  }, [visible, repinAddress, onUpdateAddress]);
+
+  const closeAll = () => {
+    setPicker(null);
+    onClose();
   };
 
-  const handleSave = async () => {
-    if (!addressLine1.trim()) {
-      Alert.alert('Required Field', 'Please enter your house/flat or street address.');
-      return;
+  const handlePicked = async (picked: PickedAddress) => {
+    if (picker?.mode === 'repin' && onUpdateAddress) {
+      const updated = await onUpdateAddress(picker.address.id, picked);
+      onSelectAddress(updated);
+    } else {
+      await onAddAddress({ ...picked, isDefault: addresses.length === 0 });
     }
-    if (!postalCode.trim() || postalCode.trim().length < 6) {
-      Alert.alert('Invalid PIN Code', 'Please enter a valid 6-digit postal code.');
-      return;
-    }
+    closeAll();
+  };
 
-    try {
-      setIsSaving(true);
-      await onAddAddress({
-        label: label.trim() || 'Home',
-        addressLine1: addressLine1.trim(),
-        addressLine2: addressLine2.trim() || undefined,
-        landmark: landmark.trim() || undefined,
-        city: city.trim() || 'Greater Noida',
-        postalCode: postalCode.trim(),
-        // Realistic Greater Noida residential coordinates (Sector Alpha 1, ~1.8km from KP III)
-        latitude: '28.4855000',
-        longitude: '77.5135000',
-        isDefault: addresses.length === 0,
-      });
-      resetForm();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save address';
-      Alert.alert('Error', msg);
-    } finally {
-      setIsSaving(false);
+  const handleTapAddress = (item: Address) => {
+    if (item.needsLocationConfirmation && onUpdateAddress) {
+      setPicker({ mode: 'repin', address: item });
+      return;
     }
+    onSelectAddress(item);
+    onClose();
   };
 
   return (
@@ -100,169 +85,113 @@ export const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={() => (picker ? setPicker(null) : onClose())}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {isAddingNew ? 'Add Delivery Address' : 'Select Delivery Address'}
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              if (isAddingNew) {
-                setIsAddingNew(false);
-              } else {
-                onClose();
-              }
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
+      {picker ? (
+        <LocationPicker
+          initial={picker.mode === 'repin' ? picker.address : undefined}
+          title={picker.mode === 'repin' ? 'Confirm delivery location' : undefined}
+          onCancel={() => setPicker(null)}
+          onSubmit={handlePicked}
+        />
+      ) : (
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle} accessibilityRole="header">Select delivery address</Text>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={styles.closeBtn}
+            >
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
-          {isAddingNew ? (
-            <View style={styles.form}>
-              <Text style={styles.inputLabel}>ADDRESS LABEL</Text>
-              <View style={styles.labelChips}>
-                {['Home', 'Hostel', 'Campus', 'Work'].map((tag) => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={[styles.tagChip, label === tag && styles.tagChipActive]}
-                    onPress={() => setLabel(tag)}
-                  >
-                    <Text
-                      style={[styles.tagText, label === tag && styles.tagTextActive]}
-                    >
-                      {tag}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+          <ScrollView contentContainerStyle={styles.content}>
+            <TouchableOpacity
+              style={styles.addNewBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              onPress={() => setPicker({ mode: 'create' })}
+            >
+              <Ionicons name="add-circle" size={20} color={colors.primary} />
+              <Text style={styles.addNewText}>Add new address</Text>
+            </TouchableOpacity>
 
-              <Text style={styles.inputLabel}>HOUSE / FLAT / BLOCK NO. *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Flat 302, Tower B or Room 14, Boys Hostel"
-                placeholderTextColor={colors.textMuted}
-                value={addressLine1}
-                onChangeText={setAddressLine1}
-              />
-
-              <Text style={styles.inputLabel}>STREET / SOCIETY / AREA</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Stellar Mi City Homes, Knowledge Park III"
-                placeholderTextColor={colors.textMuted}
-                value={addressLine2}
-                onChangeText={setAddressLine2}
-              />
-
-              <Text style={styles.inputLabel}>LANDMARK</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Near Pari Chowk / Opposite Sharda Gate 2"
-                placeholderTextColor={colors.textMuted}
-                value={landmark}
-                onChangeText={setLandmark}
-              />
-
-              <View style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>CITY</Text>
-                  <TextInput
-                    style={[styles.input, styles.disabledInput]}
-                    value={city}
-                    editable={false}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>PIN CODE *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="201310"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={postalCode}
-                    onChangeText={setPostalCode}
-                  />
-                </View>
-              </View>
-
-              <Button
-                title="Save & Deliver Here"
-                variant="primary"
-                size="lg"
-                loading={isSaving}
-                onPress={handleSave}
-                style={{ marginTop: spacing.lg }}
-              />
-            </View>
-          ) : (
-            <View>
-              {addresses.map((item) => {
-                const isSelected = item.id === selectedAddressId;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.addressCard, isSelected && styles.addressCardSelected]}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      onSelectAddress(item);
-                      onClose();
-                    }}
-                  >
-                    <View style={styles.addressLeft}>
-                      <View
-                        style={[
-                          styles.radioCircle,
-                          isSelected && styles.radioCircleActive,
-                        ]}
-                      >
-                        {isSelected && <View style={styles.radioDot} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.labelRow}>
-                          <Text style={styles.cardLabel}>{item.label || 'Saved Address'}</Text>
-                          {item.isDefault && (
-                            <View style={styles.defaultPill}>
-                              <Text style={styles.defaultPillText}>Default</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.cardAddress1} numberOfLines={1}>
-                          {item.addressLine1}
-                        </Text>
-                        <Text style={styles.cardAddress2} numberOfLines={2}>
-                          {item.addressLine2 ? `${item.addressLine2}, ` : ''}
-                          {item.landmark ? `Near ${item.landmark}, ` : ''}
-                          {item.city || 'Greater Noida'} ({item.postalCode})
-                        </Text>
-                      </View>
+            {addresses.map((item) => {
+              const isSelected = item.id === selectedAddressId;
+              const needsPin = !!item.needsLocationConfirmation;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.addressCard, isSelected && styles.addressCardSelected]}
+                  activeOpacity={0.8}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityHint={needsPin ? 'Opens the map to confirm this address location' : undefined}
+                  onPress={() => handleTapAddress(item)}
+                >
+                  <View style={styles.addressLeft}>
+                    <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                      {isSelected && <View style={styles.radioDot} />}
                     </View>
-                  </TouchableOpacity>
-                );
-              })}
-
-              <TouchableOpacity
-                style={styles.addNewBtn}
-                activeOpacity={0.7}
-                onPress={() => setIsAddingNew(true)}
-              >
-                <Ionicons name="add-circle" size={20} color={colors.primary} />
-                <Text style={styles.addNewText}>Add New Delivery Address</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-      </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.cardLabel}>{item.label || 'Saved address'}</Text>
+                        {item.isDefault && (
+                          <View style={styles.defaultPill}>
+                            <Text style={styles.defaultPillText}>Default</Text>
+                          </View>
+                        )}
+                        {needsPin && (
+                          <View style={styles.confirmPill}>
+                            <Ionicons name="location" size={12} color="#8C3A1C" />
+                            <Text style={styles.confirmPillText}>Confirm location</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.cardAddress1} numberOfLines={1}>
+                        {item.addressLine1}
+                      </Text>
+                      <Text style={styles.cardAddress2} numberOfLines={2}>
+                        {item.addressLine2 ? `${item.addressLine2}, ` : ''}
+                        {item.landmark ? `Near ${item.landmark}, ` : ''}
+                        {[item.city, item.postalCode].filter(Boolean).join(' ')}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FDF3EC',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  confirmPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#8C3A1C',
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
