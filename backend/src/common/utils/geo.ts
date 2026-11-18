@@ -133,8 +133,13 @@ export function isWithinDeliveryRadius(
 export interface DistanceResult {
   distanceMeters: number;
   distanceKm: number;
+  /** Within the 3 km legacy threshold. Prefer isWithinRadius. */
   isWithin3Km: boolean;
+  /** Within the radius passed to calculateRiderProximity (default 3000 m). */
+  isWithinRadius: boolean;
 }
+
+export const DEFAULT_RIDER_PICKUP_RADIUS_METERS = 3000;
 
 /**
  * Calculates distance between two points (e.g., rider and restaurant/outlet)
@@ -151,17 +156,20 @@ export function calculateRiderProximity(
   lon1: number | string | null | undefined,
   lat2: number | string | null | undefined,
   lon2: number | string | null | undefined,
+  radiusMeters: number = DEFAULT_RIDER_PICKUP_RADIUS_METERS,
 ): DistanceResult {
   const distanceKm = calculateDistanceKm(lat1, lon1, lat2, lon2);
   const distanceMeters = distanceKm * 1000;
 
-  // Fleet24 Rule: strictly <= 3000 meters (with standard float epsilon 1e-6)
+  // Strictly <= radius (with standard float epsilon 1e-6)
   const isWithin3Km = distanceMeters <= 3000 + 1e-6;
+  const isWithinRadius = distanceMeters <= radiusMeters + 1e-6;
 
   return {
     distanceMeters,
     distanceKm,
     isWithin3Km,
+    isWithinRadius,
   };
 }
 

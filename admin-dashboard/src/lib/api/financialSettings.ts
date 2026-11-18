@@ -35,6 +35,7 @@ export interface SettingsPayload {
     maxRoadDistanceMeters: number;
     minDeliveryMinutes?: number;
     handlingMinutes?: number;
+    riderPickupRadiusMeters?: number;
   };
 }
 

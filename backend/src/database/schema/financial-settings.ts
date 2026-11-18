@@ -29,6 +29,8 @@ export interface DeliveryServiceabilityConfig {
   minDeliveryMinutes?: number;
   /** Restaurant prep + rider pickup added before road travel time (minutes). Default 10. */
   handlingMinutes?: number;
+  /** How far from the restaurant (straight line) a rider may be to get the offer (meters). Default 3000. */
+  riderPickupRadiusMeters?: number;
 }
 
 export interface FinancialSettingsPayload {

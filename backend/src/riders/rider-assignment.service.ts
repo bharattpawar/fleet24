@@ -10,7 +10,8 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and, sql } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
-import { calculateRiderProximity } from '../common/utils/geo';
+import { calculateRiderProximity, DEFAULT_RIDER_PICKUP_RADIUS_METERS } from '../common/utils/geo';
+import { FinancialSettingsService } from '../admin/financial-settings.service';
 import { NotificationService } from './notification.service';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
@@ -62,7 +63,21 @@ export class RiderAssignmentService {
     private readonly trackingPublisher: TrackingPublisherService,
     @Optional()
     private readonly serviceZones?: ServiceZonesService,
+    @Optional()
+    private readonly financialSettingsService?: FinancialSettingsService,
   ) {}
+
+  /** Admin-set rider search radius around the restaurant (Delivery Serviceability settings). */
+  async getRiderPickupRadiusMeters(): Promise<number> {
+    try {
+      const active = await this.financialSettingsService?.getActiveSettings();
+      const value = Number(active?.settings?.deliveryServiceability?.riderPickupRadiusMeters);
+      if (Number.isFinite(value) && value > 0) return value;
+    } catch {
+      // fall back to the default below
+    }
+    return DEFAULT_RIDER_PICKUP_RADIUS_METERS;
+  }
 
   /**
    * Evaluates location freshness:
@@ -116,9 +131,12 @@ export class RiderAssignmentService {
     const dbClient = tx || this.db;
 
     const isDev = process.env.NODE_ENV !== 'production';
-    // Geographic bounding box pre-filter (~3.5 km in prod; relaxed in dev for remote/multi-device testing)
-    const latDelta = isDev ? 50.0 : 0.035;
-    const lonDelta = isDev ? 50.0 : 0.035;
+    const pickupRadiusMeters = await this.getRiderPickupRadiusMeters();
+    // Geographic bounding box pre-filter sized from the admin radius (+15% margin; relaxed in dev)
+    const radiusDegLat = (pickupRadiusMeters / 111_320) * 1.15;
+    const radiusDegLon = radiusDegLat / Math.max(Math.cos((outletLat * Math.PI) / 180), 0.2);
+    const latDelta = isDev ? 50.0 : radiusDegLat;
+    const lonDelta = isDev ? 50.0 : radiusDegLon;
     const minLat = outletLat - latDelta;
     const maxLat = outletLat + latDelta;
     const minLon = outletLon - lonDelta;
@@ -224,15 +242,16 @@ export class RiderAssignmentService {
         continue;
       }
 
-      // 3. Exact Haversine proximity check (Strictly <= 3,000 meters in prod; relaxed in dev)
+      // 3. Exact Haversine proximity check (within the admin rider search radius in prod; relaxed in dev)
       const proximity = calculateRiderProximity(
         r.latitude,
         r.longitude,
         outletLat,
         outletLon,
+        pickupRadiusMeters,
       );
 
-      if (!isDev && !proximity.isWithin3Km) {
+      if (!isDev && !proximity.isWithinRadius) {
         continue;
       }
 

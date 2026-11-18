@@ -45,6 +45,7 @@ export const sections: { key: string; title: string; fields: SettingsField[] }[]
     { key: 'maxRoadDistanceMeters', label: 'Maximum delivery road distance (meters)', integer: true, min: 100, max: 50000 },
     { key: 'minDeliveryMinutes', label: 'Minimum delivery time shown to customers (minutes)', integer: true, min: 5, max: 120, optional: true },
     { key: 'handlingMinutes', label: 'Prep + pickup time added to travel (minutes)', integer: true, min: 0, max: 120, optional: true },
+    { key: 'riderPickupRadiusMeters', label: 'Rider search radius around the restaurant (meters)', integer: true, min: 500, max: 20000, optional: true },
   ] },
 ];
 

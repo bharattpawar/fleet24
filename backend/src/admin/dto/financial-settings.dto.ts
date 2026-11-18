@@ -187,6 +187,13 @@ export class DeliveryServiceabilityConfigDto {
   @Min(0)
   @Max(120)
   handlingMinutes?: number;
+
+  /** Maximum rider-to-restaurant distance for dispatch offers, in meters. */
+  @IsOptional()
+  @IsInt()
+  @Min(500)
+  @Max(20000)
+  riderPickupRadiusMeters?: number;
 }
 
 export class FinancialSettingsPayloadDto {

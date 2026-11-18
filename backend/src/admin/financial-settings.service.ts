@@ -60,6 +60,7 @@ export class FinancialSettingsService {
       maxRoadDistanceMeters: 3000,
       minDeliveryMinutes: 15,
       handlingMinutes: 10,
+      riderPickupRadiusMeters: 3000,
     },
   };
 
