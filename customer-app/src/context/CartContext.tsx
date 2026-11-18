@@ -205,7 +205,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    fetchCart();
+    void Promise.resolve().then(() => fetchCart());
   }, [isAuthenticated]);
 
   const addItem = async (

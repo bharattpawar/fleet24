@@ -96,7 +96,7 @@ export function DeliveryLocationProvider({ children }: { children: React.ReactNo
   }, [loadZones, loadAddresses]);
 
   useEffect(() => {
-    void refresh();
+    void Promise.resolve().then(() => refresh());
   }, [refresh]);
 
   const selectAddress = useCallback((address: Address) => {

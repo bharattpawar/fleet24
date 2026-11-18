@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useEffectEvent } from 'react';
 import {
   View,
   Text,
@@ -53,7 +53,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Stable auth config with required OpenID Connect nonce to prevent render loops on web and native
-  const authConfig = useMemo(
+  const [authConfig] = useState(
     () => ({
       clientId: GOOGLE_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
@@ -64,7 +64,6 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
         nonce: Math.random().toString(36).substring(2, 15),
       },
     }),
-    [],
   );
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
@@ -72,22 +71,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
     GOOGLE_DISCOVERY,
   );
 
-  // Handle incoming OAuth response
-  useEffect(() => {
-    if (response?.type === 'success' && response.params?.id_token) {
-      handleGoogleToken(response.params.id_token);
-    } else if (response?.type === 'error') {
-      setIsGoogleLoading(false);
-      const msg = response.error?.message || 'Failed to authenticate with Google';
-      setErrorMessage(msg);
-      if (Platform.OS === 'web') window.alert(`Google Sign-In Error: ${msg}`);
-      else Alert.alert('Google Sign-In Error', msg);
-    } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
-      setIsGoogleLoading(false);
-    }
-  }, [response]);
-
-  const handleGoogleToken = async (idToken: string) => {
+  const handleGoogleToken = useEffectEvent(async (idToken: string) => {
     try {
       setIsGoogleLoading(true);
       setErrorMessage(null);
@@ -105,7 +89,24 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
     } finally {
       setIsGoogleLoading(false);
     }
-  };
+  });
+
+  // Handle incoming OAuth response
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      if (response?.type === 'success' && response.params?.id_token) {
+        handleGoogleToken(response.params.id_token);
+      } else if (response?.type === 'error') {
+        setIsGoogleLoading(false);
+        const msg = response.error?.message || 'Failed to authenticate with Google';
+        setErrorMessage(msg);
+        if (Platform.OS === 'web') window.alert(`Google Sign-In Error: ${msg}`);
+        else Alert.alert('Google Sign-In Error', msg);
+      } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
+        setIsGoogleLoading(false);
+      }
+    });
+  }, [response]);
 
   const handleTriggerGoogleAuth = async () => {
     if (USE_MOCK_DATA) {

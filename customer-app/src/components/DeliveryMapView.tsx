@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,8 +39,8 @@ export const DeliveryMapView: React.FC<DeliveryMapViewProps> = ({
   isStaleLocation = false,
 }) => {
   // Pulse animation for live rider marker
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const riderPosAnim = useRef(new Animated.Value(0)).current; // 0 (at restaurant) to 1 (at customer)
+  const [pulseAnim] = useState(() => new Animated.Value(1));
+  const [riderPosAnim] = useState(() => new Animated.Value(0)); // 0 (at restaurant) to 1 (at customer)
 
   useEffect(() => {
     // Pulsing circle around rider

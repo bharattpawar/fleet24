@@ -22,7 +22,7 @@ export const DeliveryOfferCard: React.FC<DeliveryOfferCardProps> = ({
   onAccepted,
   onRejected,
 }) => {
-  const [secondsLeft, setSecondsLeft] = useState(
+  const [secondsLeft, setSecondsLeft] = useState(() =>
     Math.max(
       0,
       Math.floor((new Date(offer.offerExpiresAt).getTime() - Date.now()) / 1000),

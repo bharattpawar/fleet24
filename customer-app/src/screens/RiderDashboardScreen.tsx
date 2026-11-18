@@ -61,7 +61,7 @@ export const RiderDashboardScreen: React.FC<RiderDashboardScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    loadRiderData();
+    void Promise.resolve().then(() => loadRiderData());
   }, [loadRiderData]);
 
   // Periodic poll for offers when online and available

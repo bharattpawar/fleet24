@@ -89,7 +89,7 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Step transition: fade + slide up.
-  const enter = useRef(new Animated.Value(1)).current;
+  const [enter] = useState(() => new Animated.Value(1));
   useEffect(() => {
     if (reduceMotion) return;
     enter.setValue(0);
@@ -104,14 +104,15 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
   useEffect(() => {
     if (step !== 'search') return;
     const text = query.trim();
-    if (text.length < 2) {
-      setSuggestions([]);
-      setSearchError(null);
-      return;
-    }
     let active = true;
-    setSearching(true);
     const timer = setTimeout(() => {
+      if (text.length < 2) {
+        setSuggestions([]);
+        setSearchError(null);
+        setSearching(false);
+        return;
+      }
+      setSearching(true);
       searchPlaces(text, sessionToken, center || undefined)
         .then((results) => active && (setSuggestions(results), setSearchError(null)))
         .catch((e) => active && setSearchError(e instanceof Error ? e.message : 'Search failed'))
@@ -142,7 +143,9 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
   }, []);
 
   useEffect(() => {
-    if (step === 'map' && center && !resolved) resolvePoint(center.latitude, center.longitude);
+    if (step !== 'map' || !center || resolved) return;
+    const timer = setTimeout(() => resolvePoint(center.latitude, center.longitude), 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -396,7 +399,7 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
 }
 
 function SuggestionRow({ suggestion, index, reduceMotion, onPress }: { suggestion: PlaceSuggestion; index: number; reduceMotion: boolean; onPress: () => void }) {
-  const appear = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const [appear] = useState(() => new Animated.Value(reduceMotion ? 1 : 0));
   useEffect(() => {
     if (reduceMotion) return;
     Animated.timing(appear, { toValue: 1, duration: 220, delay: index * 50, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();

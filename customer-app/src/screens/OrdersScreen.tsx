@@ -89,7 +89,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchOrders();
+    void Promise.resolve().then(() => fetchOrders());
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') fetchOrders();
     });

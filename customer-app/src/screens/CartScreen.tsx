@@ -107,7 +107,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   };
 
   useEffect(() => {
-    checkActiveOrder();
+    void Promise.resolve().then(() => checkActiveOrder());
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         checkActiveOrder();
@@ -122,10 +122,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   const cartOutletId = cart?.outletId;
   const cartItemCount = cart?.items.length ?? 0;
   useEffect(() => {
-    setEta(null);
+    let active = true;
+    void Promise.resolve().then(() => active && setEta(null));
     if (USE_MOCK_DATA || !isAuthenticated || !selectedAddress?.id || !cartOutletId || cartItemCount === 0) return;
     if (selectedAddress.needsLocationConfirmation || selectedAddress.isServiceable === false) return;
-    let active = true;
     apiRequest<{ deliveryEta: DeliveryEta | null }>(
       `/cart/delivery-estimate?addressId=${encodeURIComponent(selectedAddress.id)}`,
     )

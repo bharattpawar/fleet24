@@ -117,7 +117,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [coordinates]);
 
   useEffect(() => {
-    void fetchOutlets();
+    void Promise.resolve().then(() => fetchOutlets());
     return () => { requestVersion.current++; };
   }, [fetchOutlets]);
 

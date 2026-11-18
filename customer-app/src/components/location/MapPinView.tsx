@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
 import { MovingPin } from './MovingPin';
@@ -18,7 +18,7 @@ const DELTA = 0.004; // ~400 m across: street level
 /** Native map (Apple Maps on iOS, Google Maps on Android) with a fixed centre pin. */
 export function MapPinView({ latitude, longitude, recenterKey, onMoveStart, onMoveEnd, style }: MapPinViewProps) {
   const mapRef = useRef<MapView>(null);
-  const lift = useRef(new Animated.Value(0)).current;
+  const [lift] = useState(() => new Animated.Value(0));
   const programmatic = useRef(false);
 
   useEffect(() => {

@@ -32,10 +32,12 @@ function loadGoogleMaps(key: string): Promise<any> {
 export function MapPinView({ latitude, longitude, recenterKey, onMoveStart, onMoveEnd, style }: MapPinViewProps) {
   const hostRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
-  const lift = useRef(new Animated.Value(0)).current;
+  const [lift] = useState(() => new Animated.Value(0));
   const [failed, setFailed] = useState(!BROWSER_KEY);
   const callbacks = useRef({ onMoveStart, onMoveEnd });
-  callbacks.current = { onMoveStart, onMoveEnd };
+  useEffect(() => {
+    callbacks.current = { onMoveStart, onMoveEnd };
+  }, [onMoveStart, onMoveEnd]);
 
   const setLifted = (up: boolean) =>
     Animated.spring(lift, { toValue: up ? 1 : 0, useNativeDriver: false, damping: 14, stiffness: 220 }).start();

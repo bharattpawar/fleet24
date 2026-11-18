@@ -55,8 +55,11 @@ export const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({
   const [picker, setPicker] = useState<null | { mode: 'create' } | { mode: 'repin'; address: Address }>(null);
 
   useEffect(() => {
-    if (visible && repinAddress && onUpdateAddress) setPicker({ mode: 'repin', address: repinAddress });
-    if (!visible) setPicker(null);
+    const timer = setTimeout(() => {
+      if (visible && repinAddress && onUpdateAddress) setPicker({ mode: 'repin', address: repinAddress });
+      if (!visible) setPicker(null);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [visible, repinAddress, onUpdateAddress]);
 
   const closeAll = () => {

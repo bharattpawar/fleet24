@@ -126,7 +126,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
                   <Ionicons name="chatbubble-ellipses" size={18} color={colors.textSecondary} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardHeaderTitle}>Delivery Instructions</Text>
-                    <Text style={styles.cardSubText}>"{order.customerInstructions}"</Text>
+                    <Text style={styles.cardSubText}>{`"${order.customerInstructions}"`}</Text>
                   </View>
                 </View>
               </>
