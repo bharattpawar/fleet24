@@ -15,6 +15,7 @@ import { OutletsScreen } from '@/features/restaurants/OutletsScreen';
 import { RiderManagementScreen } from '@/features/riders/RiderManagementScreen';
 import { OrdersManagementScreen } from '@/features/orders/OrdersManagementScreen';
 import { LiveDispatchScreen } from '@/features/dispatch/LiveDispatchScreen';
+import { ServiceZonesScreen } from '@/features/service-zones/ServiceZonesScreen';
 
 export const router = createBrowserRouter([
   {
@@ -48,6 +49,10 @@ export const router = createBrowserRouter([
       {
         path: 'dispatch',
         element: <LiveDispatchScreen />,
+      },
+      {
+        path: 'service-areas',
+        element: <ServiceZonesScreen />,
       },
       {
         path: 'customer-home',

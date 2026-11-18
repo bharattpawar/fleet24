@@ -11,11 +11,13 @@ import { RidersModule } from '../riders/riders.module';
 import { TrackingModule } from '../tracking/tracking.module';
 import { AdminDashboardModule } from '../admin/admin-dashboard.module';
 import { RoutingModule } from '../routing/routing.module';
+import { ServiceZonesModule } from '../service-zones/service-zones.module';
 
 @Module({
   imports: [
     AuthModule,
     RoutingModule,
+    ServiceZonesModule,
     forwardRef(() => PaymentsModule),
     forwardRef(() => RidersModule),
     forwardRef(() => TrackingModule),

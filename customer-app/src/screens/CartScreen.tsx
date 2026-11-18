@@ -19,6 +19,7 @@ import { QuantityStepper } from '../components/QuantityStepper';
 import { apiRequest } from '../api/client';
 import { USE_MOCK_DATA, MOCK_ADDRESSES, MOCK_ORDERS } from '../api/mockData';
 import { Address, AddressSelectionModal } from '../components/AddressSelectionModal';
+import { useDeliveryLocation } from '../context/DeliveryLocationContext';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { API_BASE_URL } from '../api/client';
@@ -56,13 +57,21 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   const { cart, updateQuantity, removeItem, clearCart, fetchCart } = useCart();
   const { isAuthenticated } = useAuth();
 
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const delivery = useDeliveryLocation();
+  // Mock mode keeps a local address list; live mode shares the selected address with Home.
+  const [mockAddresses, setMockAddresses] = useState<Address[]>(USE_MOCK_DATA ? MOCK_ADDRESSES : []);
+  const [mockSelected, setMockSelected] = useState<Address | null>(
+    USE_MOCK_DATA ? MOCK_ADDRESSES.find((a) => a.isDefault) || MOCK_ADDRESSES[0] || null : null,
+  );
+  const addresses = USE_MOCK_DATA ? mockAddresses : delivery.addresses;
+  const selectedAddress = USE_MOCK_DATA ? mockSelected : delivery.selectedAddress;
+  const setSelectedAddress = (addr: Address | null) =>
+    USE_MOCK_DATA ? setMockSelected(addr) : addr && delivery.selectAddress(addr);
   const [customerInstructions, setCustomerInstructions] = useState('');
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [repinTarget, setRepinTarget] = useState<Address | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const isLoadingAddresses = !USE_MOCK_DATA && delivery.isLoading;
 
   // Confirmed order modal state
   const [checkoutNotice, setCheckoutNotice] = useState<{ title: string; message: string }>();
@@ -105,66 +114,18 @@ export const CartScreen: React.FC<CartScreenProps> = ({
     };
   }, [isAuthenticated]);
 
-  // Fetch addresses
-  const loadAddresses = async () => {
-    if (USE_MOCK_DATA) {
-      setAddresses(MOCK_ADDRESSES);
-      const defaultAddr = MOCK_ADDRESSES.find((a) => a.isDefault) || MOCK_ADDRESSES[0];
-      setSelectedAddress(defaultAddr || null);
-      return;
-    }
-
-    if (!isAuthenticated) return;
-
-    try {
-      setIsLoadingAddresses(true);
-      const data = await apiRequest<Address[]>('/users/addresses');
-      setAddresses(data || []);
-      if (data && data.length > 0) {
-        const defaultAddr = data.find((a) => a.isDefault) || data[0];
-        setSelectedAddress(defaultAddr);
-      } else {
-        setSelectedAddress(null);
-      }
-    } catch {
-      setAddresses([]);
-    } finally {
-      setIsLoadingAddresses(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAddresses();
-  }, [isAuthenticated]);
-
   const handleAddNewAddress = async (newAddressDto: Omit<Address, 'id'>) => {
     if (USE_MOCK_DATA) {
-      const mockCreated: Address = {
-        id: `addr-mock-${Date.now()}`,
-        ...newAddressDto,
-      };
-      const updated = [mockCreated, ...addresses];
-      setAddresses(updated);
-      setSelectedAddress(mockCreated);
+      const mockCreated: Address = { id: `addr-mock-${Date.now()}`, ...newAddressDto };
+      setMockAddresses((prev) => [mockCreated, ...prev]);
+      setMockSelected(mockCreated);
       return;
     }
-
-    const created = await apiRequest<Address>('/users/addresses', {
-      method: 'POST',
-      body: JSON.stringify(newAddressDto),
-    });
-    const updated = [created, ...addresses];
-    setAddresses(updated);
-    setSelectedAddress(created);
+    await delivery.addAddress(newAddressDto);
   };
 
   const handleUpdateAddress = async (addressId: string, changes: Partial<Omit<Address, 'id'>>) => {
-    const updated = await apiRequest<Address>(`/users/addresses/${addressId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(changes),
-    });
-    setAddresses((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-    setSelectedAddress(updated);
+    const updated = await delivery.updateAddress(addressId, changes);
     setRepinTarget(null);
     return updated;
   };
@@ -265,6 +226,15 @@ export const CartScreen: React.FC<CartScreenProps> = ({
 
     if (selectedAddress.needsLocationConfirmation) {
       setRepinTarget(selectedAddress);
+      setIsAddressModalOpen(true);
+      return;
+    }
+
+    if (selectedAddress.isServiceable === false) {
+      Alert.alert(
+        'We don’t deliver here yet',
+        'Fleet24 currently delivers in Knowledge Park II and III, Greater Noida. Choose another address.',
+      );
       setIsAddressModalOpen(true);
       return;
     }
@@ -609,6 +579,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({
               </Text>
               {selectedAddress.needsLocationConfirmation ? (
                 <Text style={styles.confirmLocationHint}>Tap to confirm this location on the map</Text>
+              ) : selectedAddress.isServiceable === false ? (
+                <Text style={styles.confirmLocationHint}>We don’t deliver to this address yet</Text>
               ) : null}
             </TouchableOpacity>
           ) : (

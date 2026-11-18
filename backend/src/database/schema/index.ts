@@ -13,3 +13,4 @@ export * from './cart';
 export * from './finance';
 export * from './financial-settings';
 export * from './customer-home';
+export * from './service-zones';

@@ -5,20 +5,32 @@ import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 import { isUsableLocation, withLocationStatus } from './address-location.util';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
+    private readonly serviceZones: ServiceZonesService,
   ) {}
+
+  /** Adds needsLocationConfirmation, isServiceable and the containing zone name. */
+  private async decorate<T extends { latitude: unknown; longitude: unknown }>(address: T) {
+    const withStatus = withLocationStatus(address);
+    if (withStatus.needsLocationConfirmation) {
+      return { ...withStatus, isServiceable: false, serviceZoneName: null as string | null };
+    }
+    const { enforced, zone } = await this.serviceZones.locate(address.latitude, address.longitude);
+    return { ...withStatus, isServiceable: !enforced || zone !== null, serviceZoneName: zone?.name ?? null };
+  }
 
   async getAddresses(userId: string) {
     const rows = await this.db.query.customerAddresses.findMany({
       where: eq(schema.customerAddresses.userId, userId),
       orderBy: [desc(schema.customerAddresses.isDefault), desc(schema.customerAddresses.createdAt)],
     });
-    return rows.map(withLocationStatus);
+    return Promise.all(rows.map((row) => this.decorate(row)));
   }
 
   async createAddress(userId: string, dto: CreateAddressDto) {
@@ -47,7 +59,7 @@ export class UsersService {
       })
       .returning();
 
-    return withLocationStatus(address);
+    return this.decorate(address);
   }
 
   async updateAddress(userId: string, addressId: string, dto: UpdateAddressDto) {
@@ -101,7 +113,7 @@ export class UsersService {
       )
       .returning();
 
-    return withLocationStatus(updated);
+    return this.decorate(updated);
   }
 
   private assertUsableLocation(latitude: unknown, longitude: unknown) {

@@ -60,3 +60,30 @@ export const authStorage = {
     }
   },
 };
+
+/** Small non-secret preferences (e.g. the selected delivery address id). */
+export const preferenceStorage = {
+  async get(key: string): Promise<string | null> {
+    try {
+      if (Platform.OS === 'web') return localStorage.getItem(key);
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return memoryStorage[key] ?? null;
+    }
+  },
+  async set(key: string, value: string | null): Promise<void> {
+    try {
+      if (Platform.OS === 'web') {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      } else if (value === null) {
+        await SecureStore.deleteItemAsync(key);
+      } else {
+        await SecureStore.setItemAsync(key, value);
+      }
+    } catch {
+      if (value === null) delete memoryStorage[key];
+      else memoryStorage[key] = value;
+    }
+  },
+};

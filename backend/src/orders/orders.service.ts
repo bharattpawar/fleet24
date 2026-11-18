@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   NotFoundException,
@@ -12,6 +13,7 @@ import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { isUsableLocation } from '../users/address-location.util';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 import { CheckoutDto, CancelOrderDto, OrderPaginationDto } from './dto/order.dto';
 import { CartService } from './cart.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -33,6 +35,8 @@ export class OrdersService {
     private readonly financialSettingsService: FinancialSettingsService,
     private readonly riderOffersService: RiderOffersService,
     private readonly routingService: RoutingService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
 
   /**
@@ -150,6 +154,19 @@ export class OrdersService {
     if (!isUsableLocation(address.latitude, address.longitude)) {
       throw new BadRequestException(
         'Please confirm this delivery address on the map before placing the order.',
+      );
+    }
+
+    if (this.serviceZones) {
+      await this.serviceZones.assertServiceable(
+        address.latitude,
+        address.longitude,
+        "We don't deliver to this address yet. Fleet24 currently delivers only inside its service areas.",
+      );
+      await this.serviceZones.assertServiceable(
+        outlet.latitude,
+        outlet.longitude,
+        'This restaurant is outside our current service areas and cannot take orders.',
       );
     }
 

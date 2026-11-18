@@ -242,10 +242,19 @@ export const riderApi = {
   /**
    * Toggle rider availability: 'available' or 'offline'
    */
-  async setAvailability(status: 'available' | 'offline'): Promise<{ availabilityStatus: string; isOnline: boolean }> {
+  async setAvailability(
+    status: 'available' | 'offline',
+    position?: { latitude: number; longitude: number } | null,
+  ): Promise<{ availabilityStatus: string; isOnline: boolean }> {
+    const body: Record<string, unknown> = { availabilityStatus: status };
+    // The server checks the rider is inside a service area before going online.
+    if (status === 'available' && position) {
+      body.latitude = position.latitude;
+      body.longitude = position.longitude;
+    }
     return apiRequest<{ availabilityStatus: string; isOnline: boolean }>('/riders/availability', {
       method: 'PATCH',
-      body: JSON.stringify({ availabilityStatus: status }),
+      body: JSON.stringify(body),
     });
   },
 

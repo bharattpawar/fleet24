@@ -22,6 +22,7 @@ import { ExploreFiltersSheet } from '../components/ExploreFiltersSheet';
 import { ExplorePhoto } from '../components/ExplorePhoto';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { AddressSelectionModal, Address } from '../components/AddressSelectionModal';
+import { useDeliveryLocation } from '../context/DeliveryLocationContext';
 
 interface HomeScreenProps {
   onSelectOutlet: (outlet: OutletSummary, dishId?: string) => void;
@@ -55,30 +56,6 @@ const CUISINE_CATEGORIES: CuisineCategory[] = [
   { id: 'chai_snacks', name: 'Chai & Cafe', icon: 'leaf-outline', filterKey: 'chai' },
 ];
 
-const DEFAULT_ADDRESSES: Address[] = [
-  {
-    id: 'addr-default-1',
-    label: 'Home',
-    addressLine1: 'Sector Alpha 1, Commercial Belt',
-    addressLine2: 'Greater Noida',
-    city: 'Greater Noida',
-    postalCode: '201310',
-    latitude: '28.4855',
-    longitude: '77.5135',
-    isDefault: true,
-  },
-  {
-    id: 'addr-office-2',
-    label: 'Office',
-    addressLine1: 'Knowledge Park III, Institutional Area',
-    addressLine2: 'Near Sharda University',
-    city: 'Greater Noida',
-    postalCode: '201306',
-    latitude: '28.4744',
-    longitude: '77.5040',
-  },
-];
-
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectOutlet,
   onViewCart,
@@ -99,12 +76,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Address Selector Modal State
-  const [addresses, setAddresses] = useState<Address[]>(DEFAULT_ADDRESSES);
-  const [selectedAddress, setSelectedAddress] = useState<Address>(DEFAULT_ADDRESSES[0]);
+  const {
+    addresses,
+    location,
+    selectedAddress,
+    selectAddress,
+    addAddress,
+    updateAddress,
+  } = useDeliveryLocation();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const notServiceable = location?.kind === 'address' && location.address.isServiceable === false;
 
-  const coordinates = selectedAddress.latitude && selectedAddress.longitude
-    ? '?latitude=' + encodeURIComponent(selectedAddress.latitude) + '&longitude=' + encodeURIComponent(selectedAddress.longitude)
+  const coordinates = location?.latitude && location?.longitude
+    ? '?latitude=' + encodeURIComponent(location.latitude) + '&longitude=' + encodeURIComponent(location.longitude)
     : '';
   const requestVersion = React.useRef(0);
   const [loadedCoordinates, setLoadedCoordinates] = useState<string>();
@@ -179,14 +163,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const handleAddAddress = async (newAddr: Omit<Address, 'id'>) => {
-    const created: Address = {
-      ...newAddr,
-      id: `addr-${Date.now()}`,
-    };
-    setAddresses((prev) => [created, ...prev]);
+    await addAddress(newAddr);
     setCategoryOutlets(null);
-    setSelectedAddress(created);
     setIsAddressModalVisible(false);
+  };
+
+  const openAddressPicker = () => {
+    // Saving and searching addresses needs an account; signed-out users browse a service area.
+    if (!isAuthenticated) {
+      onRequireAuth?.();
+      return;
+    }
+    setIsAddressModalVisible(true);
   };
 
   // Header rendered cleanly above the FlatList
@@ -203,9 +191,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <View style={styles.heroHeader}>
       {/* 1. First Row: Brand Wordmark (Left) and Notification + Account Actions (Right) */}
       <View style={styles.brandRow}>
-        <TouchableOpacity style={styles.addressHeader} onPress={() => setIsAddressModalVisible(true)} accessibilityRole="button" accessibilityLabel="Choose delivery address">
-          <Text style={styles.addressLabel}>{selectedAddress.label} <Ionicons name="chevron-forward" size={16} /></Text>
-          <Text style={styles.addressLine} numberOfLines={1}>{selectedAddress.addressLine1}</Text>
+        <TouchableOpacity style={styles.addressHeader} onPress={openAddressPicker} accessibilityRole="button" accessibilityLabel={location ? `Delivering to ${location.title}. Change delivery address` : 'Set delivery address'}>
+          <Text style={styles.addressLabel}>{location ? location.title : 'Set location'} <Ionicons name="chevron-forward" size={16} /></Text>
+          <Text style={styles.addressLine} numberOfLines={1}>
+            {location ? location.subtitle : 'Sign in to add your delivery address'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.headerActionsRight}>
@@ -375,6 +365,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       )}
       </View>
 
+      {notServiceable && (
+        <View style={styles.outOfAreaCard} accessibilityRole="alert">
+          <Ionicons name="location-outline" size={22} color="#8C3A1C" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.outOfAreaTitle}>We don’t deliver here yet</Text>
+            <Text style={styles.outOfAreaText}>Fleet24 currently delivers in Knowledge Park II and III, Greater Noida.</Text>
+          </View>
+          <TouchableOpacity onPress={openAddressPicker} accessibilityRole="button" style={styles.outOfAreaBtn}>
+            <Text style={styles.outOfAreaBtnText}>Change</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <Text style={styles.discoveryHeading}>What’s on your mind?</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
         {sections.some(section => section.kind === 'category')
@@ -535,13 +537,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <AddressSelectionModal
         visible={isAddressModalVisible}
         addresses={addresses}
-        selectedAddressId={selectedAddress.id}
+        selectedAddressId={selectedAddress?.id ?? null}
         onSelectAddress={(addr) => {
           setCategoryOutlets(null);
-          setSelectedAddress(addr);
+          selectAddress(addr);
           setIsAddressModalVisible(false);
         }}
         onAddAddress={handleAddAddress}
+        onUpdateAddress={async (id, changes) => {
+          setCategoryOutlets(null);
+          return updateAddress(id, changes);
+        }}
         onClose={() => setIsAddressModalVisible(false)}
       />
     </View>
@@ -559,6 +565,11 @@ const shadow = { boxShadow: '0px 2px 4px rgba(17, 30, 23, 0.06)' };
 const row = { flexDirection: 'row', alignItems: 'center' } as const;
 
 const styles = StyleSheet.create({
+  outOfAreaCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 15, marginBottom: 18, padding: 14, borderRadius: 16, backgroundColor: '#FDF3EC' },
+  outOfAreaTitle: { fontSize: 15, fontWeight: '800', color: '#8C3A1C' },
+  outOfAreaText: { fontSize: 13, color: '#5C4033', marginTop: 2 },
+  outOfAreaBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
+  outOfAreaBtnText: { fontSize: 14, fontWeight: '800', color: '#8C3A1C' },
   foodBanner: { marginHorizontal: 15, height: 190, backgroundColor: '#330D0C', borderRadius: 20, overflow: 'hidden', justifyContent: 'center' },
   bannerText: { paddingHorizontal: 16, paddingVertical: 18, width: '54%' },
   bannerEyebrow: { fontSize: 9, letterSpacing: 1.4, fontWeight: '800', color: '#FFE4BD', marginBottom: 7 },

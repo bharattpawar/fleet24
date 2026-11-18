@@ -21,13 +21,15 @@ describe('UsersService addresses', () => {
       insert: jest.fn(() => ({ values: jest.fn(() => ({ returning })) })),
       update: jest.fn(() => ({ set: jest.fn(() => ({ where: jest.fn(() => ({ returning })) })) })),
     };
-    return { service: new UsersService(db), db };
+    const zones = { locate: jest.fn().mockResolvedValue({ enforced: true, zone: { name: 'Knowledge Park III' } }) };
+    return { service: new UsersService(db, zones as any), db, zones };
   }
 
   it('flags legacy placeholder addresses for re-pinning', async () => {
     const { service } = makeService();
     const rows = await service.getAddresses('u1');
-    expect(rows.map((r) => [r.id, r.needsLocationConfirmation])).toEqual([['old', true], ['new', false]]);
+    expect(rows.map((r) => [r.id, r.needsLocationConfirmation, r.isServiceable])).toEqual([['old', true, false], ['new', false, true]]);
+    expect(rows[1].serviceZoneName).toBe('Knowledge Park III');
   });
 
   it.each([
@@ -55,6 +57,13 @@ describe('UsersService addresses', () => {
     await expect(service.updateAddress('u1', 'a1', { latitude: '28.47' })).rejects.toThrow(/together/);
     await expect(service.updateAddress('u1', 'a1', { latitude: '28.4855000', longitude: '77.5135000' })).rejects.toThrow(BadRequestException);
     await expect(service.updateAddress('u1', 'a1', { latitude: '28.4712000', longitude: '77.4901000' })).resolves.toMatchObject({ needsLocationConfirmation: false });
+  });
+
+  it('saves addresses outside every zone but marks them not serviceable', async () => {
+    const { service, zones } = makeService();
+    zones.locate.mockResolvedValue({ enforced: true, zone: null });
+    const saved = await service.createAddress('u1', { ...baseDto, latitude: '28.6139000', longitude: '77.2090000' } as any);
+    expect(saved).toMatchObject({ needsLocationConfirmation: false, isServiceable: false, serviceZoneName: null });
   });
 
   it('isUsableLocation accepts real Greater Noida points', () => {

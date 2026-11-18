@@ -1,4 +1,4 @@
-import {
+import { IsLatitude, IsLongitude,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -76,6 +76,17 @@ export class UpdateRiderAvailabilityDto {
     message: 'availabilityStatus must be either "offline" or "available". "busy" is managed automatically by the delivery dispatch system.',
   })
   availabilityStatus!: 'offline' | 'available';
+
+  /** Rider's current GPS position, sent when going online so the service-area check is current. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsLatitude()
+  latitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsLongitude()
+  longitude?: number;
 }
 
 export class AdminVerifyRiderDto {

@@ -1,4 +1,4 @@
-import { Settings, Users, CreditCard, RotateCcw, Bike, ClipboardList, LayoutDashboard, MapPin, Radio, Store, AlertTriangle } from 'lucide-react';
+import { Settings, Users, CreditCard, RotateCcw, Bike, ClipboardList, LayoutDashboard, MapPin, Radio, Store, AlertTriangle, Map as MapIcon } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const groups = [
@@ -15,6 +15,7 @@ const groups = [
     { path: '/overview', label: 'Overview', icon: LayoutDashboard },
     { path: '/orders', label: 'Live Orders', icon: ClipboardList },
     { path: '/dispatch', label: 'Dispatch Center', icon: Radio },
+    { path: '/service-areas', label: 'Service Areas', icon: MapIcon },
   ] },
   { label: 'Directory', items: [
     { path: '/customers', label: 'Customers', icon: Users },

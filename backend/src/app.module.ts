@@ -14,6 +14,7 @@ import { TrackingModule } from './tracking/tracking.module';
 import { AdminDashboardModule } from './admin/admin-dashboard.module';
 import { RoutingModule } from './routing/routing.module';
 import { GeoModule } from './geo/geo.module';
+import { ServiceZonesModule } from './service-zones/service-zones.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { GeoModule } from './geo/geo.module';
     AdminDashboardModule,
     RoutingModule,
     GeoModule,
+    ServiceZonesModule,
   ],
 })
 export class AppModule {}

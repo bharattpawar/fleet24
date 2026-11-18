@@ -127,6 +127,13 @@
       "when": 1794720000000,
       "tag": "0018_payment_conflict_and_single_active_order",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0019_service_zones",
+      "breakpoints": true
     }
   ]
 }

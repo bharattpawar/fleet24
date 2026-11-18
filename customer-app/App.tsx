@@ -37,6 +37,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { DeliveryLocationProvider } from './src/context/DeliveryLocationContext';
 import { colors, exploreColors } from './src/theme/tokens';
 import { OutletSummary } from './src/components/RestaurantCard';
 
@@ -222,7 +223,9 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <CartProvider>
-          <MainApp />
+          <DeliveryLocationProvider>
+            <MainApp />
+          </DeliveryLocationProvider>
         </CartProvider>
       </AuthProvider>
     </SafeAreaProvider>

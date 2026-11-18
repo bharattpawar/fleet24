@@ -11,12 +11,14 @@ import { AdminRidersController } from './admin-riders.controller';
 import { DatabaseModule } from '../database/database.module';
 import { TrackingModule } from '../tracking/tracking.module';
 import { AdminDashboardModule } from '../admin/admin-dashboard.module';
+import { ServiceZonesModule } from '../service-zones/service-zones.module';
 
 @Module({
   imports: [
     DatabaseModule,
     JwtModule,
     ConfigModule,
+    ServiceZonesModule,
     forwardRef(() => TrackingModule),
     forwardRef(() => AdminDashboardModule),
   ],

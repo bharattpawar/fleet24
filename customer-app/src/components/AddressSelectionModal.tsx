@@ -24,6 +24,9 @@ export interface Address {
   isDefault?: boolean;
   /** Set by the API for addresses saved before map pinning; they must be re-pinned before checkout. */
   needsLocationConfirmation?: boolean;
+  /** False when the address is outside every active service area (orders are blocked there). */
+  isServiceable?: boolean;
+  serviceZoneName?: string | null;
 }
 
 interface AddressSelectionModalProps {

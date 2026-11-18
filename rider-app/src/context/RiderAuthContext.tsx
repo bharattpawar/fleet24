@@ -273,7 +273,18 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 2. REAL BACKEND MODE
     try {
-      const res = await riderApi.setAvailability(nextStatus);
+      let position: { latitude: number; longitude: number } | null = null;
+      if (nextStatus === 'available') {
+        position = await riderLocationService.getCurrentPosition();
+        if (!position) {
+          Alert.alert(
+            'Turn on location',
+            'Fleet24 needs your location to check you are inside the delivery area before you go online.',
+          );
+          return false;
+        }
+      }
+      const res = await riderApi.setAvailability(nextStatus, position);
 
       setProfile((prev) => {
         if (!prev) return null;
@@ -439,7 +450,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Step 5: Set availability to available on backend
-      const availRes = await riderApi.setAvailability('available');
+      const availRes = await riderApi.setAvailability('available', currentPos);
       realProfile.availabilityStatus = availRes.availabilityStatus as any;
 
       // Step 6: Connect Socket.IO directly

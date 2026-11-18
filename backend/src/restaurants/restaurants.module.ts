@@ -8,11 +8,13 @@ import { OutletAuthorizationService } from './outlet-auth.service';
 import { AuthModule } from '../auth/auth.module';
 import { RoutingModule } from '../routing/routing.module';
 import { AdminDashboardModule } from '../admin/admin-dashboard.module';
+import { ServiceZonesModule } from '../service-zones/service-zones.module';
 
 @Module({
   imports: [
     AuthModule,
     RoutingModule,
+    ServiceZonesModule,
     forwardRef(() => AdminDashboardModule),
   ],
   controllers: [CustomerHomeController, RestaurantsController, RestaurantProfileController],

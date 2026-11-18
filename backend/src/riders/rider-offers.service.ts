@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   Logger,
@@ -30,6 +31,7 @@ import {
   CompleteDeliveryDto,
   CustomerDeliveryTrackingResponse,
 } from './dto/delivery-completion.dto';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 @Injectable()
 export class RiderOffersService {
@@ -69,7 +71,23 @@ export class RiderOffersService {
     private readonly ridersService: RidersService,
     private readonly financeService: AdminFinanceService,
     private readonly financialSettingsService: FinancialSettingsService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
+
+  /** The open pool and claiming are only for riders currently inside an active service zone. */
+  private async assertRiderInsideServiceZone(riderId: string) {
+    if (!this.serviceZones) return;
+    const latest = await this.db.query.riderLocations.findFirst({
+      where: eq(schema.riderLocations.riderId, riderId),
+    });
+    const { enforced, zone } = await this.serviceZones.locate(latest?.latitude, latest?.longitude);
+    if (enforced && !zone) {
+      throw new ForbiddenException(
+        "You are outside Fleet24's service area. Move inside the delivery zone to see and claim orders.",
+      );
+    }
+  }
 
   /**
    * Helper: Resolves the server HMAC secret for delivery OTP hashing.
@@ -225,6 +243,7 @@ export class RiderOffersService {
    */
   async getAvailableDeliveriesPool(userId: string) {
     const rider = await this.getEligibleRiderForUser(userId);
+    await this.assertRiderInsideServiceZone(rider.id);
 
     // Fetch active non-delivered orders
     const claimableOrders = await this.db.query.orders.findMany({
@@ -346,6 +365,7 @@ export class RiderOffersService {
    */
   async claimDelivery(userId: string, orderId: string) {
     const rider = await this.getEligibleRiderForUser(userId);
+    await this.assertRiderInsideServiceZone(rider.id);
 
     return await this.db.transaction(async (tx) => {
       const now = new Date();

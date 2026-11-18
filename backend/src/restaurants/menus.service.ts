@@ -21,6 +21,7 @@ import { AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
 import { OutletAuthorizationService } from './outlet-auth.service';
 import { RoutingService } from '../routing/routing.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 @Injectable()
 export class MenusService {
@@ -32,6 +33,8 @@ export class MenusService {
     private readonly routingService?: RoutingService,
     @Optional()
     private readonly financialSettingsService?: FinancialSettingsService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
 
   // ==========================================
@@ -330,14 +333,32 @@ export class MenusService {
   // ==========================================
 
   async getPublicActiveOutlets(userLat?: number, userLon?: number) {
+    // Customers outside every active service zone see no kitchens.
+    if (
+      this.serviceZones &&
+      userLat !== undefined &&
+      userLon !== undefined &&
+      !(await this.serviceZones.isServiceable(userLat, userLon))
+    ) {
+      return [];
+    }
+
     // Only return outlets where both restaurant and outlet are active
-    const outlets = await this.db.query.restaurantOutlets.findMany({
+    const allOutlets = await this.db.query.restaurantOutlets.findMany({
       where: eq(schema.restaurantOutlets.isActive, true),
       with: {
         restaurant: true,
         operatingHours: true,
       },
     });
+
+    // Outlets located outside every active service zone never appear in discovery.
+    let outlets = allOutlets;
+    if (this.serviceZones) {
+      const zones = this.serviceZones;
+      const keep = await Promise.all(allOutlets.map((o) => zones.isServiceable(o.latitude, o.longitude)));
+      outlets = allOutlets.filter((_, i) => keep[i]);
+    }
 
     // Determine platform max road distance from admin settings if available
     let adminMaxRoadDistanceMeters: number | undefined;

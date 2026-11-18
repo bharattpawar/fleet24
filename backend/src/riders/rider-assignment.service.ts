@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   Logger,
@@ -12,6 +13,7 @@ import * as schema from '../database/schema';
 import { calculateRiderProximity } from '../common/utils/geo';
 import { NotificationService } from './notification.service';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 export interface CandidateRider {
   riderId: string;
@@ -58,6 +60,8 @@ export class RiderAssignmentService {
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly notificationService: NotificationService,
     private readonly trackingPublisher: TrackingPublisherService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
 
   /**
@@ -229,6 +233,11 @@ export class RiderAssignmentService {
       );
 
       if (!isDev && !proximity.isWithin3Km) {
+        continue;
+      }
+
+      // 4. Riders outside every active service zone get no offers.
+      if (this.serviceZones && !(await this.serviceZones.isServiceable(r.latitude, r.longitude))) {
         continue;
       }
 

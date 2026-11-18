@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   NotFoundException,
@@ -24,6 +25,7 @@ import {
 } from './dto/restaurant-finance.dto';
 import { AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
 import { OutletAuthorizationService } from './outlet-auth.service';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 @Injectable()
 export class RestaurantsService {
@@ -31,7 +33,17 @@ export class RestaurantsService {
     @Inject(DRIZZLE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly outletAuthService: OutletAuthorizationService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
+
+  private async assertOutletInServiceZone(latitude: unknown, longitude: unknown) {
+    await this.serviceZones?.assertServiceable(
+      latitude,
+      longitude,
+      'This outlet location is outside every active service area. Add or extend a service area first.',
+    );
+  }
 
   /**
    * Helper to slugify a name if not explicitly provided
@@ -186,6 +198,7 @@ export class RestaurantsService {
     user: AuthenticatedUserPayload,
   ) {
     const restaurant = await this.getRestaurantById(restaurantId);
+    await this.assertOutletInServiceZone(dto.latitude, dto.longitude);
 
     const [outlet] = await this.db
       .insert(schema.restaurantOutlets)
@@ -290,6 +303,12 @@ export class RestaurantsService {
     user: AuthenticatedUserPayload,
   ) {
     await this.outletAuthService.verifyOutletAccess(user, outletId);
+    if (dto.latitude !== undefined || dto.longitude !== undefined) {
+      if (dto.latitude === undefined || dto.longitude === undefined) {
+        throw new BadRequestException('latitude and longitude must be updated together.');
+      }
+      await this.assertOutletInServiceZone(dto.latitude, dto.longitude);
+    }
 
     const [updated] = await this.db
       .update(schema.restaurantOutlets)

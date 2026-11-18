@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   forwardRef,
@@ -27,6 +28,7 @@ import {
   RiderLocationResponse,
   LocationFreshness,
 } from './dto/rider-location.dto';
+import { ServiceZonesService } from '../service-zones/service-zones.service';
 
 @Injectable()
 export class RidersService {
@@ -37,6 +39,8 @@ export class RidersService {
     private readonly db: NodePgDatabase<typeof schema>,
     @Inject(forwardRef(() => TrackingPublisherService))
     private readonly trackingPublisher: TrackingPublisherService,
+    @Optional()
+    private readonly serviceZones?: ServiceZonesService,
   ) {}
 
   /**
@@ -216,6 +220,8 @@ export class RidersService {
             `Cannot go available. Rider is currently suspended: ${rider.suspensionReason}`,
           );
         }
+
+        await this.assertRiderInsideServiceZone(tx, rider.id, dto);
       }
 
       if (dto.availabilityStatus === 'offline') {
@@ -264,6 +270,64 @@ export class RidersService {
         updatedAt: updated.updatedAt,
       };
     });
+  }
+
+  /**
+   * Riders can only go online inside an active service zone. Uses the GPS point sent with the
+   * request, or the latest stored fix if it is fresh. Skipped when no zone is configured.
+   */
+  private async assertRiderInsideServiceZone(
+    tx: any,
+    riderId: string,
+    dto: UpdateRiderAvailabilityDto,
+  ) {
+    if (!this.serviceZones) return;
+    const zones = this.serviceZones;
+
+    let point: { latitude: unknown; longitude: unknown } | null = null;
+    if (dto.latitude !== undefined && dto.longitude !== undefined) {
+      point = { latitude: dto.latitude, longitude: dto.longitude };
+    } else {
+      const [latest] = await tx
+        .select()
+        .from(schema.riderLocations)
+        .where(eq(schema.riderLocations.riderId, riderId))
+        .limit(1);
+      const freshMs = RidersService.LOCATION_FRESHNESS_THRESHOLD_SECONDS * 1000;
+      const seenAt = latest ? new Date(latest.capturedAt || latest.updatedAt).getTime() : 0;
+      if (latest && Date.now() - seenAt <= freshMs) {
+        point = { latitude: latest.latitude, longitude: latest.longitude };
+      }
+    }
+
+    const { enforced, zone } = await zones.locate(point?.latitude, point?.longitude);
+    if (!enforced) return;
+    if (!point) {
+      throw new ForbiddenException('Turn on location to go online. We need it to check you are inside the service area.');
+    }
+    if (!zone) {
+      throw new ForbiddenException(
+        "You are outside Fleet24's service area. Move inside the delivery zone to go online.",
+      );
+    }
+
+    // Store the point sent with the request so dispatch and the open pool see the rider at once.
+    if (dto.latitude !== undefined && dto.longitude !== undefined) {
+      const now = new Date();
+      await tx
+        .insert(schema.riderLocations)
+        .values({
+          riderId,
+          latitude: dto.latitude.toFixed(7),
+          longitude: dto.longitude.toFixed(7),
+          capturedAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: schema.riderLocations.riderId,
+          set: { latitude: dto.latitude.toFixed(7), longitude: dto.longitude.toFixed(7), capturedAt: now, updatedAt: now },
+        });
+    }
   }
 
   // ================= ADMIN WORKFLOWS =================
