@@ -83,6 +83,24 @@ describe('AuthService (Unit Tests)', () => {
     });
   });
 
+  it.each(['test', 'production'])('rejects test phone numbers in %s even with the dev flag', async (env) => {
+    mockConfigService.get.mockImplementation((key: string) =>
+      key === 'NODE_ENV' ? env : key === 'ALLOW_DEV_AUTH_BYPASS' ? 'true' : undefined,
+    );
+
+    await expect(service.requestOtp('1234567890')).rejects.toThrow('valid Indian mobile');
+    await expect(service.verifyOtp('+911234567890', '123456')).rejects.toThrow('valid Indian mobile');
+    expect(mockDb.query.phoneOtpChallenges.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('permits the known test phone only when development opts in', async () => {
+    mockConfigService.get.mockImplementation((key: string, fallback: unknown) =>
+      key === 'NODE_ENV' ? 'development' : key === 'ALLOW_DEV_AUTH_BYPASS' ? 'true' : fallback,
+    );
+    await expect(service.requestOtp('1234567890')).resolves.toMatchObject({ cooldownSeconds: 60 });
+    await expect(service.verifyOtp('1234567890', '123456')).rejects.toThrow('No OTP request found');
+  });
+
   describe('requestOtp', () => {
     it('should generate, hash and dispatch OTP for a valid phone number', async () => {
       mockDb.query.phoneOtpChallenges.findFirst.mockResolvedValueOnce(null);

@@ -1,23 +1,20 @@
 import { IsString, Matches, Length } from 'class-validator';
 
-export class RequestOtpDto {
-  /**
-   * Phone number normalized with country code (e.g. +919876543210 or 10-digit Indian mobile 9876543210)
-   */
+export const INDIAN_MOBILE_PATTERN = /^(\+91)?[6-9]\d{9}$/;
+
+export class IndianMobileDto {
   @IsString()
-  @Matches(/^(\+91)?([6-9]\d{9}|1234567890|\d{10})$/, {
-    message: 'phone must be a valid 10-digit mobile number (e.g. 9876543210 or +919876543210)',
-  })
+  @Matches(INDIAN_MOBILE_PATTERN, { message: 'phone must be a valid Indian mobile number' })
   phone!: string;
 }
 
-export class VerifyOtpDto {
+/** The auth service checks mobile numbers before issuing or verifying an OTP. */
+export class RequestOtpDto {
   @IsString()
-  @Matches(/^(\+91)?([6-9]\d{9}|1234567890|\d{10})$/, {
-    message: 'phone must be a valid 10-digit mobile number',
-  })
   phone!: string;
+}
 
+export class VerifyOtpDto extends RequestOtpDto {
   @IsString()
   @Length(6, 6, { message: 'otp must be a 6-digit numeric string' })
   @Matches(/^\d{6}$/, { message: 'otp must contain only digits' })

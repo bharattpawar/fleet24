@@ -116,7 +116,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+919876543210"
+              placeholder="+91 98xxxxxxxx"
               className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
             />
           </div>

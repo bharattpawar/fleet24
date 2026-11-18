@@ -20,55 +20,43 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 // In development only: allow preview bypass if explicitly configured
 const DEV_BYPASS_TOKEN = import.meta.env.DEV ? (import.meta.env.VITE_DEV_ADMIN_TOKEN || '') : '';
 
-const DEV_ADMIN_USER: UserProfile | null = import.meta.env.DEV
-  ? {
-      id: '7bc5cbd8-cb87-4d59-b799-a672d9965609',
-      phone: '+919876543210',
-      fullName: 'Bharat Super Admin',
-      email: 'bharat1234512345777@gmail.com',
-      roles: ['admin', 'customer', 'restaurant_staff', 'rider'],
-    }
-  : null;
+function clearTokens() {
+  localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY);
+}
+
+async function fetchUser() {
+  const profile = await authApi.getMe();
+  if (!profile?.user) throw new Error('Could not load the admin profile.');
+  return profile.user;
+}
 
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const existingToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || (import.meta.env.DEV ? DEV_BYPASS_TOKEN : '');
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(Boolean(existingToken));
-  const [isLoading, setIsLoading] = useState<boolean>(!existingToken);
-  const [user, setUser] = useState<UserProfile | null>(existingToken ? DEV_ADMIN_USER : null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
+  const isAuthenticated = Boolean(user);
   const isAdmin = Boolean(user?.roles?.includes('admin'));
 
   useEffect(() => {
-    // If running in local dev, ensure localStorage is populated with a fresh valid token
-    if (import.meta.env.DEV && DEV_BYPASS_TOKEN) {
-      const stored = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
-      if (!stored || stored.includes('00000000-0000-0000-0000-000000000001') || stored !== DEV_BYPASS_TOKEN) {
-        localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, DEV_BYPASS_TOKEN);
-        // Clear any old revoked refresh token so client uses the fresh dev token directly
-        localStorage.removeItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY);
-      }
+    if (!localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) && !DEV_BYPASS_TOKEN) {
+      setIsLoading(false);
+      return;
     }
+    let active = true;
+    void fetchUser().then((profile) => {
+      if (active) setUser(profile);
+    }).catch(() => {
+      if (active) clearTokens();
+    }).finally(() => {
+      if (active) setIsLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
   const fetchProfile = async () => {
-    try {
-      const res = await authApi.getMe();
-      if (res?.user) {
-        setUser(res.user);
-      }
-    } catch {
-      // Keep dev admin user active
-      setUser(DEV_ADMIN_USER);
-    }
+    setUser(await fetchUser());
   };
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProfile();
-    } else {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated]);
 
   const requestOtp = async (phone: string) => {
     const res = await authApi.requestOtp(phone);
@@ -78,39 +66,28 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   };
 
-  const verifyOtp = async (phone: string, otp: string) => {
+  const authenticate = async (login: () => ReturnType<typeof authApi.verifyOtp>) => {
     setIsLoading(true);
     try {
-      const res = await authApi.verifyOtp(phone, otp);
-      if (res.tokens?.accessToken) {
-        localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, res.tokens.accessToken);
-        if (res.tokens.refreshToken) {
-          localStorage.setItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY, res.tokens.refreshToken);
-        }
-        setUser(res.user);
-        setIsAuthenticated(true);
+      const { tokens } = await login();
+      if (!tokens?.accessToken) throw new Error('Sign-in did not return an access token.');
+      clearTokens();
+      localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, tokens.accessToken);
+      if (tokens.refreshToken) {
+        localStorage.setItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY, tokens.refreshToken);
       }
+      await fetchProfile();
+    } catch (error) {
+      clearTokens();
+      setUser(null);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loginWithGoogle = async (idToken: string) => {
-    setIsLoading(true);
-    try {
-      const res = await authApi.loginWithGoogle(idToken);
-      if (res.tokens?.accessToken) {
-        localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, res.tokens.accessToken);
-        if (res.tokens.refreshToken) {
-          localStorage.setItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY, res.tokens.refreshToken);
-        }
-        setUser(res.user);
-        setIsAuthenticated(true);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const verifyOtp = (phone: string, otp: string) => authenticate(() => authApi.verifyOtp(phone, otp));
+  const loginWithGoogle = (idToken: string) => authenticate(() => authApi.loginWithGoogle(idToken));
 
   const logout = async () => {
     try {
@@ -118,9 +95,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch {
       // Continue client cleanup even if backend network call fails
     } finally {
-      localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-      localStorage.removeItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY);
-      setIsAuthenticated(false);
+      clearTokens();
       setUser(null);
     }
   };

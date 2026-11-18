@@ -1,3 +1,5 @@
+import { validateSync } from 'class-validator';
+import { IndianMobileDto } from './dto/auth.dto';
 import {
   Injectable,
   Inject,
@@ -46,6 +48,16 @@ export class AuthService {
     return rawPhone.trim();
   }
 
+  private validateOtpPhone(rawPhone: string): string {
+    const input = new IndianMobileDto();
+    input.phone = rawPhone;
+    const invalid = validateSync(input).length > 0;
+    if (invalid && !(this.isDevAuthBypassEnabled() && /^(\+91)?1234567890$/.test(rawPhone))) {
+      throw new BadRequestException('phone must be a valid Indian mobile number');
+    }
+    return this.normalizePhoneNumber(rawPhone);
+  }
+
   /**
    * Generates a cryptographically secure 6-digit numeric OTP
    */
@@ -66,7 +78,7 @@ export class AuthService {
    * Handles cooldown, expiration, secure hash storage, and delivery via SMS provider.
    */
   async requestOtp(rawPhone: string) {
-    const phone = this.normalizePhoneNumber(rawPhone);
+    const phone = this.validateOtpPhone(rawPhone);
     const cooldownSec = this.configService.get<number>('OTP_RESEND_COOLDOWN_SECONDS', 60);
     const expirySec = this.configService.get<number>('OTP_EXPIRY_SECONDS', 300);
     const maxAttempts = this.configService.get<number>('OTP_MAX_ATTEMPTS', 5);
@@ -117,7 +129,7 @@ export class AuthService {
    * Verifies submitted OTP, creates or retrieves user, assigns default role, and creates session.
    */
   async verifyOtp(rawPhone: string, plainOtp: string, userAgent?: string, ipAddress?: string) {
-    const phone = this.normalizePhoneNumber(rawPhone);
+    const phone = this.validateOtpPhone(rawPhone);
     const candidateHash = this.hashValue(plainOtp);
 
     // Find the latest challenge for this phone

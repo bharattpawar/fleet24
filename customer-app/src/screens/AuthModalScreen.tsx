@@ -1,3 +1,4 @@
+import { isDevAuthBypassEnabled } from '../utils/devAuth';
 import Constants from 'expo-constants';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useEffectEvent } from 'react';
@@ -51,6 +52,7 @@ interface AuthModalScreenProps {
 export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuccess }) => {
   const serviceAreas = useServiceAreas();
   const { requestOtp, verifyOtp, loginWithGoogle } = useAuth();
+  const devAuthEnabled = isDevAuthBypassEnabled(__DEV__, process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'main' | 'otp' | 'linkPhone'>('main');
@@ -170,8 +172,8 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
    * Instantly authenticates as verified Demo Customer with bypass 123456
    */
   const handleQuickDemoLogin = async () => {
-    if (!__DEV__) return;
-    const targetPhone = '+919876543210';
+    if (!devAuthEnabled || phone.length !== 10) return;
+    const targetPhone = `+91${phone}`;
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -289,11 +291,11 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
             </Text>
 
             {/* Quick Demo Customer Sign-In (1-Tap Fast Testing) — development builds only */}
-            {__DEV__ && (
+            {devAuthEnabled && (
             <TouchableOpacity
               style={styles.demoLoginButton}
               onPress={handleQuickDemoLogin}
-              disabled={isLoading || isGoogleLoading}
+              disabled={isLoading || isGoogleLoading || phone.length !== 10}
               activeOpacity={0.85}
             >
               {isLoading ? (
@@ -302,7 +304,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
                 <>
                   <Ionicons name="flash" size={18} color="#FFFFFF" />
                   <Text style={styles.demoLoginButtonText}>
-                    ⚡ Quick Demo Login (+91 9876543210)
+                    ⚡ Quick Demo Login
                   </Text>
                 </>
               )}
@@ -434,7 +436,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
             </Text>
 
             {/* Quick Autofill Dev Code Button — development builds only */}
-            {__DEV__ && (
+            {devAuthEnabled && (
               <TouchableOpacity
                 style={styles.autofillDevBtn}
                 onPress={() => setOtp('123456')}

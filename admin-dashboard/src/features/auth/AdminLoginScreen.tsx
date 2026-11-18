@@ -126,7 +126,7 @@ export const AdminLoginScreen: React.FC = () => {
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+919876543210"
+                  placeholder="+91 98xxxxxxxx"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-forest/20 focus:border-forest font-mono"
                 />
               </div>
