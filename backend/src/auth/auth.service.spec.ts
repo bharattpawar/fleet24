@@ -272,4 +272,77 @@ describe('AuthService (Unit Tests)', () => {
       expect(mockDb.update).toHaveBeenCalled();
     });
   });
+  describe('authentication hardening', () => {
+    const baseConfig: Record<string, any> = {
+      OTP_EXPIRY_SECONDS: 300,
+      OTP_RESEND_COOLDOWN_SECONDS: 60,
+      OTP_MAX_ATTEMPTS: 5,
+      JWT_ACCESS_SECRET: 'test_secret_for_auth_spec',
+      JWT_ACCESS_EXPIRY: '15m',
+      JWT_REFRESH_EXPIRY_DAYS: 30,
+    };
+    const useConfig = (extra: Record<string, any>) => {
+      const map = { ...baseConfig, ...extra };
+      mockConfigService.get.mockImplementation((key: string, defaultValue?: any) =>
+        map[key] !== undefined ? map[key] : defaultValue,
+      );
+    };
+    const pendingChallenge = () => ({
+      id: 'challenge-id-1',
+      isUsed: false,
+      expiresAt: new Date(Date.now() + 100000),
+      attemptsCount: 0,
+      maxAttempts: 5,
+      otpHash: service.hashValue('654321'),
+    });
+
+    it.each([
+      ['NODE_ENV unset', {}],
+      ['production', { NODE_ENV: 'production', ALLOW_DEV_AUTH_BYPASS: 'true' }],
+      ['development without opt-in', { NODE_ENV: 'development' }],
+    ])('rejects the dev OTP 123456 when %s', async (_label, extra) => {
+      useConfig(extra);
+      mockDb.query.phoneOtpChallenges.findFirst.mockResolvedValueOnce(pendingChallenge());
+      await expect(service.verifyOtp('+919876543210', '123456')).rejects.toThrow(/Invalid OTP/);
+    });
+
+    it('verifies Google tokens only against configured client IDs, with no fallback', async () => {
+      useConfig({ GOOGLE_CLIENT_IDS: 'web-id.apps.googleusercontent.com, android-id.apps.googleusercontent.com' });
+      const verifyIdToken = jest.fn().mockRejectedValue(new Error('Wrong recipient, payload audience != requiredAudience'));
+      (service as any).googleClient = { verifyIdToken };
+      const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64');
+      const body = Buffer.from(JSON.stringify({ aud: 'some-other-app.apps.googleusercontent.com' })).toString('base64');
+
+      await expect(service.authenticateGoogleUser(`${header}.${body}.sig`)).rejects.toThrow(UnauthorizedException);
+      expect(verifyIdToken).toHaveBeenCalledTimes(1);
+      expect(verifyIdToken).toHaveBeenCalledWith({
+        idToken: `${header}.${body}.sig`,
+        audience: ['web-id.apps.googleusercontent.com', 'android-id.apps.googleusercontent.com'],
+      });
+    });
+
+    it('rejects Google accounts whose email is not verified', async () => {
+      useConfig({ GOOGLE_CLIENT_IDS: 'web-id.apps.googleusercontent.com' });
+      (service as any).googleClient = {
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => ({ sub: 'g-1', email: 'victim@example.com', email_verified: false }),
+        }),
+      };
+      await expect(service.authenticateGoogleUser('a.b.c')).rejects.toThrow(/not verified/);
+      expect(mockDb.query.users.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects Google sign-in when no client IDs are configured', async () => {
+      useConfig({});
+      const verifyIdToken = jest.fn();
+      (service as any).googleClient = { verifyIdToken };
+      await expect(service.authenticateGoogleUser('a.b.c')).rejects.toThrow(UnauthorizedException);
+      expect(verifyIdToken).not.toHaveBeenCalled();
+    });
+
+    it('ignores the mock Google token unless the dev bypass is explicitly enabled', async () => {
+      useConfig({ NODE_ENV: 'development' });
+      await expect(service.authenticateGoogleUser('mock-google-id-token')).rejects.toThrow(UnauthorizedException);
+    });
+  });
 });

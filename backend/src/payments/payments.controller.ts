@@ -11,7 +11,10 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { RefundReconciliationService } from './refund-reconciliation.service';
@@ -19,12 +22,19 @@ import { VerifyPaymentDto } from './dto/payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser, AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
+import {
+  escapeHtml,
+  parsePaymentReturnAllowlist,
+  resolvePaymentReturnUrl,
+  toInlineScriptLiteral,
+} from './payment-return-url.util';
 
 @Controller()
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly reconciliationService: RefundReconciliationService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -93,11 +103,13 @@ export class PaymentsController {
 
   /**
    * 4. Safe Checkout Page for Expo Go WebBrowser
-   * Renders Razorpay Standard Checkout with custom redirect handler
+   * Renders Razorpay Standard Checkout with custom redirect handler.
+   * Public (opened in a browser without the app's bearer token), so it only serves orders still
+   * awaiting payment, only returns to allowlisted URLs, and escapes every interpolated value.
    */
   @Get('payments/checkout/:orderId')
   async renderCheckout(
-    @Param('orderId') orderId: string,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -105,19 +117,47 @@ export class PaymentsController {
     const order = details.order;
     const payment = details.payment;
 
-    if (!payment?.providerOrderId) {
-      return res.status(400).send('<html><body><h3>Payment session not initialized for this order.</h3></body></html>');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+
+    if (order.status !== 'pending_payment') {
+      return res
+        .status(409)
+        .type('html')
+        .send('<html><body><h3>This order is not awaiting payment.</h3></body></html>');
     }
 
-    const returnUrl = (req.query.returnUrl as string) || `fleet24://payment-callback`;
+    if (!payment?.providerOrderId) {
+      return res
+        .status(400)
+        .type('html')
+        .send('<html><body><h3>Payment session not initialized for this order.</h3></body></html>');
+    }
 
-    // Build intermediate callback url
+    const returnUrl = this.resolveReturnUrl(req.query.returnUrl);
+    const nonce = randomBytes(16).toString('base64');
+
+    res.setHeader(
+      'Content-Security-Policy',
+      `script-src 'nonce-${nonce}' https://checkout.razorpay.com https://*.razorpay.com; object-src 'none'; base-uri 'none'`,
+    );
+
+    const checkoutConfig = {
+      key: details.keyId,
+      amount: String(details.amountInPaise),
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      providerOrderId: payment.providerOrderId,
+      returnUrl,
+    };
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fleet24 Checkout</title>
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script nonce="${nonce}" src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background-color: #0F172A; color: #F8FAFC; text-align: center; padding: 20px; }
     .card { background: #1E293B; border-radius: 16px; padding: 32px 24px; max-width: 400px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
@@ -131,30 +171,30 @@ export class PaymentsController {
 <body>
   <div class="card">
     <h2>Fleet24 Food Delivery</h2>
-    <p>Order #${order.orderNumber}</p>
-    <div class="amount">₹${order.totalPayable}</div>
+    <p>Order #${escapeHtml(order.orderNumber)}</p>
+    <div class="amount">&#8377;${escapeHtml(order.totalPayable)}</div>
     <p>Opening Razorpay Checkout...</p>
-    <button class="btn" id="payBtn" onclick="openRazorpay()">Pay ₹${order.totalPayable}</button>
+    <button class="btn" id="payBtn" type="button">Pay &#8377;${escapeHtml(order.totalPayable)}</button>
   </div>
 
   <form id="redirectForm" method="POST" action="/api/v1/payments/redirect-callback" style="display:none;">
-    <input type="hidden" name="orderId" value="${order.id}">
-    <input type="hidden" name="returnUrl" value="${returnUrl}">
+    <input type="hidden" name="orderId" value="${escapeHtml(order.id)}">
+    <input type="hidden" name="returnUrl" value="${escapeHtml(returnUrl)}">
     <input type="hidden" name="razorpay_payment_id" id="f_payment_id">
     <input type="hidden" name="razorpay_order_id" id="f_order_id">
     <input type="hidden" name="razorpay_signature" id="f_signature">
   </form>
 
-  <script>
-    var returnUrl = "${returnUrl}";
+  <script nonce="${nonce}">
+    var config = ${toInlineScriptLiteral(checkoutConfig)};
     function openRazorpay() {
       var options = {
-        "key": "${details.keyId}",
-        "amount": "${details.amountInPaise}",
+        "key": config.key,
+        "amount": config.amount,
         "currency": "INR",
         "name": "Fleet24",
-        "description": "Order #${order.orderNumber}",
-        "order_id": "${payment.providerOrderId}",
+        "description": "Order #" + config.orderNumber,
+        "order_id": config.providerOrderId,
         "handler": function (response) {
           document.getElementById('f_payment_id').value = response.razorpay_payment_id;
           document.getElementById('f_order_id').value = response.razorpay_order_id;
@@ -163,8 +203,8 @@ export class PaymentsController {
         },
         "modal": {
           "ondismiss": function() {
-            var sep = returnUrl.indexOf('?') === -1 ? '?' : '&';
-            window.location.href = returnUrl + sep + "status=cancelled&orderId=${order.id}";
+            var sep = config.returnUrl.indexOf('?') === -1 ? '?' : '&';
+            window.location.href = config.returnUrl + sep + "status=cancelled&orderId=" + encodeURIComponent(config.orderId);
           }
         },
         "theme": {
@@ -174,26 +214,36 @@ export class PaymentsController {
       var rzp = new Razorpay(options);
       rzp.open();
     }
-    window.onload = openRazorpay;
+    document.getElementById('payBtn').addEventListener('click', openRazorpay);
+    window.addEventListener('load', openRazorpay);
   </script>
 </body>
 </html>`;
 
-    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   }
 
   /**
    * 5. Intermediate Redirect Callback for Mobile Deep Link
-   * Razorpay handler posts here, which issues HTTP 303 Redirect to returnUrl
+   * Razorpay handler posts here, which issues HTTP 303 Redirect to returnUrl.
+   * Only allowlisted return URLs are honoured; anything else falls back to the app deep link.
    */
   @Post('payments/redirect-callback')
   async redirectCallback(@Req() req: Request, @Res() res: Response) {
     const { orderId, returnUrl, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body || {};
-    const baseTarget = returnUrl || `fleet24://payment-callback`;
+    const baseTarget = this.resolveReturnUrl(returnUrl);
     const separator = baseTarget.includes('?') ? '&' : '?';
     const redirectUrl = `${baseTarget}${separator}orderId=${encodeURIComponent(orderId || '')}&razorpay_payment_id=${encodeURIComponent(razorpay_payment_id || '')}&razorpay_order_id=${encodeURIComponent(razorpay_order_id || '')}&razorpay_signature=${encodeURIComponent(razorpay_signature || '')}`;
     return res.redirect(303, redirectUrl);
+  }
+
+  private resolveReturnUrl(candidate: unknown): string {
+    const allowlist = parsePaymentReturnAllowlist(
+      this.configService.get<string>('PAYMENT_RETURN_URL_ALLOWLIST'),
+    );
+    const allowLocalDev = this.configService.get<string>('NODE_ENV') !== 'production';
+    return resolvePaymentReturnUrl(candidate, allowlist, allowLocalDev);
   }
 }
 

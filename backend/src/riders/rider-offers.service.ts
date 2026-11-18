@@ -6,6 +6,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -46,13 +47,16 @@ export class RiderOffersService {
 
   /**
    * Helper: Resolves the dedicated encryption key for customer delivery OTP (AES-256-GCM).
-   * Falls back to a deterministic 32-byte derived key in dev if not set.
+   * The built-in fallback key is used only when NODE_ENV is development or test.
    */
   private getOtpEncryptionKey(): string {
-    return (
-      this.configService.get<string>('DELIVERY_OTP_ENCRYPTION_KEY') ||
-      'fleet24_dev_delivery_otp_aes_256_gcm_encryption_key_32bytes'
-    );
+    const configured = this.configService.get<string>('DELIVERY_OTP_ENCRYPTION_KEY');
+    if (configured) return configured;
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
+    if (nodeEnv === 'development' || nodeEnv === 'test') {
+      return 'fleet24_dev_delivery_otp_aes_256_gcm_encryption_key_32bytes';
+    }
+    throw new InternalServerErrorException('DELIVERY_OTP_ENCRYPTION_KEY is not configured.');
   }
 
   constructor(
