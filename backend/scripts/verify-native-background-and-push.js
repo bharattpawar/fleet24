@@ -310,18 +310,10 @@ async function main() {
     headers: { Authorization: `Bearer ${riderToken}` },
   });
 
-  // Get customer OTP
-  const trackingData = await request(`/orders/${order.id}/delivery`, {
-    headers: { Authorization: `Bearer ${customerToken}` },
-  });
-  const deliveryOtp = trackingData.data.deliveryOtp;
-  console.log(`✓ Customer Delivery OTP: "${deliveryOtp}"`);
-
-  // Complete delivery
+  // Rider marks delivered
   const completeRes = await request(`/riders/orders/${order.id}/complete`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${riderToken}` },
-    body: JSON.stringify({ otp: deliveryOtp }),
   });
   console.log(`✓ Delivery completed successfully! Status: "${completeRes.data.status}"`);
 

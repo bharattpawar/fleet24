@@ -452,6 +452,15 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   /**
+   * Sends a delivery status update to the assigned rider's private room (rider sockets do not join delivery rooms).
+   */
+  broadcastStatusUpdatedToRider(riderId: string, payload: DeliveryStatusUpdatedPayload) {
+    if (!this.server) return;
+    const room = TrackingGateway.getRiderRoom(riderId);
+    this.server.to(room).emit(DELIVERY_WS_EVENTS.STATUS_UPDATED, payload);
+  }
+
+  /**
    * Broadcasts new delivery offer to the assigned rider's private room.
    */
   broadcastOfferCreated(riderId: string, payload: any) {

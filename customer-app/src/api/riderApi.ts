@@ -156,12 +156,11 @@ export const riderApi = {
   },
 
   /**
-   * Complete delivery using customer OTP
+   * Rider marks the order delivered at the customer's door (no OTP)
    */
-  async completeDelivery(orderId: string, otp: string): Promise<{ orderId: string; status: string }> {
+  async completeDelivery(orderId: string): Promise<{ orderId: string; status: string }> {
     return apiRequest(`/riders/orders/${orderId}/complete`, {
       method: 'POST',
-      body: JSON.stringify({ otp }),
     });
   },
 };

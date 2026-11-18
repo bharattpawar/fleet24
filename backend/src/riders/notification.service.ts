@@ -5,7 +5,7 @@ export interface RiderNotificationPayload {
   riderId: string;
   orderId: string;
   deliveryId: string;
-  type: 'offer_created' | 'offer_expired' | 'offer_cancelled' | 'delivery_assigned';
+  type: 'offer_created' | 'offer_expired' | 'offer_cancelled' | 'delivery_assigned' | 'delivery_completed';
   title: string;
   body: string;
   data?: Record<string, any>;

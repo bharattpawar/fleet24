@@ -32,7 +32,6 @@ describe('Environment Validation', () => {
       DATABASE_URL: 'postgresql://db/prod',
       NODE_ENV: 'production',
       JWT_ACCESS_SECRET: 'x'.repeat(40),
-      DELIVERY_OTP_ENCRYPTION_KEY: 'k'.repeat(64),
       RAZORPAY_WEBHOOK_SECRET: 'whsec',
       CORS_ORIGINS: 'https://admin.fleet24.in',
       GOOGLE_CLIENT_IDS: 'web.apps.googleusercontent.com',
@@ -45,7 +44,6 @@ describe('Environment Validation', () => {
     it.each([
       ['JWT_ACCESS_SECRET', undefined],
       ['JWT_ACCESS_SECRET', 'too-short'],
-      ['DELIVERY_OTP_ENCRYPTION_KEY', undefined],
       ['RAZORPAY_WEBHOOK_SECRET', undefined],
       ['CORS_ORIGINS', undefined],
       ['GOOGLE_CLIENT_IDS', undefined],

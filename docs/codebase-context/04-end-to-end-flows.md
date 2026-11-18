@@ -26,7 +26,7 @@ The mobile login screens call `AuthController.requestOtp` and `verifyOtp`. `Auth
 
 ## G. Completion
 
-`RiderOffersService.confirmArrival`, `confirmPickup`, `confirmArrivedCustomer` and `completeDelivery` enforce ownership and progression. Completion checks the delivery OTP, updates delivery/order state and records earnings/finance. Customer tracking receives the completion event. Follow `backend/src/riders/rider-offers.service.ts` and `backend/src/admin/admin-finance.service.ts#recordDeliveryEarning` together when changing completion.
+`RiderOffersService.confirmArrival`, `confirmPickup`, `confirmArrivedCustomer` and `completeDelivery` enforce ownership and progression. There is no delivery OTP. A delivery completes when the customer taps "I got my order" (`POST /orders/:orderId/delivery/confirm` → `confirmDeliveryByCustomer`, allowed from `picked_up` or `arrived_customer`) or when the rider marks it delivered (`POST /riders/orders/:orderId/complete`, allowed from `arrived_customer`). Both paths run the shared `finalizeDelivery`, which updates delivery/order state, records earnings/finance, writes an `order_status_history` row whose reason says who closed it, and notifies the rider (socket on the rider room, plus a push when the customer closed it). Customer tracking receives the completion event. Follow `backend/src/riders/rider-offers.service.ts` and `backend/src/admin/admin-finance.service.ts#recordDeliveryEarning` together when changing completion.
 
 ## H. Recovery
 

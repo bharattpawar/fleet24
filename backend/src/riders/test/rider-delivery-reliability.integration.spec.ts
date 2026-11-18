@@ -3,7 +3,6 @@ import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import * as schema from '../../database/schema';
 import { eq } from 'drizzle-orm';
-import { DeliveryOtpUtil } from '../../common/utils/delivery-otp.util';
 import { calculateRiderProximity } from '../../common/utils/geo';
 
 dotenv.config();
@@ -29,8 +28,6 @@ describe('Phase 5.1 Critical Rider & Delivery Database Integration Tests', () =>
   let testRestaurantId: string;
   let testOutletId: string;
   let testOrderId: string;
-
-  const encKey = 'fleet24_dev_delivery_otp_aes_256_gcm_encryption_key_32bytes';
 
   beforeAll(async () => {
     const dbUrl = process.env.DATABASE_URL;
@@ -223,52 +220,6 @@ describe('Phase 5.1 Critical Rider & Delivery Database Integration Tests', () =>
 
       // Assert separation: deliveries.distanceMeters is NOT the rider proximity
       expect(Number(persistedDelivery.distanceMeters)).not.toEqual(Number(persistedAttempt.distanceMeters));
-    });
-  });
-
-  describe('Scenario 2: Persistent Customer Delivery OTP Encryption & Restart Survivability', () => {
-    it('persists encrypted OTP to PostgreSQL and allows decryption after simulated server restart', async () => {
-      const plainOtp = '839214';
-      const orderId = testOrderId;
-
-      // 1. Generate HMAC hash and AES-256-GCM ciphertext
-      const otpHash = DeliveryOtpUtil.hashOtp(plainOtp, 'server_hmac_secret', orderId);
-      const encryptedOtp = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
-
-      // 2. Persist to deliveries row
-      await db
-        .update(schema.deliveries)
-        .set({
-          status: 'picked_up',
-          pickedUpAt: new Date(),
-          deliveryOtpHash: otpHash,
-          encryptedDeliveryOtp: encryptedOtp,
-          otpExpiresAt: new Date(Date.now() + 1800 * 1000),
-        })
-        .where(eq(schema.deliveries.orderId, orderId));
-
-      // 3. Simulate backend restart: Fresh SELECT query from database without memory cache
-      const [dbRow] = await db
-        .select()
-        .from(schema.deliveries)
-        .where(eq(schema.deliveries.orderId, orderId));
-
-      expect(dbRow.encryptedDeliveryOtp).toBeDefined();
-      expect(dbRow.encryptedDeliveryOtp).not.toBe(plainOtp); // Never stored in plain text
-      expect(dbRow.encryptedDeliveryOtp).toContain(':'); // iv:tag:ciphertext structure
-
-      // 4. Decrypt retrieved payload
-      const decrypted = DeliveryOtpUtil.decryptOtp(dbRow.encryptedDeliveryOtp!, encKey);
-      expect(decrypted).toBe(plainOtp);
-
-      // 5. Verify HMAC hash matches
-      const isOtpValid = DeliveryOtpUtil.verifyOtp(
-        decrypted,
-        'server_hmac_secret',
-        orderId,
-        dbRow.deliveryOtpHash!,
-      );
-      expect(isOtpValid).toBe(true);
     });
   });
 

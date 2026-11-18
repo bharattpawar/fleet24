@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  TextInput,
   Linking,
   Platform,
 } from 'react-native';
@@ -50,7 +49,6 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
 }) => {
   const [currentStatus, setCurrentStatus] = useState(delivery.status);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpInput, setOtpInput] = useState('');
 
   // Navigation Deep Link launcher (Google Maps / Apple Maps)
   const openMapsNavigation = (latitude?: number, longitude?: number, label?: string) => {
@@ -112,20 +110,15 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
     }
   };
 
-  const handleCompleteDeliveryWithOtp = async () => {
-    if (otpInput.trim().length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter the full 6-digit customer verification code.');
-      return;
-    }
-
+  const handleMarkDelivered = async () => {
     setIsSubmitting(true);
     try {
-      await riderApi.completeDelivery(delivery.orderId, otpInput.trim());
+      await riderApi.completeDelivery(delivery.orderId);
       setCurrentStatus('completed');
       onStatusChanged('completed');
-      Alert.alert('Delivery Complete!', 'Handoff verified successfully. Rider capacity restored.');
+      Alert.alert('Delivery Complete!', 'Order marked as delivered.');
     } catch (err: any) {
-      Alert.alert('Verification Failed', err.message || 'Invalid or expired OTP code.');
+      Alert.alert('Could not mark delivered', err.message || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -210,31 +203,21 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
         </View>
       )}
 
-      {/* OTP Verification Section (When Arrived at Customer) */}
+      {/* Hand-over (When Arrived at Customer): rider marks delivered, or the customer taps "I got my order" */}
       {currentStatus === 'arrived_customer' && (
-        <View style={styles.otpSection}>
-          <View style={styles.otpHeader}>
-            <Ionicons name="key" size={18} color={colors.primary} />
-            <Text style={styles.otpTitle}>Enter 6-Digit Customer OTP</Text>
+        <View style={styles.handoverSection}>
+          <View style={styles.handoverHeader}>
+            <Ionicons name="bag-check" size={18} color={colors.primary} />
+            <Text style={styles.handoverTitle}>Hand over the order</Text>
           </View>
-          <Text style={styles.otpSub}>
-            Ask the customer for the handoff code displayed on their screen.
+          <Text style={styles.handoverSub}>
+            Mark it delivered once the customer has it. They can also confirm from their app.
           </Text>
-
-          <TextInput
-            style={styles.otpInput}
-            value={otpInput}
-            onChangeText={(val) => setOtpInput(val.replace(/\D/g, '').slice(0, 6))}
-            placeholder="000000"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={6}
-          />
 
           <TouchableOpacity
             style={styles.completeBtn}
-            onPress={handleCompleteDeliveryWithOtp}
-            disabled={isSubmitting || otpInput.length !== 6}
+            onPress={handleMarkDelivered}
+            disabled={isSubmitting}
             activeOpacity={0.85}
           >
             {isSubmitting ? (
@@ -242,7 +225,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
             ) : (
               <>
                 <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
-                <Text style={styles.completeBtnText}>Verify OTP & Complete Delivery</Text>
+                <Text style={styles.completeBtnText}>Mark Delivered</Text>
               </>
             )}
           </TouchableOpacity>
@@ -383,7 +366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  otpSection: {
+  handoverSection: {
     backgroundColor: colors.surface,
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
@@ -391,31 +374,20 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.primary,
   },
-  otpHeader: {
+  handoverHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
     marginBottom: 4,
   },
-  otpTitle: {
+  handoverTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.primaryDark,
   },
-  otpSub: {
+  handoverSub: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  otpInput: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: borderRadius.md,
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: 10,
-    textAlign: 'center',
-    paddingVertical: 12,
-    color: colors.textPrimary,
     marginBottom: spacing.md,
   },
   completeBtn: {

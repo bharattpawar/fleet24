@@ -15,7 +15,7 @@ import { colors, spacing, borderRadius } from '../theme/tokens';
 import { ActiveDeliveryDetails, RiderLocationUpdate } from '../api/riderApi';
 import type { GpsStatus } from '../services/locationService';
 import { RiderMap } from './RiderMap';
-import { OtpVerificationSheet } from './OtpVerificationSheet';
+import { nextDeliveryStep } from '../utils/deliveryStage';
 import { riderApi } from '../api/riderApi';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { addressDetail, addressTitle, directionsUrl, toCoordinate } from '../utils/address';
@@ -36,7 +36,6 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
   onRefresh,
 }) => {
   const { refreshProfile } = useRiderAuth();
-  const [showOtpSheet, setShowOtpSheet] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const status = (delivery?.status || (delivery as any)?.deliveryStatus || 'accepted').toLowerCase();
@@ -87,26 +86,34 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
     });
   };
 
+  const nextStep = nextDeliveryStep(status);
+
+  const markDelivered = async () => {
+    await riderApi.completeDelivery(delivery.orderId);
+    await onRefresh();
+    await refreshProfile();
+    Alert.alert('Delivered', 'Delivery completed. Great job!');
+  };
+
   // Stage Action Execution
-  const handleStageAction = async () => {
-    if (isActionLoading) return;
+  const runStageAction = async () => {
+    if (isActionLoading || !nextStep) return;
     setIsActionLoading(true);
 
     try {
-      if (status === 'assigned' || status === 'accepted') {
-        // Stage 2: Arrived at Restaurant
-        await riderApi.confirmArrival(delivery.orderId);
-      } else if (status === 'at_restaurant') {
-        // Stage 3: Picked Up Order
-        await riderApi.confirmPickup(delivery.orderId);
-      } else if (status === 'picked_up') {
-        // Stage 4: Arrived at Customer Doorstep
-        await riderApi.confirmArrivedCustomer(delivery.orderId);
-      } else if (status === 'arrived_customer') {
-        // Stage 5: Open OTP sheet
-        setShowOtpSheet(true);
-        setIsActionLoading(false);
-        return;
+      switch (nextStep.action) {
+        case 'arrive_restaurant':
+          await riderApi.confirmArrival(delivery.orderId);
+          break;
+        case 'pickup':
+          await riderApi.confirmPickup(delivery.orderId);
+          break;
+        case 'arrive_customer':
+          await riderApi.confirmArrivedCustomer(delivery.orderId);
+          break;
+        case 'mark_delivered':
+          await markDelivered();
+          return;
       }
       await onRefresh();
     } catch (err: any) {
@@ -116,22 +123,19 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
     }
   };
 
-  const handleVerifyOtp = async (otp: string) => {
-    await riderApi.completeDelivery(delivery.orderId, otp);
-    await onRefresh();
-    await refreshProfile();
-    Alert.alert('Success', 'Delivery completed successfully! Great job.');
+  const handleStageAction = () => {
+    if (nextStep?.action === 'mark_delivered') {
+      // Ask once so a stray tap doesn't close the order before the handover.
+      Alert.alert('Mark as delivered?', 'Only do this after you have handed the order to the customer.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mark delivered', onPress: () => void runStageAction() },
+      ]);
+      return;
+    }
+    void runStageAction();
   };
 
-  // Dynamic Button Label & Target Coordinates
-  let actionTitle = 'CONFIRM ARRIVAL AT RESTAURANT';
-  if (status === 'at_restaurant') {
-    actionTitle = 'CONFIRM FOOD PICKED UP';
-  } else if (status === 'picked_up') {
-    actionTitle = 'CONFIRM ARRIVAL AT CUSTOMER';
-  } else if (status === 'arrived_customer') {
-    actionTitle = 'ENTER CUSTOMER OTP TO DELIVER';
-  }
+  const actionTitle = nextStep?.label ?? 'CONFIRM ARRIVAL AT RESTAURANT';
 
   const isDropoffStage = status === 'picked_up' || status === 'arrived_customer';
   const navTarget = isDropoffStage
@@ -165,7 +169,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
         <TouchableOpacity
           style={[
             styles.primaryActionButton,
-            status === 'arrived_customer' ? styles.actionButtonOtp : null,
+            status === 'arrived_customer' ? styles.actionButtonDeliver : null,
           ]}
           onPress={handleStageAction}
           disabled={isActionLoading}
@@ -342,13 +346,6 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
         isMockMode={isMockMode}
       />
 
-      {/* OTP Modal Sheet */}
-      <OtpVerificationSheet
-        visible={showOtpSheet}
-        orderNumber={delivery.orderNumber}
-        onVerify={handleVerifyOtp}
-        onClose={() => setShowOtpSheet(false)}
-      />
     </ScrollView>
   );
 };
@@ -582,7 +579,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  actionButtonOtp: {
+  actionButtonDeliver: {
     backgroundColor: colors.accent,
     shadowColor: colors.accent,
   },

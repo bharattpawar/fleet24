@@ -1,5 +1,6 @@
 import {
   Controller,
+  ParseUUIDPipe,
   Get,
   Post,
   Param,
@@ -75,7 +76,7 @@ export class OrdersController {
 
   /**
    * GET /api/v1/orders/:orderId/delivery
-   * Customer delivery status, assigned rider details, and OTP for delivery handoff
+   * Customer delivery status, assigned rider details, and whether delivery can be confirmed
    */
   @Get(':orderId/delivery')
   async getDeliveryDetails(
@@ -83,6 +84,19 @@ export class OrdersController {
     @Param('orderId') orderId: string,
   ) {
     return this.riderOffersService.getDeliveryForCustomer(user.userId, orderId);
+  }
+
+  /**
+   * POST /api/v1/orders/:orderId/delivery/confirm
+   * Customer taps "I got my order"; this completes the delivery.
+   */
+  @Post(':orderId/delivery/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmDelivery(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.riderOffersService.confirmDeliveryByCustomer(user.userId, orderId);
   }
 
   @Post(':orderId/cancel')

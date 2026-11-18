@@ -1,20 +1,10 @@
-import { IsNotEmpty, IsString, Length, Matches } from 'class-validator';
-
-export class CompleteDeliveryDto {
-  @IsNotEmpty()
-  @IsString()
-  @Length(6, 6, { message: 'OTP must be exactly 6 numeric digits' })
-  @Matches(/^\d{6}$/, { message: 'OTP must consist only of numeric digits' })
-  otp!: string;
-}
-
 export interface CustomerDeliveryTrackingResponse {
   orderId: string;
   orderNumber: string;
   orderStatus: string;
   deliveryStatus: string;
-  deliveryOtp?: string; // Only returned if order is out_for_delivery / arrived_customer and viewer is order owner
-  otpExpiresAt?: Date | null;
+  /** True once the rider has picked up the order and it is not yet delivered. */
+  canConfirmDelivery: boolean;
   restaurant: {
     name: string;
     address: string;

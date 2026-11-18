@@ -26,6 +26,8 @@ import {
   DeliveryErrorEvent,
 } from '../api/trackingSocket';
 import { DeliveryMapView } from '../components/DeliveryMapView';
+import { ConfirmDeliveryCard } from '../components/ConfirmDeliveryCard';
+import { confirmDeliveryReceived } from '../api/deliveryConfirmation';
 
 export interface CustomerDeliveryResponse {
   orderId: string;
@@ -33,8 +35,8 @@ export interface CustomerDeliveryResponse {
   orderStatus: string;
   paymentStatus?: string;
   deliveryStatus: string;
-  deliveryOtp?: string;
-  otpExpiresAt?: string | null;
+  /** True once the rider has picked up the order; the customer can then confirm receipt. */
+  canConfirmDelivery?: boolean;
   restaurant: {
     name: string;
     address: string;
@@ -117,6 +119,20 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
       setIsLoading(false);
       setIsReconnecting(false);
     }
+  }, [orderId]);
+
+  const handleConfirmDelivery = useCallback(async () => {
+    await confirmDeliveryReceived(orderId);
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            deliveryStatus: 'completed',
+            orderStatus: 'delivered',
+            canConfirmDelivery: false,
+          }
+        : prev,
+    );
   }, [orderId]);
 
   // 2. Setup WebSocket Connection & Event Subscriptions
@@ -208,7 +224,7 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
                 ...prev,
                 deliveryStatus: 'completed',
                 orderStatus: 'delivered',
-                deliveryOtp: undefined, // Clear OTP upon completion
+                canConfirmDelivery: false,
               }
             : prev,
         );
@@ -224,7 +240,7 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
                 ...prev,
                 deliveryStatus: 'cancelled',
                 orderStatus: 'cancelled',
-                deliveryOtp: undefined,
+                canConfirmDelivery: false,
               }
             : prev,
         );
@@ -319,7 +335,7 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
     );
   }
 
-  const { deliveryStatus, orderNumber, restaurant, rider, deliveryOtp } = data;
+  const { deliveryStatus, orderNumber, restaurant, rider } = data;
 
   // Determine active step index
   const getStepIndex = () => {
@@ -346,6 +362,8 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
   const currentStep = getStepIndex();
   const isFinished = deliveryStatus === 'completed';
   const isCancelled = deliveryStatus === 'cancelled' || ['cancelled', 'rejected'].includes(data.orderStatus);
+  const canConfirm =
+    data.canConfirmDelivery ?? (deliveryStatus === 'picked_up' || deliveryStatus === 'arrived_customer');
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -390,27 +408,9 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
           isStaleLocation={isStaleLocation}
         />
 
-        {/* 3. Customer Delivery OTP Card (Only displayed for in-flight active handoff) */}
-        {deliveryOtp && !isFinished && !isCancelled && (
-          <View style={styles.otpCard}>
-            <View style={styles.otpHeader}>
-              <View style={styles.otpIconBadge}>
-                <Ionicons name="key-outline" size={18} color={colors.primary} />
-              </View>
-              <View style={styles.otpHeaderTextCol}>
-                <Text style={styles.otpTitle}>Customer Delivery OTP</Text>
-                <Text style={styles.otpSub}>Share this 6-digit code with your rider upon arrival</Text>
-              </View>
-            </View>
-
-            <View style={styles.otpCodeContainer}>
-              {deliveryOtp.split('').map((digit, i) => (
-                <View key={i} style={styles.otpDigitBox}>
-                  <Text style={styles.otpDigitText}>{digit}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+        {/* 3. "I got my order": completes the delivery once the rider has picked it up */}
+        {canConfirm && !isFinished && !isCancelled && (
+          <ConfirmDeliveryCard onConfirm={handleConfirmDelivery} />
         )}
 
         {/* 4. Rider Information Card */}
@@ -582,68 +582,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
-  },
-  otpCard: {
-    margin: spacing.lg,
-    backgroundColor: colors.surfaceGreen,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: '#CDE3D3',
-  },
-  otpHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  otpIconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  otpHeaderTextCol: {
-    flex: 1,
-  },
-  otpTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.primaryDark,
-  },
-  otpSub: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  otpCodeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  otpDigitBox: {
-    width: 44,
-    height: 50,
-    borderRadius: borderRadius.sm,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  otpDigitText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.primaryDark,
-    letterSpacing: 1,
   },
   riderCard: {
     flexDirection: 'row',

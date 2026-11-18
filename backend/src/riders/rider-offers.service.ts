@@ -7,7 +7,6 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -20,7 +19,6 @@ import { isUsableLocation } from '../users/address-location.util';
 import { RidersService } from './riders.service';
 import { RiderAssignmentService } from './rider-assignment.service';
 import { NotificationService } from './notification.service';
-import { DeliveryOtpUtil } from '../common/utils/delivery-otp.util';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { AdminFinanceService } from '../admin/admin-finance.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
@@ -29,7 +27,6 @@ import {
   DeliveryOfferDetails,
 } from './dto/delivery-offer.dto';
 import {
-  CompleteDeliveryDto,
   CustomerDeliveryTrackingResponse,
 } from './dto/delivery-completion.dto';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
@@ -37,30 +34,6 @@ import { ServiceZonesService } from '../service-zones/service-zones.service';
 @Injectable()
 export class RiderOffersService {
   private readonly logger = new Logger(RiderOffersService.name);
-
-  /**
-   * OTP duration: 30 minutes (1800 seconds)
-   */
-  public static readonly OTP_EXPIRY_SECONDS = 1800;
-
-  /**
-   * Maximum failed verification attempts before locking OTP
-   */
-  public static readonly MAX_OTP_ATTEMPTS = 5;
-
-  /**
-   * Helper: Resolves the dedicated encryption key for customer delivery OTP (AES-256-GCM).
-   * The built-in fallback key is used only when NODE_ENV is development or test.
-   */
-  private getOtpEncryptionKey(): string {
-    const configured = this.configService.get<string>('DELIVERY_OTP_ENCRYPTION_KEY');
-    if (configured) return configured;
-    const nodeEnv = this.configService.get<string>('NODE_ENV');
-    if (nodeEnv === 'development' || nodeEnv === 'test') {
-      return 'fleet24_dev_delivery_otp_aes_256_gcm_encryption_key_32bytes';
-    }
-    throw new InternalServerErrorException('DELIVERY_OTP_ENCRYPTION_KEY is not configured.');
-  }
 
   constructor(
     @Inject(DRIZZLE_CONNECTION)
@@ -88,17 +61,6 @@ export class RiderOffersService {
         "You are outside Fleet24's service area. Move inside the delivery zone to see and claim orders.",
       );
     }
-  }
-
-  /**
-   * Helper: Resolves the server HMAC secret for delivery OTP hashing.
-   */
-  private getOtpSecret(): string {
-    return (
-      this.configService.get<string>('JWT_ACCESS_SECRET') ||
-      this.configService.get<string>('DATABASE_URL') ||
-      'fleet24_secure_delivery_otp_secret_key'
-    );
   }
 
   /**
@@ -1031,39 +993,11 @@ export class RiderOffersService {
 
       const now = new Date();
 
-      // Generate secure delivery OTP if not already present
-      let otpHash = delivery.deliveryOtpHash;
-      let encryptedOtp = delivery.encryptedDeliveryOtp;
-      let otpExpiresAt = delivery.otpExpiresAt;
-
-      if (!otpHash || !encryptedOtp || (otpExpiresAt && otpExpiresAt <= now)) {
-        const rawOtp = DeliveryOtpUtil.generateOtp();
-        otpHash = DeliveryOtpUtil.hashOtp(rawOtp, this.getOtpSecret(), orderId);
-        encryptedOtp = DeliveryOtpUtil.encryptOtp(rawOtp, this.getOtpEncryptionKey());
-        otpExpiresAt = new Date(now.getTime() + RiderOffersService.OTP_EXPIRY_SECONDS * 1000);
-
-        // Notify customer (logged securely via NotificationService, OTP plaintext is delivered only to customer)
-        this.notificationService
-          .notifyRider({
-            riderId: delivery.riderId,
-            orderId,
-            deliveryId: delivery.id,
-            type: 'delivery_assigned',
-            title: 'Order Picked Up',
-            body: `Your order has been picked up. Share OTP ${rawOtp} with the rider upon delivery.`,
-            data: { rawOtp },
-          })
-          .catch(() => {});
-      }
-
       const [updated] = await tx
         .update(schema.deliveries)
         .set({
           status: 'picked_up',
           pickedUpAt: now,
-          deliveryOtpHash: otpHash,
-          encryptedDeliveryOtp: encryptedOtp,
-          otpExpiresAt,
           updatedAt: now,
         })
         .where(eq(schema.deliveries.id, delivery.id))
@@ -1183,16 +1117,13 @@ export class RiderOffersService {
 
   /**
    * POST /api/v1/riders/orders/:orderId/complete
-   * Customer delivery handoff verification with secure OTP.
-   * Decrements rider capacity exactly once, restores availability if applicable, advances order to delivered.
+   * Rider marks the order delivered after reaching the customer (arrived_customer -> completed).
+   * Riders are Fleet24 staff, so no customer code is needed; the audit trail records that the rider closed it.
    */
-  async completeDelivery(userId: string, orderId: string, dto: CompleteDeliveryDto) {
+  async completeDelivery(userId: string, orderId: string) {
     const rider = await this.getRiderForUser(userId);
 
     return await this.db.transaction(async (tx) => {
-      const now = new Date();
-
-      // 1. Lock delivery row FOR UPDATE
       const [delivery] = await tx
         .select()
         .from(schema.deliveries)
@@ -1204,186 +1135,222 @@ export class RiderOffersService {
         throw new ForbiddenException('Delivery does not belong to you');
       }
 
-      // Idempotency check: If already completed, return cleanly without duplicate decrement
-      if (delivery.status === 'completed') {
-        return {
-          orderId,
-          deliveryId: delivery.id,
-          status: 'completed',
-          message: 'Delivery is already completed',
-          alreadyCompleted: true,
-        };
-      }
+      if (delivery.status === 'completed') return this.alreadyCompletedResult(orderId, delivery.id);
 
-      // 2. State transition check: must be in arrived_customer
       if (delivery.status !== 'arrived_customer') {
         throw new BadRequestException(
           `Cannot complete delivery from status '${delivery.status}'. Rider must confirm arrival at customer doorstep first.`,
         );
       }
 
-      // 3. OTP verification limits and expiry
-      if (delivery.otpAttemptsCount >= RiderOffersService.MAX_OTP_ATTEMPTS) {
-        throw new ForbiddenException(
-          'Maximum delivery OTP verification attempts exceeded. Please contact customer support.',
-        );
-      }
-
-      if (delivery.otpExpiresAt && delivery.otpExpiresAt <= now) {
-        throw new BadRequestException('Delivery OTP has expired. Please ask the customer to refresh OTP.');
-      }
-
-      // 4. Constant-time secure OTP verification
-      const isOtpValid = DeliveryOtpUtil.verifyOtp(
-        dto.otp,
-        this.getOtpSecret(),
-        orderId,
-        delivery.deliveryOtpHash || '',
-      );
-
-      if (!isOtpValid) {
-        // Increment attempts count
-        const newAttempts = delivery.otpAttemptsCount + 1;
-        await tx
-          .update(schema.deliveries)
-          .set({
-            otpAttemptsCount: newAttempts,
-            updatedAt: now,
-          })
-          .where(eq(schema.deliveries.id, delivery.id));
-
-        const remaining = RiderOffersService.MAX_OTP_ATTEMPTS - newAttempts;
-        throw new BadRequestException(
-          `Invalid delivery OTP. ${remaining} attempt(s) remaining.`,
-        );
-      }
-
-      // 5. Valid OTP: Lock rider row FOR UPDATE to safely release capacity
-      const [riderRow] = await tx
-        .select()
-        .from(schema.riders)
-        .where(eq(schema.riders.id, rider.id))
-        .for('update');
-
-      if (riderRow) {
-        const newActiveCount = Math.max(0, riderRow.currentActiveOrdersCount - 1);
-        // Restore availability to 'available' if rider is approved, not suspended, and was online/busy
-        let newAvailability = riderRow.availabilityStatus;
-        if (
-          riderRow.verificationStatus === 'approved' &&
-          !riderRow.suspensionReason &&
-          riderRow.isOnline &&
-          newActiveCount < riderRow.maxActiveOrders
-        ) {
-          newAvailability = 'available';
-        }
-
-        await tx
-          .update(schema.riders)
-          .set({
-            currentActiveOrdersCount: newActiveCount,
-            availabilityStatus: newAvailability,
-            updatedAt: now,
-          })
-          .where(eq(schema.riders.id, rider.id));
-      }
-
-      // 6. Update delivery status to 'completed', invalidate OTP and encrypted payload
-      const [updatedDelivery] = await tx
-        .update(schema.deliveries)
-        .set({
-          status: 'completed',
-          deliveredAt: now,
-          otpVerifiedAt: now,
-          deliveryOtpHash: null, // Invalidate OTP
-          encryptedDeliveryOtp: null, // Wipe encrypted OTP
-          updatedAt: now,
-        })
-        .where(eq(schema.deliveries.id, delivery.id))
-        .returning();
-
-      // 7. Update order status to 'delivered'
-      await tx
-        .update(schema.orders)
-        .set({
-          status: 'delivered',
-          deliveredAt: now,
-          updatedAt: now,
-        })
-        .where(eq(schema.orders.id, orderId));
-
-      // 8. Order status history audit
-      await tx.insert(schema.orderStatusHistory).values({
-        orderId,
-        previousStatus: 'out_for_delivery',
-        newStatus: 'delivered',
-        changedByUserId: userId,
-        reason: 'Customer handoff completed via verified delivery OTP',
-      });
-
-      this.logger.log(`Order ${orderId} successfully completed and delivered by rider ${rider.id}`);
-
-      // 9. Atomic Financial Ledger Operations (Dynamic Rider Earning & Restaurant Delivery Credits)
-      // Executed within the outer tx: any ledger failure aborts delivery completion to guarantee financial consistency.
-      const [order] = await tx
-        .select({
-          orderNumber: schema.orders.orderNumber,
-          outletId: schema.orders.outletId,
-        })
-        .from(schema.orders)
-        .where(eq(schema.orders.id, orderId));
-
-      // 9A. Restaurant Monthly Credit Block Consumption
-      if (order?.outletId) {
-        const [outlet] = await tx
-          .select({ restaurantId: schema.restaurantOutlets.restaurantId })
-          .from(schema.restaurantOutlets)
-          .where(eq(schema.restaurantOutlets.id, order.outletId));
-
-        if (outlet?.restaurantId) {
-          await this.financialSettingsService.consumeRestaurantDeliveryCredit(
-            outlet.restaurantId,
-            orderId,
-            tx,
-          );
-        }
-      }
-
-      // 9B. Dynamic Rider Earning Credit (Using configured strategy, slabs, distance, and IST peak hours)
-      await this.financeService.recordDeliveryEarning(
-        orderId,
-        rider.id,
-        updatedDelivery.id,
-        undefined, // uses persisted delivery.distanceMeters
-        tx,
-      );
-
-      // WebSocket status update: delivery.completed
-      try {
-        this.trackingPublisher.publishDeliveryCompleted({
-          orderId,
-          deliveryId: updatedDelivery.id,
-          completedAt: now.toISOString(),
-          message: 'Order delivered successfully',
-        });
-      } catch (wsErr: any) {
-        this.logger.warn(`Failed to broadcast completed event: ${wsErr?.message || wsErr}`);
-      }
-
-      return {
-        orderId,
-        deliveryId: updatedDelivery.id,
-        status: 'completed',
-        deliveredAt: now,
-        message: 'Order delivery completed successfully',
-      };
+      return this.finalizeDelivery(tx, delivery, userId, 'Marked delivered by rider');
     });
   }
 
   /**
+   * POST /api/v1/orders/:orderId/delivery/confirm
+   * Customer taps "I got my order" (picked_up | arrived_customer -> completed).
+   */
+  async confirmDeliveryByCustomer(customerId: string, orderId: string) {
+    return await this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select({ id: schema.orders.id, customerId: schema.orders.customerId })
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId));
+
+      if (!order || order.customerId !== customerId) {
+        throw new NotFoundException(`Order '${orderId}' not found.`);
+      }
+
+      const [delivery] = await tx
+        .select()
+        .from(schema.deliveries)
+        .where(eq(schema.deliveries.orderId, orderId))
+        .for('update');
+
+      if (!delivery) throw new BadRequestException('This order has no delivery yet.');
+
+      if (delivery.status === 'completed') return this.alreadyCompletedResult(orderId, delivery.id);
+
+      if (delivery.status !== 'picked_up' && delivery.status !== 'arrived_customer') {
+        throw new BadRequestException('You can confirm delivery once the rider has picked up your order.');
+      }
+
+      return this.finalizeDelivery(tx, delivery, customerId, 'Customer confirmed they received the order');
+    });
+  }
+
+  private alreadyCompletedResult(orderId: string, deliveryId: string) {
+    return {
+      orderId,
+      deliveryId,
+      status: 'completed',
+      message: 'Delivery is already completed',
+      alreadyCompleted: true,
+    };
+  }
+
+  /**
+   * Completes a locked delivery: releases rider capacity exactly once, advances the order to delivered,
+   * writes the audit row, books rider earning and restaurant credit, and broadcasts completion.
+   * Must run inside the caller's transaction with the delivery row already locked FOR UPDATE.
+   */
+  private async finalizeDelivery(
+    tx: any,
+    delivery: typeof schema.deliveries.$inferSelect,
+    actorUserId: string,
+    reason: string,
+  ) {
+    const now = new Date();
+    const orderId = delivery.orderId;
+    const riderId = delivery.riderId;
+    if (!riderId) throw new BadRequestException('This delivery has no rider assigned.');
+
+    // Lock rider row FOR UPDATE to safely release capacity
+    const [riderRow] = await tx
+      .select()
+      .from(schema.riders)
+      .where(eq(schema.riders.id, riderId))
+      .for('update');
+
+    if (riderRow) {
+      const newActiveCount = Math.max(0, riderRow.currentActiveOrdersCount - 1);
+      // Restore availability to 'available' if rider is approved, not suspended, and was online/busy
+      let newAvailability = riderRow.availabilityStatus;
+      if (
+        riderRow.verificationStatus === 'approved' &&
+        !riderRow.suspensionReason &&
+        riderRow.isOnline &&
+        newActiveCount < riderRow.maxActiveOrders
+      ) {
+        newAvailability = 'available';
+      }
+
+      await tx
+        .update(schema.riders)
+        .set({
+          currentActiveOrdersCount: newActiveCount,
+          availabilityStatus: newAvailability,
+          updatedAt: now,
+        })
+        .where(eq(schema.riders.id, riderId));
+    }
+
+    // Update delivery status to 'completed'
+    const [updatedDelivery] = await tx
+      .update(schema.deliveries)
+      .set({
+        status: 'completed',
+        deliveredAt: now,
+        arrivedCustomerAt: delivery.arrivedCustomerAt ?? now,
+        updatedAt: now,
+      })
+      .where(eq(schema.deliveries.id, delivery.id))
+      .returning();
+
+    // Update order status to 'delivered'
+    await tx
+      .update(schema.orders)
+      .set({
+        status: 'delivered',
+        deliveredAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.orders.id, orderId));
+
+    // Order status history audit (reason records who closed it: customer or rider)
+    await tx.insert(schema.orderStatusHistory).values({
+      orderId,
+      previousStatus: 'out_for_delivery',
+      newStatus: 'delivered',
+      changedByUserId: actorUserId,
+      reason,
+    });
+
+    this.logger.log(`Order ${orderId} delivered by rider ${riderId} (${reason})`);
+
+    // Atomic Financial Ledger Operations (Dynamic Rider Earning & Restaurant Delivery Credits)
+    // Executed within the outer tx: any ledger failure aborts delivery completion to guarantee financial consistency.
+    const [order] = await tx
+      .select({
+        orderNumber: schema.orders.orderNumber,
+        outletId: schema.orders.outletId,
+      })
+      .from(schema.orders)
+      .where(eq(schema.orders.id, orderId));
+
+    // Restaurant Monthly Credit Block Consumption
+    if (order?.outletId) {
+      const [outlet] = await tx
+        .select({ restaurantId: schema.restaurantOutlets.restaurantId })
+        .from(schema.restaurantOutlets)
+        .where(eq(schema.restaurantOutlets.id, order.outletId));
+
+      if (outlet?.restaurantId) {
+        await this.financialSettingsService.consumeRestaurantDeliveryCredit(
+          outlet.restaurantId,
+          orderId,
+          tx,
+        );
+      }
+    }
+
+    // Dynamic Rider Earning Credit (Using configured strategy, slabs, distance, and IST peak hours)
+    await this.financeService.recordDeliveryEarning(
+      orderId,
+      riderId,
+      updatedDelivery.id,
+      undefined, // uses persisted delivery.distanceMeters
+      tx,
+    );
+
+    // WebSocket status update: delivery.completed
+    try {
+      this.trackingPublisher.publishDeliveryCompleted({
+        orderId,
+        deliveryId: updatedDelivery.id,
+        completedAt: now.toISOString(),
+        message: 'Order delivered successfully',
+      });
+      // Rider sockets only listen on the rider room, so tell the rider app too (covers customer-confirmed orders).
+      this.trackingPublisher.publishStatusUpdatedToRider(riderId, {
+        orderId,
+        deliveryId: updatedDelivery.id,
+        status: 'completed',
+        orderStatus: 'delivered',
+        updatedAt: now.toISOString(),
+        message: reason,
+      });
+    } catch (wsErr: any) {
+      this.logger.warn(`Failed to broadcast completed event: ${wsErr?.message || wsErr}`);
+    }
+
+    if (actorUserId !== riderRow?.userId) {
+      this.notificationService
+        .notifyRider({
+          riderId,
+          orderId,
+          deliveryId: updatedDelivery.id,
+          type: 'delivery_completed',
+          title: 'Delivery completed',
+          body: 'The customer confirmed they received the order.',
+        })
+        .catch(() => {});
+    }
+
+    return {
+      orderId,
+      deliveryId: updatedDelivery.id,
+      status: 'completed',
+      deliveredAt: now,
+      message: 'Order delivery completed successfully',
+    };
+  }
+
+  /**
    * Helper for customer order tracking:
-   * Returns current delivery status and rider public info for order owner.
-   * Also returns plain OTP if order is in-flight for handoff.
+   * Returns current delivery status and rider public info for order owner,
+   * and whether the customer can confirm receipt.
    */
   async getDeliveryForCustomer(
     customerId: string,
@@ -1410,26 +1377,9 @@ export class RiderOffersService {
       },
     });
 
-    // Customer OTP Retrieval: Only decrypt and expose OTP if delivery is in active customer handoff
-    // states ('picked_up' or 'arrived_customer') and OTP is unexpired.
-    let customerOtp: string | undefined = undefined;
-    const now = new Date();
-    const canViewOtp =
-      delivery &&
-      (delivery.status === 'picked_up' || delivery.status === 'arrived_customer') &&
-      delivery.encryptedDeliveryOtp &&
-      (!delivery.otpExpiresAt || delivery.otpExpiresAt > now);
-
-    if (canViewOtp && delivery.encryptedDeliveryOtp) {
-      try {
-        customerOtp = DeliveryOtpUtil.decryptOtp(
-          delivery.encryptedDeliveryOtp,
-          this.getOtpEncryptionKey(),
-        );
-      } catch (err: any) {
-        this.logger.error(`Failed to decrypt delivery OTP for order ${orderId}: ${err?.message || err}`);
-      }
-    }
+    // The customer can tap "I got my order" once the rider has picked it up.
+    const canConfirmDelivery =
+      !!delivery && (delivery.status === 'picked_up' || delivery.status === 'arrived_customer');
 
     // Fetch latest rider location if delivery is in an active tracking state
     let riderLocation: {
@@ -1473,8 +1423,7 @@ export class RiderOffersService {
       orderNumber: order.orderNumber,
       orderStatus: order.status,
       deliveryStatus: delivery?.status || 'unassigned',
-      deliveryOtp: customerOtp,
-      otpExpiresAt: delivery?.otpExpiresAt,
+      canConfirmDelivery,
       restaurant: {
         name: order.outlet.name,
         address: order.outlet.address,

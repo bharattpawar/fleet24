@@ -167,7 +167,7 @@ describe('Rider Operations & Lifecycle (Phase 5.4)', () => {
     });
   });
 
-  describe('Delivery Lifecycle Progression & OTP Verification', () => {
+  describe('Delivery Lifecycle Progression', () => {
     it('signals arrival at restaurant', async () => {
       (apiRequest as jest.Mock).mockResolvedValueOnce({
         orderId: 'order-101',
@@ -207,16 +207,15 @@ describe('Rider Operations & Lifecycle (Phase 5.4)', () => {
       expect(res.status).toBe('arrived_customer');
     });
 
-    it('completes delivery with validated 6-digit OTP', async () => {
+    it('marks the delivery delivered without any OTP', async () => {
       (apiRequest as jest.Mock).mockResolvedValueOnce({
         orderId: 'order-101',
         status: 'delivered',
       });
 
-      const res = await riderApi.completeDelivery('order-101', '492815');
+      const res = await riderApi.completeDelivery('order-101');
       expect(apiRequest).toHaveBeenCalledWith('/riders/orders/order-101/complete', {
         method: 'POST',
-        body: JSON.stringify({ otp: '492815' }),
       });
       expect(res.status).toBe('delivered');
     });

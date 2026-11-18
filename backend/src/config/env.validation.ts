@@ -104,14 +104,6 @@ export class EnvironmentVariables {
   RAZORPAY_MODE: string = 'test';
 
   /**
-   * 256-bit (32-byte) hex-encoded key for AES-256-GCM delivery OTP encryption.
-   * Required in production. A fixed dev key is used only when NODE_ENV is development or test.
-   */
-  @IsString()
-  @IsOptional()
-  DELIVERY_OTP_ENCRYPTION_KEY?: string;
-
-  /**
    * Google Routes API key for authoritative road-distance routing and matrix computation.
    * Configured locally via backend environment. Optional for development/testing without live routes.
    */
@@ -178,7 +170,6 @@ export function validate(config: Record<string, unknown>) {
     if (!validatedConfig.JWT_ACCESS_SECRET || validatedConfig.JWT_ACCESS_SECRET.length < 32) {
       missing.push('JWT_ACCESS_SECRET (at least 32 characters)');
     }
-    if (!validatedConfig.DELIVERY_OTP_ENCRYPTION_KEY) missing.push('DELIVERY_OTP_ENCRYPTION_KEY');
     if (!validatedConfig.RAZORPAY_WEBHOOK_SECRET) missing.push('RAZORPAY_WEBHOOK_SECRET');
     if (!validatedConfig.CORS_ORIGINS) missing.push('CORS_ORIGINS');
     if (!validatedConfig.GOOGLE_CLIENT_IDS && !validatedConfig.GOOGLE_CLIENT_ID) {

@@ -55,7 +55,7 @@ The initial database model is designed as a **normalized modular monolith** in P
 ### Domain F: Riders & Deliveries
 - **`riders`**: Rider operational profile linked to `users`, tracking vehicle type, online status, and active order concurrency.
 - **`rider_latest_locations`**: Current GPS ping (`latitude`, `longitude`, `heading`) for low-overhead rider dispatch.
-- **`deliveries`**: Delivery lifecycle record linked 1-to-1 with `orders`, containing delivery status, timestamps, and delivery OTP hash (SHA-256).
+- **`deliveries`**: Delivery lifecycle record linked 1-to-1 with `orders`, containing delivery status and timestamps. Its delivery OTP columns are unused since the OTP was replaced by customer confirmation / rider mark-delivered.
 
 ### Domain G: Promotions & Referrals
 - **`promotions`**: Promo codes with percentage or flat discount, validity period, and per-user usage limits.

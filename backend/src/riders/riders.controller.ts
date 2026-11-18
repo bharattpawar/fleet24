@@ -37,7 +37,6 @@ import {
   RejectDeliveryOfferDto,
   DeliveryOfferDetails,
 } from './dto/delivery-offer.dto';
-import { CompleteDeliveryDto } from './dto/delivery-completion.dto';
 import { RegisterDeviceTokenDto } from './dto/register-device-token.dto';
 
 @Controller('riders')
@@ -263,7 +262,7 @@ export class RidersController {
 
   /**
    * POST /api/v1/riders/orders/:orderId/complete
-   * Complete delivery using customer OTP verification
+   * Rider marks the order delivered after arriving at the customer (no OTP)
    */
   @Post('orders/:orderId/complete')
   @Roles('rider')
@@ -271,9 +270,8 @@ export class RidersController {
   async completeDelivery(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Body() dto: CompleteDeliveryDto,
   ) {
-    return this.riderOffersService.completeDelivery(user.userId, orderId, dto);
+    return this.riderOffersService.completeDelivery(user.userId, orderId);
   }
 
   // ================= PUSH NOTIFICATIONS & DEVICE TOKENS =================

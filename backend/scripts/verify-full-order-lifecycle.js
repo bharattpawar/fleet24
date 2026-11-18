@@ -279,25 +279,20 @@ async function main() {
   });
   console.log('✓ Rider arrived at customer doorstep. Delivery status: "arrived_customer".');
 
-  // Step 12: Customer Delivery OTP Retrieval & Verification
-  console.log('\n[Step 12] Customer Delivery OTP Verification...');
+  // Step 12: Customer taps "I got my order"
+  console.log('\n[Step 12] Customer confirms they received the order...');
   const trackingRes = await request(`/orders/${order.id}/delivery`, {
     headers: { Authorization: `Bearer ${customerToken}` },
   });
-  const deliveryOtp = trackingRes.data?.deliveryOtp;
-  console.log(`✓ Customer Delivery OTP Retrieved: "${deliveryOtp}"`);
-
-  if (!deliveryOtp) {
-    throw new Error('Customer tracking did not return delivery OTP!');
+  if (!trackingRes.data?.canConfirmDelivery) {
+    throw new Error('Customer tracking does not allow confirming delivery!');
   }
 
-  // Rider submits OTP to complete delivery
-  const completeRes = await request(`/riders/orders/${order.id}/complete`, {
+  const completeRes = await request(`/orders/${order.id}/delivery/confirm`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${riderToken}` },
-    body: JSON.stringify({ otp: deliveryOtp }),
+    headers: { Authorization: `Bearer ${customerToken}` },
   });
-  console.log('✓ Rider Completed Delivery! Status:', completeRes.data?.status || 'completed');
+  console.log('✓ Customer Confirmed Delivery! Status:', completeRes.data?.status || 'completed');
 
   // Final Order Status Verification
   const finalOrder = await request(`/orders/${order.id}`, {

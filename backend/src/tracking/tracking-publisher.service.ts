@@ -52,6 +52,13 @@ export class TrackingPublisherService {
   }
 
   /**
+   * Publish a delivery status update to the assigned rider only.
+   */
+  publishStatusUpdatedToRider(riderId: string, payload: DeliveryStatusUpdatedPayload) {
+    this.trackingGateway.broadcastStatusUpdatedToRider(riderId, payload);
+  }
+
+  /**
    * Publish delivery completion event.
    */
   publishDeliveryCompleted(payload: DeliveryCompletedPayload) {

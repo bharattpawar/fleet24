@@ -396,18 +396,10 @@ async function main() {
     headers: { Authorization: `Bearer ${legitToken}` },
   });
 
-  // Get OTP from customer tracking
-  const custDelivery = await request(`/orders/${order1.id}/delivery`, {
-    headers: { Authorization: `Bearer ${customerToken}` },
-  });
-  const deliveryOtp = custDelivery.data?.deliveryOtp;
-  console.log(`✓ Customer Delivery OTP acquired: "${deliveryOtp}"`);
-
   // First completion request
   const complete1 = await request(`/riders/orders/${order1.id}/complete`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${legitToken}` },
-    body: JSON.stringify({ otp: deliveryOtp }),
   });
   console.log(`✓ Initial completion request status: "${complete1.data.status}"`);
 
@@ -426,11 +418,10 @@ async function main() {
   }
 
   // Second completion request (simulating network retry / duplicate tap)
-  console.log('Sending duplicate / retry completion request with OTP...');
+  console.log('Sending duplicate / retry completion request...');
   const complete2 = await request(`/riders/orders/${order1.id}/complete`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${legitToken}` },
-    body: JSON.stringify({ otp: deliveryOtp }),
   });
   console.log(`✓ Retry completion response: "${complete2.data.status}" (alreadyCompleted: ${complete2.data.alreadyCompleted})`);
 

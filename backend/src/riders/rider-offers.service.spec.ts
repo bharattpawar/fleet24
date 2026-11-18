@@ -10,7 +10,6 @@ import { RiderOffersService } from './rider-offers.service';
 import { RiderAssignmentService } from './rider-assignment.service';
 import { NotificationService } from './notification.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
-import { DeliveryOtpUtil } from '../common/utils/delivery-otp.util';
 import { TrackingPublisherService } from '../tracking/tracking-publisher.service';
 import { AdminFinanceService } from '../admin/admin-finance.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
@@ -22,6 +21,7 @@ describe('RiderOffersService', () => {
   let mockRiderAssignmentService: any;
   let mockNotificationService: any;
   let mockConfigService: any;
+  let mockTrackingPublisher: any;
 
   const mockRider = {
     id: 'rider-uuid-1',
@@ -78,6 +78,13 @@ describe('RiderOffersService', () => {
       get: jest.fn().mockReturnValue('mock-delivery-otp-secret'),
     };
 
+    mockTrackingPublisher = {
+      publishStatusUpdated: jest.fn(),
+      publishStatusUpdatedToRider: jest.fn(),
+      publishDeliveryCompleted: jest.fn(),
+      publishDeliveryCancelled: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RiderOffersService,
@@ -99,11 +106,7 @@ describe('RiderOffersService', () => {
         },
         {
           provide: TrackingPublisherService,
-          useValue: {
-            publishStatusUpdated: jest.fn(),
-            publishDeliveryCompleted: jest.fn(),
-            publishDeliveryCancelled: jest.fn(),
-          },
+          useValue: mockTrackingPublisher,
         },
         {
           provide: RidersService,
@@ -463,179 +466,173 @@ describe('RiderOffersService', () => {
     });
   });
 
-  describe('completeDelivery', () => {
-    const rawOtp = '654321';
-    const validHash = DeliveryOtpUtil.hashOtp(rawOtp, 'mock-delivery-otp-secret', 'order-uuid-1');
-
-    it('successfully completes delivery with valid OTP and releases rider capacity', async () => {
-      // 1. Delivery select with row lock
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'arrived_customer',
-              deliveryOtpHash: validHash,
-              otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-              otpAttemptsCount: 0,
-            }]),
-          }),
+  /** Mocks the selects/updates/insert that finalizeDelivery runs after the delivery row is locked. */
+  function mockFinalizeChain() {
+    const historyValues = jest.fn().mockResolvedValueOnce([{}]);
+    // Rider select for lock
+    mockDb.select.mockReturnValueOnce({
+      from: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockReturnValueOnce({
+          for: jest.fn().mockResolvedValueOnce([mockRider]),
         }),
-      });
-
-      // 2. Rider select for lock
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([mockRider]),
-          }),
+      }),
+    });
+    // Rider capacity update
+    mockDb.update.mockReturnValueOnce({
+      set: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockResolvedValueOnce([{ ...mockRider, currentActiveOrdersCount: 0 }]),
+      }),
+    });
+    // Delivery -> completed
+    mockDb.update.mockReturnValueOnce({
+      set: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockReturnValueOnce({
+          returning: jest.fn().mockResolvedValueOnce([{ ...mockDelivery, status: 'completed' }]),
         }),
-      });
+      }),
+    });
+    // Order -> delivered
+    mockDb.update.mockReturnValueOnce({
+      set: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockResolvedValueOnce([{ id: 'order-uuid-1' }]),
+      }),
+    });
+    // Status history insert
+    mockDb.insert.mockReturnValueOnce({ values: historyValues });
+    // Order select for accounting
+    mockDb.select.mockReturnValueOnce({
+      from: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockResolvedValueOnce([{ orderNumber: 'FL-20261030-1001', outletId: 'outlet-uuid-1' }]),
+      }),
+    });
+    // Outlet select for restaurantId
+    mockDb.select.mockReturnValueOnce({
+      from: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockResolvedValueOnce([{ restaurantId: 'rest-uuid-1' }]),
+      }),
+    });
+    return { historyValues };
+  }
 
-      // 3. Rider update capacity
-      mockDb.update.mockReturnValueOnce({
-        set: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockResolvedValueOnce([{ ...mockRider, currentActiveOrdersCount: 0 }]),
+  function mockLockedDelivery(delivery: any) {
+    mockDb.select.mockReturnValueOnce({
+      from: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockReturnValueOnce({
+          for: jest.fn().mockResolvedValueOnce([delivery]),
         }),
-      });
+      }),
+    });
+  }
 
-      // 4. Deliveries update (completed)
-      mockDb.update.mockReturnValueOnce({
-        set: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            returning: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'completed',
-              completedAt: new Date(),
-            }]),
-          }),
-        }),
-      });
+  function mockOrderOwner(order: any) {
+    mockDb.select.mockReturnValueOnce({
+      from: jest.fn().mockReturnValueOnce({
+        where: jest.fn().mockResolvedValueOnce(order ? [order] : []),
+      }),
+    });
+  }
 
-      // 5. Orders update (delivered)
-      mockDb.update.mockReturnValueOnce({
-        set: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockResolvedValueOnce([{ id: 'order-uuid-1' }]),
-        }),
-      });
+  describe('completeDelivery (rider marks delivered)', () => {
+    it('completes from arrived_customer without any OTP and releases rider capacity', async () => {
+      mockLockedDelivery({ ...mockDelivery, status: 'arrived_customer', arrivedCustomerAt: new Date() });
+      const { historyValues } = mockFinalizeChain();
 
-      // 6. Order status history insert
-      mockDb.insert.mockReturnValueOnce({
-        values: jest.fn().mockResolvedValueOnce([{}]),
-      });
+      const res = await service.completeDelivery('user-uuid-1', 'order-uuid-1');
 
-      // 7. Order select for financial accounting
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockResolvedValueOnce([{
-            orderNumber: 'FL-20261030-1001',
-            outletId: 'outlet-uuid-1',
-          }]),
-        }),
-      });
-
-      // 8. Outlet select for restaurantId
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockResolvedValueOnce([{
-            restaurantId: 'rest-uuid-1',
-          }]),
-        }),
-      });
-
-      const res = await service.completeDelivery('user-uuid-1', 'order-uuid-1', { otp: rawOtp });
       expect(res.status).toBe('completed');
       expect(mockDb.update).toHaveBeenCalledTimes(3);
+      expect(historyValues).toHaveBeenCalledWith(
+        expect.objectContaining({ newStatus: 'delivered', changedByUserId: 'user-uuid-1', reason: 'Marked delivered by rider' }),
+      );
+      expect(mockTrackingPublisher.publishDeliveryCompleted).toHaveBeenCalled();
+      // The rider closed it themselves, so no "customer confirmed" push to the rider.
+      expect(mockNotificationService.notifyRider).not.toHaveBeenCalled();
     });
 
     it('is idempotent if delivery is already completed', async () => {
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'completed',
-              completedAt: new Date(),
-            }]),
-          }),
-        }),
-      });
+      mockLockedDelivery({ ...mockDelivery, status: 'completed' });
 
-      const res = await service.completeDelivery('user-uuid-1', 'order-uuid-1', { otp: rawOtp });
+      const res = await service.completeDelivery('user-uuid-1', 'order-uuid-1');
+      expect(res.status).toBe('completed');
+      expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects completion before the rider has arrived at the customer', async () => {
+      mockLockedDelivery({ ...mockDelivery, status: 'picked_up' });
+
+      await expect(service.completeDelivery('user-uuid-1', 'order-uuid-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects completion of another rider\'s delivery', async () => {
+      mockLockedDelivery({ ...mockDelivery, status: 'arrived_customer', riderId: 'someone-else' });
+
+      await expect(service.completeDelivery('user-uuid-1', 'order-uuid-1')).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('confirmDeliveryByCustomer ("I got my order")', () => {
+    it('completes a picked-up order, records the customer, and tells the rider', async () => {
+      mockOrderOwner({ id: 'order-uuid-1', customerId: 'customer-user-uuid' });
+      mockLockedDelivery({ ...mockDelivery, status: 'picked_up', arrivedCustomerAt: null });
+      const { historyValues } = mockFinalizeChain();
+
+      const res = await service.confirmDeliveryByCustomer('customer-user-uuid', 'order-uuid-1');
+
+      expect(res.status).toBe('completed');
+      expect(historyValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          changedByUserId: 'customer-user-uuid',
+          reason: 'Customer confirmed they received the order',
+        }),
+      );
+      expect(mockTrackingPublisher.publishStatusUpdatedToRider).toHaveBeenCalledWith(
+        'rider-uuid-1',
+        expect.objectContaining({ orderId: 'order-uuid-1', status: 'completed' }),
+      );
+      expect(mockNotificationService.notifyRider).toHaveBeenCalledWith(
+        expect.objectContaining({ riderId: 'rider-uuid-1', type: 'delivery_completed' }),
+      );
+    });
+
+    it('also works after the rider has marked arrival', async () => {
+      mockOrderOwner({ id: 'order-uuid-1', customerId: 'customer-user-uuid' });
+      mockLockedDelivery({ ...mockDelivery, status: 'arrived_customer', arrivedCustomerAt: new Date() });
+      mockFinalizeChain();
+
+      const res = await service.confirmDeliveryByCustomer('customer-user-uuid', 'order-uuid-1');
       expect(res.status).toBe('completed');
     });
 
-    it('rejects completion with BadRequestException if OTP has expired', async () => {
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'arrived_customer',
-              deliveryOtpHash: validHash,
-              otpExpiresAt: new Date(Date.now() - 5 * 1000), // expired
-              otpAttemptsCount: 0,
-            }]),
-          }),
-        }),
-      });
+    it('is idempotent if the rider already marked it delivered', async () => {
+      mockOrderOwner({ id: 'order-uuid-1', customerId: 'customer-user-uuid' });
+      mockLockedDelivery({ ...mockDelivery, status: 'completed' });
 
-      await expect(
-        service.completeDelivery('user-uuid-1', 'order-uuid-1', { otp: rawOtp }),
-      ).rejects.toThrow(BadRequestException);
+      const res = await service.confirmDeliveryByCustomer('customer-user-uuid', 'order-uuid-1');
+      expect(res).toMatchObject({ status: 'completed', alreadyCompleted: true });
+      expect(mockDb.update).not.toHaveBeenCalled();
     });
 
-    it('increments attempts on invalid OTP and throws BadRequestException with remaining attempts', async () => {
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'arrived_customer',
-              deliveryOtpHash: validHash,
-              otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-              otpAttemptsCount: 1,
-            }]),
-          }),
-        }),
-      });
+    it('rejects confirmation before the rider has picked up the order', async () => {
+      mockOrderOwner({ id: 'order-uuid-1', customerId: 'customer-user-uuid' });
+      mockLockedDelivery({ ...mockDelivery, status: 'at_restaurant' });
 
-      mockDb.update.mockReturnValueOnce({
-        set: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockResolvedValueOnce([{}]),
-        }),
-      });
-
-      await expect(
-        service.completeDelivery('user-uuid-1', 'order-uuid-1', { otp: '000000' }),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(mockDb.update).toHaveBeenCalled();
+      await expect(service.confirmDeliveryByCustomer('customer-user-uuid', 'order-uuid-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
-    it('throws ForbiddenException when maximum OTP attempts exceeded', async () => {
-      mockDb.select.mockReturnValueOnce({
-        from: jest.fn().mockReturnValueOnce({
-          where: jest.fn().mockReturnValueOnce({
-            for: jest.fn().mockResolvedValueOnce([{
-              ...mockDelivery,
-              status: 'arrived_customer',
-              deliveryOtpHash: validHash,
-              otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-              otpAttemptsCount: 5,
-            }]),
-          }),
-        }),
-      });
+    it('does not let a customer confirm someone else\'s order', async () => {
+      mockOrderOwner({ id: 'order-uuid-1', customerId: 'another-customer' });
 
-      await expect(
-        service.completeDelivery('user-uuid-1', 'order-uuid-1', { otp: rawOtp }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.confirmDeliveryByCustomer('customer-user-uuid', 'order-uuid-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockDb.update).not.toHaveBeenCalled();
     });
   });
 
   describe('getDeliveryForCustomer', () => {
-    it('returns delivery tracking and unhashed OTP when requested by order owner', async () => {
+    it('returns delivery tracking and lets the owner confirm once the order is picked up', async () => {
       mockDb.query.orders.findFirst.mockResolvedValueOnce({
         id: 'order-uuid-1',
         customerId: 'customer-user-uuid',
@@ -651,16 +648,9 @@ describe('RiderOffersService', () => {
         deliveryAddressSnapshot: { address: 'Flat 101' },
       });
 
-      const plainOtp = '999888';
-      const encKey = 'mock-delivery-otp-secret';
-      const encryptedOtp = DeliveryOtpUtil.encryptOtp(plainOtp, encKey);
-
       mockDb.query.deliveries.findFirst.mockResolvedValueOnce({
         ...mockDelivery,
         status: 'picked_up',
-        deliveryOtpHash: 'valid-hash',
-        encryptedDeliveryOtp: encryptedOtp,
-        otpExpiresAt: new Date(Date.now() + 1800 * 1000),
         rider: {
           id: 'rider-uuid-1',
           fullName: 'Ravi Rider',
@@ -671,7 +661,8 @@ describe('RiderOffersService', () => {
 
       const res = await service.getDeliveryForCustomer('customer-user-uuid', 'order-uuid-1');
       expect(res.orderId).toBe('order-uuid-1');
-      expect(res.deliveryOtp).toBe('999888');
+      expect(res.canConfirmDelivery).toBe(true);
+      expect(res).not.toHaveProperty('deliveryOtp');
       expect(res.rider?.fullName).toBe('Ravi Rider');
     });
 
