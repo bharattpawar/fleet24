@@ -70,6 +70,28 @@ describe('FinancialSettingsService', () => {
     });
   });
 
+  describe('estimateRiderEarning (offer amount)', () => {
+    it('uses the active settings, the same formula as the payout', async () => {
+      const settings = {
+        ...FinancialSettingsService.DEFAULT_SETTINGS,
+        riderEarnings: { calculationStrategy: 'base_plus_distance' as const, baseEarning: 20, additionalPerKmRate: 10 },
+      };
+      jest.spyOn(service, 'getActiveSettings').mockResolvedValue({ settings } as any);
+      await expect(service.estimateRiderEarning({ distanceMeters: 2500 })).resolves.toBe(
+        service.calculateRiderEarning({ settings, distanceMeters: 2500 }).finalEarning.toFixed(2),
+      );
+    });
+
+    it('falls back to the default settings, never a fixed amount', async () => {
+      jest.spyOn(service, 'getActiveSettings').mockRejectedValue(new Error('db down'));
+      await expect(service.estimateRiderEarning({ distanceMeters: 1000 })).resolves.toBe(
+        service
+          .calculateRiderEarning({ settings: FinancialSettingsService.DEFAULT_SETTINGS, distanceMeters: 1000 })
+          .finalEarning.toFixed(2),
+      );
+    });
+  });
+
   describe('Rider Earning Calculations', () => {
     it('fixed_per_delivery strategy computes base earning regardless of distance', () => {
       const settings: FinancialSettingsPayload = {

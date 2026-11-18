@@ -567,6 +567,15 @@ export class RiderAssignmentService {
 
         const addressSnapshot = order.deliveryAddressSnapshot as any;
 
+        // Same formula and distance as the rider's offer list and payout (admin Financial Settings)
+        const estimatedEarnings = this.financialSettingsService
+          ? await this.financialSettingsService.estimateRiderEarning({
+              distanceMeters: deliveryTripDistanceMeters,
+              orderPlacedAt: order.placedAt ?? undefined,
+              client: tx,
+            })
+          : null;
+
         this.trackingPublisher.publishOfferCreated(bestCandidate.riderId, {
           orderId: order.id,
           orderNumber: order.orderNumber,
@@ -577,7 +586,7 @@ export class RiderAssignmentService {
           offerExpiresAt: offerExpiresAt.toISOString(),
           expiresInSeconds: RiderAssignmentService.OFFER_EXPIRY_SECONDS,
           secondsRemaining: RiderAssignmentService.OFFER_EXPIRY_SECONDS,
-          estimatedEarnings: '45.00',
+          estimatedEarnings,
           outlet: {
             name: outlet.name,
             address: outlet.address || outlet.name,

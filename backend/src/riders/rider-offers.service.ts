@@ -196,18 +196,16 @@ export class RiderOffersService {
 
       const addressSnapshot = d.order.deliveryAddressSnapshot as any;
 
-      let estimatedEarnings = '45.00';
-      if (activeSettings?.settings) {
-        try {
-          const calc = this.financialSettingsService.calculateRiderEarning({
-            settings: activeSettings.settings,
-            distanceMeters: d.distanceMeters ? Number(d.distanceMeters) : 0,
-            orderPlacedAt: d.order.placedAt || undefined,
-          });
-          estimatedEarnings = calc.finalEarning.toFixed(2);
-        } catch {
-          // fallback
-        }
+      // Settings unreadable: the default settings, never a fixed amount.
+      let estimatedEarnings: string | null = null;
+      try {
+        estimatedEarnings = this.financialSettingsService.calculateRiderEarning({
+          settings: activeSettings?.settings ?? FinancialSettingsService.DEFAULT_SETTINGS,
+          distanceMeters: d.distanceMeters ? Number(d.distanceMeters) : 0,
+          orderPlacedAt: d.order.placedAt || undefined,
+        }).finalEarning.toFixed(2);
+      } catch {
+        // Bad settings: show no amount rather than a made-up one
       }
 
       return {
@@ -319,17 +317,14 @@ export class RiderOffersService {
 
       // Unknown distance pays the configured minimum earning; no hard-coded amount.
       let estimatedEarnings: string | null = null;
-      if (activeSettings?.settings) {
-        try {
-          const calc = this.financialSettingsService.calculateRiderEarning({
-            settings: activeSettings.settings,
-            distanceMeters,
-            orderPlacedAt: o.placedAt || undefined,
-          });
-          estimatedEarnings = calc.finalEarning.toFixed(2);
-        } catch {
-          // fallback
-        }
+      try {
+        estimatedEarnings = this.financialSettingsService.calculateRiderEarning({
+          settings: activeSettings?.settings ?? FinancialSettingsService.DEFAULT_SETTINGS,
+          distanceMeters,
+          orderPlacedAt: o.placedAt || undefined,
+        }).finalEarning.toFixed(2);
+      } catch {
+        // Bad settings: show no amount rather than a made-up one
       }
 
       const address = o.deliveryAddressSnapshot as any;

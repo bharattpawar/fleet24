@@ -474,6 +474,28 @@ export class FinancialSettingsService {
   /**
    * Calculate Rider Earning based on configured strategy
    */
+  /**
+   * Rider earning to show on an offer, from the active settings (or the defaults if they
+   * cannot be read). Same formula as the payout, so the offer and the payout match.
+   */
+  async estimateRiderEarning(params: {
+    distanceMeters?: number | null;
+    orderPlacedAt?: Date;
+    client?: any;
+  }): Promise<string> {
+    let settings = FinancialSettingsService.DEFAULT_SETTINGS;
+    try {
+      settings = (await this.getActiveSettings(params.client)).settings;
+    } catch {
+      // Defaults keep the offer usable; the payout re-reads the active settings.
+    }
+    return this.calculateRiderEarning({
+      settings,
+      distanceMeters: params.distanceMeters,
+      orderPlacedAt: params.orderPlacedAt,
+    }).finalEarning.toFixed(2);
+  }
+
   calculateRiderEarning(params: {
     settings: FinancialSettingsPayload;
     distanceMeters?: number | null;

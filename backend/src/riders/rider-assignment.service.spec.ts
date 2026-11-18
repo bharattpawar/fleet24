@@ -471,6 +471,22 @@ describe('RiderAssignmentService', () => {
           values: jest.fn().mockResolvedValueOnce([{}]),
         });
 
+      // 7. Order items for the real-time offer
+      mockDb.select.mockReturnValueOnce({
+        from: jest.fn().mockReturnValueOnce({
+          where: jest.fn().mockResolvedValueOnce([{ name: 'Paneer Thali', quantity: 1 }]),
+        }),
+      });
+
+      // Offer earning comes from admin Financial Settings, not a fixed amount
+      const estimateRiderEarning = jest.fn().mockResolvedValue('52.50');
+      (service as any).financialSettingsService = {
+        getActiveSettings: jest.fn().mockRejectedValue(new Error('use default radius')),
+        estimateRiderEarning,
+      };
+      const publishOfferCreated = jest.fn();
+      (service as any).trackingPublisher.publishOfferCreated = publishOfferCreated;
+
       const res = await service.assignOrder(validOrder.id);
 
       expect(res.assigned).toBe(true);
@@ -478,6 +494,13 @@ describe('RiderAssignmentService', () => {
       expect(res.status).toBe('assigned');
       expect(res.distanceMeters).toBe(1150);
       expect(res.offerExpiresAt).toBeDefined();
+      expect(estimateRiderEarning).toHaveBeenCalledWith(
+        expect.objectContaining({ distanceMeters: expect.any(Number) }),
+      );
+      expect(publishOfferCreated).toHaveBeenCalledWith(
+        mockRiderA.riderId,
+        expect.objectContaining({ estimatedEarnings: '52.50' }),
+      );
     });
   });
 });
