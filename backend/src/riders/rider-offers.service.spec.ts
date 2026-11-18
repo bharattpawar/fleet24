@@ -644,6 +644,8 @@ describe('RiderOffersService', () => {
           name: 'Tasty Bites',
           address: '123 Food Street',
           phone: '+919999988888',
+          latitude: '28.4744000',
+          longitude: '77.5040000',
         },
         deliveryAddressSnapshot: { address: 'Flat 101' },
       });
@@ -662,6 +664,8 @@ describe('RiderOffersService', () => {
       const res = await service.getDeliveryForCustomer('customer-user-uuid', 'order-uuid-1');
       expect(res.orderId).toBe('order-uuid-1');
       expect(res.canConfirmDelivery).toBe(true);
+      // Outlet coordinates come through as numbers for the customer's tracking map.
+      expect(res.restaurant).toMatchObject({ latitude: 28.4744, longitude: 77.504 });
       expect(res).not.toHaveProperty('deliveryOtp');
       expect(res.rider?.fullName).toBe('Ravi Rider');
     });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,8 @@ import {
   DeliveryCancelledEvent,
   DeliveryErrorEvent,
 } from '../api/trackingSocket';
-import { DeliveryMapView } from '../components/DeliveryMapView';
+import { TrackingMap } from '../components/tracking/TrackingMap';
+import { toMapPoint } from '../utils/trackingMap';
 import { ConfirmDeliveryCard } from '../components/ConfirmDeliveryCard';
 import { confirmDeliveryReceived } from '../api/deliveryConfirmation';
 
@@ -41,6 +42,8 @@ export interface CustomerDeliveryResponse {
     name: string;
     address: string;
     phone: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   rider?: {
     fullName: string | null;
@@ -134,6 +137,14 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
         : prev,
     );
   }, [orderId]);
+
+  // Map pins: memoized so the map only re-frames when a point actually changes.
+  const restaurantLat = data?.restaurant?.latitude;
+  const restaurantLng = data?.restaurant?.longitude;
+  const dropoffLat = data?.deliveryAddress?.latitude;
+  const dropoffLng = data?.deliveryAddress?.longitude;
+  const restaurantPoint = useMemo(() => toMapPoint(restaurantLat, restaurantLng), [restaurantLat, restaurantLng]);
+  const dropoffPoint = useMemo(() => toMapPoint(dropoffLat, dropoffLng), [dropoffLat, dropoffLng]);
 
   // 2. Setup WebSocket Connection & Event Subscriptions
   useEffect(() => {
@@ -401,10 +412,12 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Map View */}
-        <DeliveryMapView
+        <TrackingMap
+          restaurant={restaurantPoint}
+          dropoff={dropoffPoint}
+          rider={riderCoords}
           restaurantName={restaurant.name}
           deliveryStatus={deliveryStatus}
-          riderLocation={riderCoords}
           isStaleLocation={isStaleLocation}
         />
 

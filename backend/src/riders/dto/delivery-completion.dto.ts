@@ -9,6 +9,9 @@ export interface CustomerDeliveryTrackingResponse {
     name: string;
     address: string;
     phone: string;
+    /** Outlet pin for the customer's tracking map; null if the outlet has no usable coordinates. */
+    latitude: number | null;
+    longitude: number | null;
   };
   rider?: {
     fullName: string | null;
