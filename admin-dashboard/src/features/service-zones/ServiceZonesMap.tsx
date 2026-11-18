@@ -40,16 +40,29 @@ export function ServiceZonesMap({ zones, draft, onPickCenter }: Props) {
   const pick = useRef(onPickCenter);
   pick.current = onPickCenter;
   const [failed, setFailed] = useState(!MAPS_KEY);
+  const [browserCenter, setBrowserCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const first = zones[0];
+  const latitude = first?.centerLatitude ?? draft?.latitude ?? browserCenter?.lat;
+  const longitude = first?.centerLongitude ?? draft?.longitude ?? browserCenter?.lng;
+  const hasZones = zones.length > 0;
 
   useEffect(() => {
-    if (!MAPS_KEY) return;
+    if (hasZones || !MAPS_KEY || !navigator.geolocation) return;
+    let active = true;
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (active) setBrowserCenter({ lat: coords.latitude, lng: coords.longitude });
+    }, () => {}, { timeout: 8000 });
+    return () => { active = false; };
+  }, [hasZones]);
+
+  useEffect(() => {
+    if (!MAPS_KEY || latitude === undefined || longitude === undefined || map.current) return;
     let cancelled = false;
     loadMaps(MAPS_KEY)
       .then((maps) => {
         if (cancelled || !host.current) return;
-        const first = zones[0];
         map.current = new maps.Map(host.current, {
-          center: first ? { lat: first.centerLatitude, lng: first.centerLongitude } : { lat: 28.47, lng: 77.49 },
+          center: { lat: latitude, lng: longitude },
           zoom: 12,
           streetViewControl: false,
           mapTypeControl: false,
@@ -63,7 +76,7 @@ export function ServiceZonesMap({ zones, draft, onPickCenter }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [latitude, longitude]);
 
   useEffect(() => {
     if (window.google?.maps && map.current) draw(window.google.maps);
@@ -111,6 +124,9 @@ export function ServiceZonesMap({ zones, draft, onPickCenter }: Props) {
         Map preview needs <code>VITE_GOOGLE_MAPS_API_KEY</code>. Zones still work without it.
       </p>
     );
+  }
+  if (latitude === undefined || longitude === undefined) {
+    return <p className="text-sm">No service areas to display. Search for a place to add an area.</p>;
   }
   return <div ref={host} aria-label="Map of delivery service areas" style={{ height: 360, borderRadius: 12, overflow: 'hidden' }} />;
 }

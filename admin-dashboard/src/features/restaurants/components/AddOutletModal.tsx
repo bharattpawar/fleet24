@@ -1,3 +1,4 @@
+import { hasOutletCoordinates, OutletPlaceSearch } from './OutletPlaceSearch';
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restaurantsApi } from '@/lib/api/restaurants';
@@ -20,8 +21,8 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [latitude, setLatitude] = useState('28.4744');
-  const [longitude, setLongitude] = useState('77.5040');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState('5.0');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -54,6 +55,10 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
     setErrorMsg(null);
     if (!name.trim() || !phone.trim() || !address.trim()) {
       setErrorMsg('Please fill in all required outlet details.');
+      return;
+    }
+    if (!hasOutletCoordinates(latitude, longitude)) {
+      setErrorMsg('Enter valid latitude and longitude or select an address.');
       return;
     }
     createOutletMutation.mutate();
@@ -116,6 +121,11 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
             />
           </div>
 
+          <OutletPlaceSearch onSelect={(place) => {
+            setAddress(place.formattedAddress);
+            setLatitude(String(place.latitude));
+            setLongitude(String(place.longitude));
+          }} />
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">
               Full Physical Address *
@@ -137,7 +147,6 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 value={latitude}
                 onChange={(e) => setLatitude(e.target.value)}
                 className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#205641]"
@@ -149,7 +158,6 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 value={longitude}
                 onChange={(e) => setLongitude(e.target.value)}
                 className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#205641]"

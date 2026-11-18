@@ -1,3 +1,4 @@
+import { hasOutletCoordinates, OutletPlaceSearch } from './OutletPlaceSearch';
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restaurantsApi } from '@/lib/api/restaurants';
@@ -24,8 +25,8 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
   const [outletName, setOutletName] = useState('');
   const [outletPhone, setOutletPhone] = useState('+91');
   const [outletAddress, setOutletAddress] = useState('');
-  const [latitude, setLatitude] = useState('12.9716');
-  const [longitude, setLongitude] = useState('77.5946');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState('5.0');
 
   const [ownerId, setOwnerId] = useState('');
@@ -90,8 +91,8 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
     setOutletName('');
     setOutletPhone('+91');
     setOutletAddress('');
-    setLatitude('12.9716');
-    setLongitude('77.5946');
+    setLatitude('');
+    setLongitude('');
     setDeliveryRadiusKm('5.0');
     setCreatedRestaurantId(null);
     setError(null);
@@ -124,6 +125,10 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!hasOutletCoordinates(latitude, longitude)) {
+              setError('Enter valid latitude and longitude or select an address.');
+              return;
+            }
             createMutation.mutate();
           }}
           className="space-y-4 max-h-[520px] overflow-y-auto pr-1"
@@ -239,6 +244,11 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
               </div>
             </div>
 
+            <OutletPlaceSearch onSelect={(place) => {
+              setOutletAddress(place.formattedAddress);
+              setLatitude(String(place.latitude));
+              setLongitude(String(place.longitude));
+            }} />
             <div>
               <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
                 Kitchen Address *
@@ -246,7 +256,7 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
               <textarea
                 rows={2}
                 required
-                placeholder="100 Feet Rd, HAL 2nd Stage, Indiranagar, Bengaluru, Karnataka 560038"
+                placeholder="Building, street, city and postal code"
                 value={outletAddress}
                 onChange={(e) => setOutletAddress(e.target.value)}
                 className="w-full text-xs p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
@@ -261,7 +271,6 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 <input
                   type="number"
                   step="any"
-                  required
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
                   className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
@@ -275,7 +284,6 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
                 <input
                   type="number"
                   step="any"
-                  required
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
                   className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
