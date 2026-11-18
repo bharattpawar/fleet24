@@ -18,7 +18,7 @@ import { RiderMap } from './RiderMap';
 import { OtpVerificationSheet } from './OtpVerificationSheet';
 import { riderApi } from '../api/riderApi';
 import { useRiderAuth } from '../context/RiderAuthContext';
-import { addressDetail, addressTitle } from '../utils/address';
+import { addressDetail, addressTitle, directionsUrl, toCoordinate } from '../utils/address';
 
 interface ActiveDeliveryViewProps {
   delivery: ActiveDeliveryDetails;
@@ -70,18 +70,21 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
 
   const currentStageIndex = getStageIndex(status);
 
-  // External Navigation Launcher
-  const openMaps = (lat: number, lng: number, label: string) => {
-    const scheme = Platform.select({
-      ios: `maps:0,0?q=${label}@${lat},${lng}`,
-      android: `geo:0,0?q=${lat},${lng}(${label})`,
-      web: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-    });
-    if (scheme) {
-      Linking.openURL(scheme).catch(() => {
-        Alert.alert('Error', 'Unable to open Google Maps or Apple Maps');
-      });
+  // External Navigation Launcher: exact pin when known, address search otherwise, never a made-up point.
+  const openDirections = () => {
+    const url = directionsUrl(Platform.OS, { point: navTarget, label: navTargetName, searchText: navSearchText });
+    if (!url) {
+      Alert.alert(
+        'Location not available',
+        isDropoffStage
+          ? 'This order has no map location. Call the customer for directions.'
+          : 'This restaurant has no map location. Call the restaurant for directions.',
+      );
+      return;
     }
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Unable to open Google Maps or Apple Maps');
+    });
   };
 
   // Stage Action Execution
@@ -122,32 +125,29 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
 
   // Dynamic Button Label & Target Coordinates
   let actionTitle = 'CONFIRM ARRIVAL AT RESTAURANT';
-  let navTargetLat = delivery.outlet?.latitude || 28.4744;
-  let navTargetLng = delivery.outlet?.longitude || 77.504;
-  let navTargetName = delivery.outlet?.name || 'Restaurant';
-
   if (status === 'at_restaurant') {
     actionTitle = 'CONFIRM FOOD PICKED UP';
   } else if (status === 'picked_up') {
     actionTitle = 'CONFIRM ARRIVAL AT CUSTOMER';
-    navTargetLat = delivery.deliveryAddress?.latitude || 28.4855;
-    navTargetLng = delivery.deliveryAddress?.longitude || 77.5135;
-    navTargetName = 'Customer Dropoff';
   } else if (status === 'arrived_customer') {
     actionTitle = 'ENTER CUSTOMER OTP TO DELIVER';
   }
 
-  // Live distance from Rider's current GPS to next destination
-  let toTargetDistanceText: string | null = null;
   const isDropoffStage = status === 'picked_up' || status === 'arrived_customer';
-  const targetLat = isDropoffStage
-    ? (delivery.deliveryAddress?.latitude || 28.4855)
-    : (delivery.outlet?.latitude || 28.4744);
-  const targetLon = isDropoffStage
-    ? (delivery.deliveryAddress?.longitude || 77.5135)
-    : (delivery.outlet?.longitude || 77.5040);
+  const navTarget = isDropoffStage
+    ? toCoordinate(delivery.deliveryAddress?.latitude, delivery.deliveryAddress?.longitude)
+    : toCoordinate(delivery.outlet?.latitude, delivery.outlet?.longitude);
+  const navTargetName = isDropoffStage ? 'Customer drop-off' : delivery.outlet?.name || 'Restaurant';
+  const navSearchText = isDropoffStage
+    ? [addressTitle(delivery.deliveryAddress, ''), addressDetail(delivery.deliveryAddress)].filter(Boolean).join(', ')
+    : [delivery.outlet?.name, delivery.outlet?.address].filter(Boolean).join(', ');
 
-  if (riderLocation?.latitude && riderLocation?.longitude && targetLat && targetLon) {
+  // Live distance from Rider's current GPS to next destination (only with a real target point)
+  let toTargetDistanceText: string | null = null;
+  const targetLat = navTarget?.latitude;
+  const targetLon = navTarget?.longitude;
+
+  if (riderLocation?.latitude && riderLocation?.longitude && targetLat !== undefined && targetLon !== undefined) {
     const latDiffKm = (targetLat - riderLocation.latitude) * 111.32;
     const lonDiffKm =
       (targetLon - riderLocation.longitude) *
@@ -222,7 +222,9 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
 
           <TouchableOpacity
             style={styles.navChip}
-            onPress={() => openMaps(navTargetLat, navTargetLng, navTargetName)}
+            onPress={openDirections}
+            accessibilityRole="button"
+            accessibilityLabel={`Directions to ${navTargetName}`}
             activeOpacity={0.8}
           >
             <Ionicons name="navigate" size={16} color={colors.primary} />

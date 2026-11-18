@@ -223,8 +223,8 @@ export class RiderOffersService {
           city: addressSnapshot?.city,
           postalCode: addressSnapshot?.postalCode,
           landmark: addressSnapshot?.landmark,
-          latitude: Number(addressSnapshot?.latitude || 0),
-          longitude: Number(addressSnapshot?.longitude || 0),
+          latitude: addressSnapshot?.latitude != null ? Number(addressSnapshot.latitude) : undefined,
+          longitude: addressSnapshot?.longitude != null ? Number(addressSnapshot.longitude) : undefined,
         },
         items: (d.order.items || []).map((i: any) => ({
           name: i.itemName,
