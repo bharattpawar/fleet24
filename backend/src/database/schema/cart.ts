@@ -10,6 +10,7 @@ import { relations } from 'drizzle-orm';
 import { users } from './users';
 import { restaurantOutlets } from './restaurants';
 import { menuItems } from './menus';
+import { promotions } from './promotions';
 
 export const customerCarts = pgTable(
   'customer_carts',
@@ -21,6 +22,8 @@ export const customerCarts = pgTable(
     outletId: uuid('outlet_id')
       .notNull()
       .references(() => restaurantOutlets.id, { onDelete: 'cascade' }),
+    /** Coupon code applied by the customer, re-checked on every cart read and at checkout. */
+    promotionId: uuid('promotion_id').references(() => promotions.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

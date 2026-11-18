@@ -44,7 +44,7 @@ interface FeedSection {
   image?: string;
   cta?: string;
   targets: { type: string; id: string }[];
-  cards: { outlet: OutletSummary; dish?: { id: string; name: string; imageUrl: string | null; effectivePrice: string } }[];
+  cards: { outlet: OutletSummary; dish?: { id: string; name: string; imageUrl: string | null; effectivePrice: string; finalPrice?: string } }[];
 }
 
 const CUISINE_CATEGORIES: CuisineCategory[] = [
@@ -440,7 +440,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <View style={styles.curatedPhoto}><ExplorePhoto uri={dish.imageUrl} /></View>
                     <Text style={styles.foodTitle} numberOfLines={2}>{dish.name}</Text>
                     <Text style={styles.kitchenName} numberOfLines={1}>{outlet.restaurantName}</Text>
-                    <Text style={styles.foodPriceText}>₹{dish.effectivePrice}</Text>
+                    <Text style={styles.foodPriceText}>₹{dish.finalPrice ?? dish.effectivePrice}</Text>
                   </TouchableOpacity>
                 ) : <RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} />}
               </View>

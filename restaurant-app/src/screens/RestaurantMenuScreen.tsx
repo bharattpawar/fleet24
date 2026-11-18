@@ -23,6 +23,7 @@ import { useRestaurantAuth } from '../context/RestaurantAuthContext';
 import { restaurantApi } from '../api/restaurantApi';
 import { MenuCategory, MenuItem } from '../types';
 import { KitchenHeader } from '../components/KitchenHeader';
+import { discountedPrice, dishDiscountBadge, readDishDiscount, type DishDiscountType } from '../utils/dishDiscount';
 
 export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }> = ({
   onNavigateToOutlets,
@@ -53,8 +54,11 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
   const [formIsVeg, setFormIsVeg] = useState(true);
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formIsAvailable, setFormIsAvailable] = useState(true);
+  const [formDiscountOn, setFormDiscountOn] = useState(false);
+  const [formDiscountType, setFormDiscountType] = useState<DishDiscountType>('percentage');
+  const [formDiscountValue, setFormDiscountValue] = useState('');
   const [submittingItem, setSubmittingItem] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; category?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; category?: string; discount?: string }>({});
 
   // Category Creation Modal states
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -148,6 +152,9 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
     setFormIsVeg(true);
     setFormImageUrl('');
     setFormIsAvailable(true);
+    setFormDiscountOn(false);
+    setFormDiscountType('percentage');
+    setFormDiscountValue('');
     setFieldErrors({});
     setItemModalVisible(true);
   };
@@ -165,6 +172,9 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
     setFormIsVeg(Boolean(item.isVeg));
     setFormImageUrl(item.imageUrl || '');
     setFormIsAvailable(Boolean(item.effectiveIsAvailable ?? item.isAvailable));
+    setFormDiscountOn(Boolean(item.discountType));
+    setFormDiscountType(item.discountType ?? 'percentage');
+    setFormDiscountValue(item.discountValue != null ? String(Number(item.discountValue)) : '');
     setFieldErrors({});
     setItemModalVisible(true);
   };
@@ -173,7 +183,7 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
   const handleSaveMenuItem = async () => {
     if (!activeOutlet?.id) return;
 
-    const errors: { name?: string; price?: string; category?: string } = {};
+    const errors: { name?: string; price?: string; category?: string; discount?: string } = {};
     if (!formName.trim()) {
       errors.name = 'Item name is required.';
     }
@@ -183,6 +193,13 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
     }
     if (!formCategoryId) {
       errors.category = 'Please select a category.';
+    }
+    const discount = readDishDiscount(
+      { enabled: formDiscountOn, type: formDiscountType, value: formDiscountValue },
+      isNaN(parsedPrice) ? 0 : parsedPrice,
+    );
+    if ('error' in discount) {
+      errors.discount = discount.error;
     }
 
     if (Object.keys(errors).length > 0) {
@@ -201,9 +218,10 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
           isVeg: formIsVeg,
           imageUrl: formImageUrl.trim() || undefined,
           isAvailable: formIsAvailable,
+          ...('payload' in discount ? discount.payload : {}),
         });
       } else {
-        await restaurantApi.createMenuItem(activeOutlet.id, {
+        const created = await restaurantApi.createMenuItem(activeOutlet.id, {
           name: formName.trim(),
           basePrice: parsedPrice,
           description: formDesc.trim() || undefined,
@@ -212,6 +230,9 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
           imageUrl: formImageUrl.trim() || undefined,
           isAvailable: formIsAvailable,
         });
+        if ('payload' in discount && discount.payload.discountType) {
+          await restaurantApi.updateMenuItem(created.id, discount.payload);
+        }
       }
 
       setItemModalVisible(false);
@@ -410,6 +431,11 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
                       {item.description && <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>}
                       <View style={styles.priceContainer}>
                         <Text style={styles.itemPrice}>₹{price}</Text>
+                        {dishDiscountBadge(item.discountType, item.discountValue) && (
+                          <Text style={styles.discountBadge}>
+                            {dishDiscountBadge(item.discountType, item.discountValue)} · ₹{item.finalPrice ?? discountedPrice(Number(price), item.discountType!, Number(item.discountValue))}
+                          </Text>
+                        )}
                         {hasCustomOverride && (
                           <Text style={styles.overrideBadgeText}>Outlet · Base ₹{item.basePrice}</Text>
                         )}
@@ -508,6 +534,61 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
                 }}
               />
               {fieldErrors.price && <Text style={styles.errorText}>{fieldErrors.price}</Text>}
+
+              {/* Restaurant's own discount on this dish */}
+              <View style={styles.modalSwitchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalSwitchTitle}>Discount on this dish</Text>
+                  <Text style={styles.modalSwitchSub}>Customers see the old price struck out. Your restaurant gives this discount.</Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Discount on this dish"
+                  value={formDiscountOn}
+                  onValueChange={(on) => {
+                    setFormDiscountOn(on);
+                    if (fieldErrors.discount) setFieldErrors((p) => ({ ...p, discount: undefined }));
+                  }}
+                />
+              </View>
+              {formDiscountOn && (
+                <>
+                  <View style={styles.vegToggleRow}>
+                    {(['percentage', 'fixed_amount'] as const).map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[styles.vegOptionBtn, formDiscountType === type && styles.vegOptionActive]}
+                        onPress={() => setFormDiscountType(type)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: formDiscountType === type }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.vegOptionText, formDiscountType === type && styles.vegOptionTextActive]}>
+                          {type === 'percentage' ? '% off' : 'Flat ₹ off'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={[styles.input, fieldErrors.discount && styles.inputError]}
+                    accessibilityLabel={formDiscountType === 'percentage' ? 'Discount percent' : 'Discount in rupees'}
+                    placeholder={formDiscountType === 'percentage' ? 'e.g. 20 (max 90)' : 'e.g. 30'}
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="decimal-pad"
+                    value={formDiscountValue}
+                    onChangeText={(t) => {
+                      setFormDiscountValue(t);
+                      if (fieldErrors.discount) setFieldErrors((p) => ({ ...p, discount: undefined }));
+                    }}
+                  />
+                  {fieldErrors.discount ? (
+                    <Text style={styles.errorText}>{fieldErrors.discount}</Text>
+                  ) : Number(formPrice) > 0 && Number(formDiscountValue) > 0 ? (
+                    <Text style={styles.modalSwitchSub}>
+                      Customer pays ₹{discountedPrice(Number(formPrice), formDiscountType, Number(formDiscountValue))} instead of ₹{Number(formPrice)}
+                    </Text>
+                  ) : null}
+                </>
+              )}
 
               {/* Category Picker */}
               <Text style={styles.fieldLabel}>Category *</Text>
@@ -915,6 +996,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.textPrimary,
+  },
+  discountBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.vegGreen,
   },
   overrideBadgeText: {
     fontSize: 10,

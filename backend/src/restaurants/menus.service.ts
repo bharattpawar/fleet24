@@ -23,6 +23,7 @@ import { RoutingService } from '../routing/routing.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
 import { DeliveryEta, DeliveryEtaSettings, estimateDeliveryEta } from '../common/utils/delivery-eta';
+import { applyDishDiscount, dishDiscountLabel } from '../common/utils/discounts';
 
 @Injectable()
 export class MenusService {
@@ -195,12 +196,21 @@ export class MenusService {
       const effectivePrice = override && override.customPrice ? override.customPrice : item.basePrice;
       const effectiveIsAvailable = override ? override.isAvailable : item.isAvailable;
 
+      const finalPrice = applyDishDiscount(Number(effectivePrice), item.discountType, item.discountValue);
+      const hasDiscount = finalPrice < Number(effectivePrice);
+
       return {
         id: item.id,
         name: item.name,
         description: item.description,
         basePrice: item.basePrice,
+        /** Outlet price before the restaurant's dish discount. */
         effectivePrice,
+        /** What the customer pays for one, after the dish discount. */
+        finalPrice: finalPrice.toFixed(2),
+        discountType: item.discountType ?? null,
+        discountValue: item.discountValue ?? null,
+        discountLabel: hasDiscount ? dishDiscountLabel(item.discountType, item.discountValue) : null,
         isVeg: item.isVeg,
         imageUrl: item.imageUrl,
         isAvailable: item.isAvailable,
@@ -259,6 +269,8 @@ export class MenusService {
       }
     }
 
+    const discountChange = this.resolveDishDiscount(dto, item);
+
     const [updated] = await this.db
       .update(schema.menuItems)
       .set({
@@ -269,12 +281,38 @@ export class MenusService {
         ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
         ...(dto.isAvailable !== undefined ? { isAvailable: dto.isAvailable } : {}),
         ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
+        ...discountChange,
         updatedAt: new Date(),
       })
       .where(eq(schema.menuItems.id, itemId))
       .returning();
 
     return updated;
+  }
+
+  /**
+   * Restaurant discount on one dish: percentage (1-90) or flat rupees (less than the price).
+   * discountType null removes it.
+   */
+  private resolveDishDiscount(
+    dto: UpdateMenuItemDto,
+    item: { basePrice: string },
+  ): { discountType?: 'percentage' | 'fixed_amount' | null; discountValue?: string | null } {
+    if (dto.discountType === undefined && dto.discountValue === undefined) return {};
+    if (dto.discountType === null) return { discountType: null, discountValue: null };
+    if (!dto.discountType || dto.discountValue == null) {
+      throw new BadRequestException('Send both discountType and discountValue, or discountType null to remove it.');
+    }
+    const value = dto.discountValue;
+    if (value <= 0) throw new BadRequestException('Discount must be more than 0.');
+    if (dto.discountType === 'percentage' && value > 90) {
+      throw new BadRequestException('Discount cannot be more than 90%.');
+    }
+    const price = dto.basePrice ?? Number(item.basePrice);
+    if (dto.discountType === 'fixed_amount' && value >= price) {
+      throw new BadRequestException(`Flat discount must be less than the dish price (₹${price}).`);
+    }
+    return { discountType: dto.discountType, discountValue: value.toFixed(2) };
   }
 
   async setMenuItemAvailability(

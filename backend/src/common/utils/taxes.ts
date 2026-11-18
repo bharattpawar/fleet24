@@ -23,6 +23,8 @@ function rate(value: unknown, fallback: number): number {
 export function computeTaxes(input: {
   itemTotal: number;
   deliveryFee: number;
+  /** Coupon discount on the food; GST is charged on the food after it. */
+  discountAmount?: number;
   settings?: Pick<FinancialSettingsPayload, 'taxes'> | null;
 }): TaxBreakdown {
   const foodGstPercent = rate(input.settings?.taxes?.foodGstPercent, DEFAULT_FOOD_GST_PERCENT);
@@ -30,7 +32,8 @@ export function computeTaxes(input: {
     input.settings?.taxes?.deliveryFeeGstPercent,
     DEFAULT_DELIVERY_FEE_GST_PERCENT,
   );
-  const foodTax = money((Math.max(input.itemTotal, 0) * foodGstPercent) / 100);
+  const taxableFood = Math.max(input.itemTotal - (input.discountAmount ?? 0), 0);
+  const foodTax = money((taxableFood * foodGstPercent) / 100);
   const deliveryFeeTax = money((Math.max(input.deliveryFee, 0) * deliveryFeeGstPercent) / 100);
   return {
     foodGstPercent,

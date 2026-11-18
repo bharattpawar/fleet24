@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddCartItemDto, UpdateCartItemDto } from './dto/order.dto';
+import { ApplyPromoCodeDto } from '../promotions/dto/promotion.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser, AuthenticatedUserPayload } from '../auth/decorators/auth.decorators';
@@ -64,6 +65,18 @@ export class CartController {
     @Param('itemId') itemId: string,
   ) {
     return this.cartService.removeItem(user.userId, itemId);
+  }
+
+  /** POST /api/v1/cart/promo { code } */
+  @Post('promo')
+  @HttpCode(HttpStatus.OK)
+  async applyPromo(@CurrentUser() user: AuthenticatedUserPayload, @Body() dto: ApplyPromoCodeDto) {
+    return this.cartService.applyPromoCode(user.userId, dto.code);
+  }
+
+  @Delete('promo')
+  async removePromo(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.cartService.removePromoCode(user.userId);
   }
 
   @Delete()

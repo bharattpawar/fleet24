@@ -24,6 +24,7 @@ import { FinancialSettingsService } from '../admin/financial-settings.service';
 import { RiderOffersService } from '../riders/rider-offers.service';
 import { RoutingService } from '../routing/routing.service';
 import { computeTaxes } from '../common/utils/taxes';
+import { PromotionsService } from '../promotions/promotions.service';
 
 @Injectable()
 export class OrdersService {
@@ -40,6 +41,8 @@ export class OrdersService {
     private readonly routingService: RoutingService,
     @Optional()
     private readonly serviceZones?: ServiceZonesService,
+    @Optional()
+    private readonly promotionsService?: PromotionsService,
   ) {}
 
   /**
@@ -450,13 +453,37 @@ export class OrdersService {
         });
 
         const deliveryFee = feeResult.deliveryFee;
+
+        // 5F. Coupon: re-check under a row lock so usage limits cannot be overrun by parallel orders
+        let discountAmount = 0;
+        let redeemedPromotionId: string | null = null;
+        if (txCart.promo && this.promotionsService) {
+          const promoCheck = await this.promotionsService.evaluate({
+            promotionId: txCart.promo.promotionId,
+            customerId,
+            itemTotal: txCart.itemTotal,
+            client: tx,
+            lock: true,
+          });
+          if (txCart.promo.applied && !promoCheck?.applied) {
+            throw new BadRequestException(
+              `Coupon ${txCart.promo.code} can no longer be used: ${promoCheck?.message ?? 'it is not available'}. Remove it and try again.`,
+            );
+          }
+          if (promoCheck?.applied) {
+            discountAmount = promoCheck.discountAmount;
+            redeemedPromotionId = promoCheck.promotionId;
+          }
+        }
+
         const taxAmount = computeTaxes({
           itemTotal: txCart.itemTotal,
           deliveryFee,
+          discountAmount,
           settings: effectiveSettings.settings,
         }).taxAmount;
         const totalPayable = this.cartService.toMoney(
-          txCart.itemTotal + deliveryFee + taxAmount - txCart.discountAmount,
+          txCart.itemTotal + deliveryFee + taxAmount - discountAmount,
         );
 
         // Create master order
@@ -470,7 +497,7 @@ export class OrdersService {
             itemTotal: txCart.itemTotal.toFixed(2),
             deliveryFee: deliveryFee.toFixed(2),
             taxAmount: taxAmount.toFixed(2),
-            discountAmount: txCart.discountAmount.toFixed(2),
+            discountAmount: discountAmount.toFixed(2),
             totalPayable: totalPayable.toFixed(2),
             deliveryAddressSnapshot,
             deliveryLatitude: address.latitude,
@@ -480,6 +507,15 @@ export class OrdersService {
             placedAt: new Date(),
           })
           .returning();
+
+        if (redeemedPromotionId && this.promotionsService) {
+          await this.promotionsService.recordRedemption(tx, {
+            promotionId: redeemedPromotionId,
+            customerId,
+            orderId: order.id,
+            discountAmount,
+          });
+        }
 
         // Create frozen order item snapshots
         for (const item of txCart.items) {

@@ -12,11 +12,21 @@ export interface MenuItemData {
   description: string | null;
   basePrice: string;
   effectivePrice: string;
+  /** Price after the restaurant's dish discount (missing on older servers). */
+  finalPrice?: string;
+  discountLabel?: string | null;
   isVeg: boolean;
   imageUrl: string | null;
   effectiveIsAvailable: boolean;
   categoryName?: string;
   isOverridden?: boolean;
+}
+
+/** What the customer pays, and the higher price to strike out (if any). */
+export function menuItemPrices(item: Pick<MenuItemData, 'basePrice' | 'effectivePrice' | 'finalPrice'>) {
+  const price = Number(item.finalPrice ?? item.effectivePrice);
+  const before = Math.max(Number(item.basePrice), Number(item.effectivePrice));
+  return { price, strikePrice: before > price ? before : null };
 }
 
 interface MenuItemCardProps {
@@ -37,8 +47,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
   isOutletOpen,
 }) => {
   const isAvailable = item.effectiveIsAvailable && isOutletOpen;
-  const hasDiscount =
-    parseFloat(item.basePrice) > parseFloat(item.effectivePrice);
+  const { price, strikePrice } = menuItemPrices(item);
+  const hasDiscount = strikePrice != null;
 
   return (
     <View style={[styles.card, !isAvailable && styles.disabledCard]}>
@@ -48,7 +58,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
           <VegBadge isVeg={item.isVeg} size={15} />
           {hasDiscount && (
             <View style={styles.discountTag}>
-              <Text style={styles.discountTagText}>OFFER</Text>
+              <Text style={styles.discountTagText}>{item.discountLabel || 'OFFER'}</Text>
             </View>
           )}
         </View>
@@ -59,11 +69,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 
         <View style={styles.priceRow}>
           <Text style={styles.effectivePrice}>
-            ₹{Number(item.effectivePrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            ₹{price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
           </Text>
-          {hasDiscount && (
+          {strikePrice != null && (
             <Text style={styles.basePrice}>
-              ₹{Number(item.basePrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              ₹{strikePrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
             </Text>
           )}
         </View>

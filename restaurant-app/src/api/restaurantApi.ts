@@ -196,6 +196,8 @@ export const restaurantApi = {
       isVeg?: boolean;
       imageUrl?: string;
       isAvailable?: boolean;
+      discountType?: 'percentage' | 'fixed_amount' | null;
+      discountValue?: number;
     },
   ): Promise<MenuItem> => {
     return apiRequest<MenuItem>(`/menu/items/${itemId}`, {

@@ -11,10 +11,25 @@ export interface CartItem {
   menuItemId: string;
   name: string;
   quantity: number;
+  /** Price per unit after the restaurant's dish discount. */
   unitPrice: number;
+  /** Price before the dish discount (server carts only). */
+  originalUnitPrice?: number;
+  /** e.g. "20% OFF" when the restaurant discounts this dish. */
+  discountLabel?: string | null;
   totalPrice: number;
   isAvailable: boolean;
   imageUrl: string | null;
+}
+
+/** Coupon applied to the cart; `applied: false` with a message when it does not apply now. */
+export interface CartPromo {
+  promotionId: string;
+  code: string;
+  description: string | null;
+  applied: boolean;
+  discountAmount: number;
+  message: string | null;
 }
 
 export interface CartData {
@@ -30,7 +45,11 @@ export interface CartData {
   taxAmount: number;
   /** GST rates and split, set by the admin (missing on older servers). */
   taxes?: CartTaxes;
+  /** Coupon discount. */
   discountAmount: number;
+  promo?: CartPromo | null;
+  /** What the customer saves on restaurant dish discounts. */
+  dishSavings?: number;
   totalPayable: number;
 }
 
@@ -54,6 +73,9 @@ interface CartContextType {
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
   removeItem: (cartItemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  /** Applies a coupon code; throws with the reason when it cannot be used. */
+  applyPromo: (code: string) => Promise<void>;
+  removePromo: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -198,7 +220,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const allItems = Object.values(MOCK_MENUS).flat();
         const found = allItems.find((i) => i.id === menuItemId) || DEFAULT_MOCK_MENU[0];
-        const unitPrice = parseFloat(found.effectivePrice);
+        const unitPrice = parseFloat((found as { finalPrice?: string }).finalPrice ?? found.effectivePrice);
 
         const existingIndex = activeCart.items.findIndex((i) => i.menuItemId === menuItemId);
         let newItems: CartItem[];
@@ -405,6 +427,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const applyPromo = async (code: string) => {
+    if (!isAuthenticated || USE_MOCK_DATA) {
+      throw new Error('Log in to use a coupon.');
+    }
+    const updatedCart = await apiRequest<CartData | null>('/cart/promo', {
+      method: 'POST',
+      body: JSON.stringify({ code: code.trim() }),
+    });
+    setCart(updatedCart);
+  };
+
+  const removePromo = async () => {
+    if (!isAuthenticated || USE_MOCK_DATA) return;
+    const updatedCart = await apiRequest<CartData | null>('/cart/promo', { method: 'DELETE' });
+    setCart(updatedCart);
+  };
+
   return (
     <CartContext.Provider
       value={{
@@ -416,6 +455,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateQuantity,
         removeItem,
         clearCart,
+        applyPromo,
+        removePromo,
       }}
     >
       {children}

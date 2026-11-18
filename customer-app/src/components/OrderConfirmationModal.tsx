@@ -19,6 +19,8 @@ export interface ConfirmedOrderDetails {
   itemTotal: string;
   deliveryFee: string;
   taxAmount: string;
+  /** Coupon discount, if any. */
+  discountAmount?: string;
   restaurantName: string;
   outletName: string;
   deliveryAddress: {
@@ -144,6 +146,13 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
               <Text style={styles.billLabel}>Delivery Partner Fee</Text>
               <Text style={styles.billValue}>₹{parseFloat(order.deliveryFee).toFixed(0)}</Text>
             </View>
+
+            {parseFloat(order.discountAmount ?? '0') > 0 && (
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Coupon discount</Text>
+                <Text style={styles.billValue}>-₹{parseFloat(order.discountAmount ?? '0').toFixed(0)}</Text>
+              </View>
+            )}
 
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>Govt Taxes (GST)</Text>

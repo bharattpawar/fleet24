@@ -88,7 +88,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
   const handleAddItem = async (item: MenuItemData) => {
     const itemDetails = {
       name: item.name,
-      unitPrice: parseFloat(item.effectivePrice),
+      unitPrice: parseFloat(item.finalPrice ?? item.effectivePrice),
       imageUrl: item.imageUrl,
       outletName: outlet.outletName,
       restaurantName: outlet.restaurantName,

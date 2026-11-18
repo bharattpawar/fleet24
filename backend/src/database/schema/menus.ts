@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { restaurants, restaurantOutlets } from './restaurants';
+import { promoTypeEnum } from './enums';
 
 export const menuCategories = pgTable(
   'menu_categories',
@@ -46,6 +47,9 @@ export const menuItems = pgTable(
     isVeg: boolean('is_veg').default(true).notNull(),
     imageUrl: text('image_url'),
     isAvailable: boolean('is_available').default(true).notNull(),
+    /** Restaurant's own discount on this dish; null = no discount. */
+    discountType: promoTypeEnum('discount_type'),
+    discountValue: numeric('discount_value', { precision: 10, scale: 2 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

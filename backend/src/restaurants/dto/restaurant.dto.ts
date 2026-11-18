@@ -9,6 +9,8 @@ import {
   IsNumber,
   Min,
   Max,
+  IsIn,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -281,6 +283,19 @@ export class UpdateMenuItemDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  /** Restaurant's own discount on this dish; null removes it. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(['percentage', 'fixed_amount'])
+  discountType?: 'percentage' | 'fixed_amount' | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  discountValue?: number | null;
 }
 
 export class UpdateMenuItemAvailabilityDto {

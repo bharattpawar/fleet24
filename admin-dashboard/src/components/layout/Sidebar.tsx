@@ -1,4 +1,4 @@
-import { Settings, Users, CreditCard, RotateCcw, Bike, ClipboardList, LayoutDashboard, MapPin, Radio, Store, AlertTriangle, Map as MapIcon } from 'lucide-react';
+import { Settings, Users, CreditCard, RotateCcw, Bike, ClipboardList, LayoutDashboard, MapPin, Radio, Store, AlertTriangle, Map as MapIcon, TicketPercent } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const groups = [
@@ -8,6 +8,7 @@ const groups = [
     { path: '/finance/settlements', label: 'Restaurant Settlements', icon: Store },
     { path: '/finance/payouts', label: 'Rider Payouts', icon: Bike },
     { path: '/finance/settings', label: 'Financial Settings', icon: Settings },
+    { path: '/coupons', label: 'Coupons', icon: TicketPercent },
     { path: '/finance/ledger', label: 'Ledger', icon: ClipboardList },
     { path: '/finance/refunds', label: 'Refunds', icon: RotateCcw },
   ] },

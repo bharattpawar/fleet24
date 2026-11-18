@@ -130,6 +130,11 @@ export interface MenuItem {
   description?: string | null;
   basePrice?: string | number;
   effectivePrice?: string | number;
+  /** Price the customer pays after the dish discount. */
+  finalPrice?: string;
+  discountType?: 'percentage' | 'fixed_amount' | null;
+  discountValue?: string | null;
+  discountLabel?: string | null;
   price?: number;
   imageUrl?: string | null;
   isVeg: boolean;

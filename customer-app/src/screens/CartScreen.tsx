@@ -38,6 +38,7 @@ import {
 } from '../components/ActiveOrderWarningModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { taxLabel } from '../utils/taxes';
+import { CouponSection } from '../components/CouponSection';
 
 // Ensures in-app browser handles complete auth/checkout sessions properly
 WebBrowser.maybeCompleteAuthSession();
@@ -56,7 +57,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   onRequireAuth,
 }) => {
   const insets = useSafeAreaInsets();
-  const { cart, updateQuantity, removeItem, clearCart, fetchCart } = useCart();
+  const { cart, updateQuantity, removeItem, clearCart, fetchCart, applyPromo, removePromo } = useCart();
   const { isAuthenticated } = useAuth();
 
   const delivery = useDeliveryLocation();
@@ -429,6 +430,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
               itemTotal: order.itemTotal,
               deliveryFee: order.deliveryFee,
               taxAmount: order.taxAmount,
+              discountAmount: order.discountAmount,
               restaurantName: cart.restaurantName,
               outletName: cart.outletName,
               deliveryAddress: {
@@ -634,7 +636,13 @@ export const CartScreen: React.FC<CartScreenProps> = ({
                 <Text style={styles.itemName} numberOfLines={1}>
                   {item.name}
                 </Text>
-                <Text style={styles.itemPrice}>₹{item.unitPrice.toFixed(0)} each</Text>
+                <Text style={styles.itemPrice}>
+                  ₹{item.unitPrice.toFixed(0)} each
+                  {item.originalUnitPrice != null && item.originalUnitPrice > item.unitPrice && (
+                    <Text style={styles.itemStrikePrice}>  ₹{item.originalUnitPrice.toFixed(0)}</Text>
+                  )}
+                  {item.discountLabel ? <Text style={styles.itemDiscountLabel}>  {item.discountLabel}</Text> : null}
+                </Text>
               </View>
 
               <View style={styles.itemActions}>
@@ -671,6 +679,14 @@ export const CartScreen: React.FC<CartScreenProps> = ({
           />
         </View>
 
+        {/* Admin coupon codes */}
+        <CouponSection
+          promo={cart.promo}
+          canUseCoupons={isAuthenticated && !USE_MOCK_DATA}
+          onApply={applyPromo}
+          onRemove={removePromo}
+        />
+
         {/* Bill Summary */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeader}>BILL BREAKDOWN</Text>
@@ -685,6 +701,15 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             <Text style={styles.billValue}>₹{cart.deliveryFee.toFixed(0)}</Text>
           </View>
 
+          {cart.discountAmount > 0 && (
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, styles.billSaving]}>
+                Coupon discount{cart.promo?.code ? ` (${cart.promo.code})` : ''}
+              </Text>
+              <Text style={[styles.billValue, styles.billSaving]}>-₹{cart.discountAmount.toFixed(0)}</Text>
+            </View>
+          )}
+
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>{taxLabel(cart.taxes)}</Text>
             <Text style={styles.billValue}>₹{cart.taxAmount.toFixed(0)}</Text>
@@ -694,6 +719,12 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             <Text style={styles.totalLabel}>To Pay</Text>
             <Text style={styles.totalValue}>₹{cart.totalPayable.toFixed(0)}</Text>
           </View>
+
+          {(cart.dishSavings ?? 0) + cart.discountAmount > 0 && (
+            <Text style={styles.savingsNote}>
+              You save ₹{((cart.dishSavings ?? 0) + cart.discountAmount).toFixed(0)} on this order
+            </Text>
+          )}
         </View>
 
         {/* Payment Policy Notice */}
@@ -961,6 +992,28 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  itemStrikePrice: {
+    textDecorationLine: 'line-through',
+    color: colors.textMuted,
+  },
+  itemDiscountLabel: {
+    color: colors.success,
+    fontWeight: '700',
+  },
+  billSaving: {
+    color: colors.success,
+    fontWeight: '700',
+  },
+  savingsNote: {
+    marginTop: 10,
+    textAlign: 'center',
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.success,
+    backgroundColor: colors.surfaceGreen,
+    borderRadius: 10,
+    paddingVertical: 6,
   },
   itemActions: {
     flexDirection: 'row',

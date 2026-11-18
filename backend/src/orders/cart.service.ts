@@ -18,13 +18,20 @@ import { DeliveryEtaSettings, estimateDeliveryEta } from '../common/utils/delive
 import { RoutingService } from '../routing/routing.service';
 import { computeTaxes, type TaxBreakdown } from '../common/utils/taxes';
 import type { FinancialSettingsPayload } from '../database/schema/financial-settings';
+import { applyDishDiscount, dishDiscountLabel } from '../common/utils/discounts';
+import { PromotionsService, type CouponEvaluation } from '../promotions/promotions.service';
 
 export interface CalculatedCartItem {
   id: string; // cart item id
   menuItemId: string;
   name: string;
   quantity: number;
+  /** Price the customer pays per unit, after the restaurant's dish discount. */
   unitPrice: number;
+  /** Price before the dish discount (equal to unitPrice when there is none). */
+  originalUnitPrice: number;
+  /** e.g. "20% OFF" when the restaurant discounts this dish. */
+  discountLabel: string | null;
   totalPrice: number;
   isAvailable: boolean;
   imageUrl: string | null;
@@ -43,7 +50,12 @@ export interface CalculatedCartSummary {
   taxAmount: number;
   /** Split of taxAmount, with the GST rates the admin set. */
   taxes: TaxBreakdown;
+  /** Coupon discount (admin coupon codes). */
   discountAmount: number;
+  /** Coupon the customer applied; `applied: false` with a message when it does not apply now. */
+  promo: CouponEvaluation | null;
+  /** What the customer saves on restaurant dish discounts. */
+  dishSavings: number;
   totalPayable: number;
 }
 
@@ -56,6 +68,8 @@ export class CartService {
     private readonly financialSettingsService: FinancialSettingsService,
     @Optional()
     private readonly routingService?: RoutingService,
+    @Optional()
+    private readonly promotionsService?: PromotionsService,
   ) {}
 
   /**
@@ -165,6 +179,7 @@ export class CartService {
       cart.outlet.isAcceptingOrders;
 
     let subtotal = 0;
+    let dishSavings = 0;
     const calculatedItems: CalculatedCartItem[] = [];
 
     for (const item of cart.items) {
@@ -173,11 +188,13 @@ export class CartService {
       const override = menuItem.outletOverrides?.find((o: any) => o.outletId === cart.outletId);
 
       const effectivePriceStr = override?.customPrice || menuItem.basePrice;
-      const effectivePrice = parseFloat(effectivePriceStr);
+      const originalPrice = parseFloat(effectivePriceStr);
+      const effectivePrice = applyDishDiscount(originalPrice, menuItem.discountType, menuItem.discountValue);
       const isAvailable = override ? override.isAvailable : menuItem.isAvailable;
 
       const itemTotal = this.toMoney(effectivePrice * item.quantity);
       subtotal += itemTotal;
+      dishSavings += (originalPrice - effectivePrice) * item.quantity;
 
       calculatedItems.push({
         id: item.id,
@@ -185,6 +202,10 @@ export class CartService {
         name: menuItem.name,
         quantity: item.quantity,
         unitPrice: effectivePrice,
+        originalUnitPrice: originalPrice,
+        discountLabel: effectivePrice < originalPrice
+          ? dishDiscountLabel(menuItem.discountType, menuItem.discountValue)
+          : null,
         totalPrice: itemTotal,
         isAvailable,
         imageUrl: menuItem.imageUrl,
@@ -231,10 +252,21 @@ export class CartService {
       }
     }
 
-    // GST on food and on the delivery fee, at the rates set by the admin
-    const taxes = computeTaxes({ itemTotal, deliveryFee, settings: activeSettings });
+    // Admin coupon, re-checked on every read (dates, limits, minimum order)
+    let promo: CouponEvaluation | null = null;
+    if (cart.promotionId && this.promotionsService) {
+      promo = await this.promotionsService.evaluate({
+        promotionId: cart.promotionId,
+        customerId,
+        itemTotal,
+        client,
+      });
+    }
+    const discountAmount = promo?.applied ? promo.discountAmount : 0;
+
+    // GST on food (after the coupon) and on the delivery fee, at the rates set by the admin
+    const taxes = computeTaxes({ itemTotal, deliveryFee, discountAmount, settings: activeSettings });
     const taxAmount = taxes.taxAmount;
-    const discountAmount = 0.0;
     const totalPayable = this.toMoney(itemTotal + deliveryFee + taxAmount - discountAmount);
 
     return {
@@ -250,6 +282,8 @@ export class CartService {
       taxAmount,
       taxes,
       discountAmount,
+      promo,
+      dishSavings: this.toMoney(dishSavings),
       totalPayable,
     };
   }
@@ -416,6 +450,40 @@ export class CartService {
       return null;
     }
 
+    return this.getCart(customerId);
+  }
+
+  /** Applies an admin coupon code to the cart. Rejects codes that cannot be used now. */
+  async applyPromoCode(customerId: string, code: string) {
+    if (!this.promotionsService) throw new BadRequestException('Coupons are not available.');
+    const cart = await this.db.query.customerCarts.findFirst({
+      where: eq(schema.customerCarts.customerId, customerId),
+    });
+    if (!cart) throw new BadRequestException('Add items to your cart first.');
+    const promo = await this.promotionsService.findByCode(code);
+    if (!promo) throw new NotFoundException('This coupon code does not exist.');
+
+    const summary = await this.getCart(customerId);
+    const check = await this.promotionsService.evaluate({
+      promotionId: promo.id,
+      customerId,
+      itemTotal: summary?.itemTotal ?? 0,
+    });
+    if (!check?.applied) throw new BadRequestException(check?.message ?? 'This coupon cannot be used.');
+
+    await this.db
+      .update(schema.customerCarts)
+      .set({ promotionId: promo.id, updatedAt: new Date() })
+      .where(eq(schema.customerCarts.id, cart.id));
+    return this.getCart(customerId);
+  }
+
+  /** Removes the coupon from the cart. */
+  async removePromoCode(customerId: string) {
+    await this.db
+      .update(schema.customerCarts)
+      .set({ promotionId: null, updatedAt: new Date() })
+      .where(eq(schema.customerCarts.customerId, customerId));
     return this.getCart(customerId);
   }
 

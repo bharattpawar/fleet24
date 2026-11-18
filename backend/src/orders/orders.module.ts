@@ -12,12 +12,14 @@ import { TrackingModule } from '../tracking/tracking.module';
 import { AdminDashboardModule } from '../admin/admin-dashboard.module';
 import { RoutingModule } from '../routing/routing.module';
 import { ServiceZonesModule } from '../service-zones/service-zones.module';
+import { PromotionsModule } from '../promotions/promotions.module';
 
 @Module({
   imports: [
     AuthModule,
     RoutingModule,
     ServiceZonesModule,
+    PromotionsModule,
     forwardRef(() => PaymentsModule),
     forwardRef(() => RidersModule),
     forwardRef(() => TrackingModule),

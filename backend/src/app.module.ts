@@ -15,6 +15,7 @@ import { AdminDashboardModule } from './admin/admin-dashboard.module';
 import { RoutingModule } from './routing/routing.module';
 import { GeoModule } from './geo/geo.module';
 import { ServiceZonesModule } from './service-zones/service-zones.module';
+import { PromotionsModule } from './promotions/promotions.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ServiceZonesModule } from './service-zones/service-zones.module';
     RoutingModule,
     GeoModule,
     ServiceZonesModule,
+    PromotionsModule,
   ],
 })
 export class AppModule {}

@@ -33,3 +33,9 @@ describe('computeTaxes', () => {
     expect(computeTaxes({ itemTotal: 123.45, deliveryFee: 0 }).foodTax).toBe(6.17);
   });
 });
+
+describe('computeTaxes with a coupon', () => {
+  it('charges food GST on the amount after the coupon', () => {
+    expect(computeTaxes({ itemTotal: 300, deliveryFee: 30, discountAmount: 100 }).foodTax).toBe(10);
+  });
+});

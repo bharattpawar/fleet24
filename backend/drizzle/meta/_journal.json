@@ -134,6 +134,13 @@
       "when": 1795000000000,
       "tag": "0019_service_zones",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1796000000000,
+      "tag": "0020_discounts",
+      "breakpoints": true
     }
   ]
 }

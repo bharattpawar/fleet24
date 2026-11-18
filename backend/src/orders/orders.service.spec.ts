@@ -10,6 +10,7 @@ import { RiderOffersService } from '../riders/rider-offers.service';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import { RoutingService } from '../routing/routing.service';
 import { calculateDistanceKm } from '../common/utils/geo';
+import { PromotionsService } from '../promotions/promotions.service';
 
 describe('Cart & Orders Management (Unit Tests)', () => {
   let cartService: CartService;
@@ -17,6 +18,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
   let routingService: RoutingService;
   let mockDb: any;
   let mockFinancialSettingsService: any;
+  let mockPromotionsService: any;
   let mockRoutingService: any;
   let mockActiveOrdersInTx: any[] = [];
 
@@ -81,6 +83,11 @@ describe('Cart & Orders Management (Unit Tests)', () => {
         amount: '250.00',
         status: 'pending',
       }),
+    };
+
+    mockPromotionsService = {
+      evaluate: jest.fn(),
+      recordRedemption: jest.fn().mockResolvedValue(undefined),
     };
 
     mockFinancialSettingsService = {
@@ -176,6 +183,7 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           provide: RoutingService,
           useValue: mockRoutingService,
         },
+        { provide: PromotionsService, useValue: mockPromotionsService },
       ],
     }).compile();
 
@@ -290,6 +298,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           name: 'Kulcha Thali',
           quantity: 1,
           unitPrice: 200,
+          originalUnitPrice: 200,
+          discountLabel: null,
           totalPrice: 200,
           isAvailable: true,
           imageUrl: null,
@@ -300,6 +310,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       deliveryFee: 30,
       taxAmount: 10,
       taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 10, deliveryFeeTax: 0, taxAmount: 10 },
+      promo: null,
+      dishSavings: 0,
       discountAmount: 0,
       totalPayable: 240,
     };
@@ -412,6 +424,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           customerDeliveryFee: { freeOrderThresholdCount: 0, baseDeliveryFeeAfterFree: 30.0, cancelledOrdersConsumeFreeQuota: false },
           deliveryServiceability: { maxRoadDistanceMeters: 3000 },
           taxes: { foodGstPercent: 12, deliveryFeeGstPercent: 18 },
+          promo: null,
+          dishSavings: 0,
         },
       });
       mockDb.query.customerAddresses.findFirst.mockResolvedValueOnce({
@@ -455,6 +469,87 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       // 12% of 200 = 24, 18% of 30 = 5.40
       expect(insertedPayload.taxAmount).toBe('29.40');
       expect(insertedPayload.totalPayable).toBe('259.40');
+    });
+
+    const setupKp3Checkout = () => {
+      mockDb.query.customerAddresses.findFirst.mockResolvedValueOnce({
+        id: 'addr-kp3',
+        userId: customerId,
+        label: 'Hostel',
+        addressLine1: 'Room 312, Boys Hostel',
+        city: 'Greater Noida',
+        postalCode: '201306',
+        latitude: '28.4744000',
+        longitude: '77.4912000',
+      });
+      mockDb.query.restaurantOutlets.findFirst.mockResolvedValueOnce({
+        id: outletId,
+        latitude: outletLatitude,
+        longitude: outletLongitude,
+        deliveryRadiusKm: '3.00',
+      });
+      mockRoutingService.getRoute.mockResolvedValueOnce({
+        distanceMeters: 2200,
+        durationSeconds: 300,
+        provider: 'google',
+        status: 'OK',
+        calculatedAt: new Date(),
+        cached: false,
+      });
+      const captured: { order: any } = { order: null };
+      mockDb.insert.mockReturnValue({
+        values: jest.fn().mockImplementation((payload) => {
+          if (payload.orderNumber) captured.order = payload;
+          return {
+            returning: jest.fn().mockResolvedValue([
+              { id: 'order-promo', orderNumber: 'FL-PROMO', status: 'pending_payment', deliveryAddressSnapshot: payload.deliveryAddressSnapshot, placedAt: new Date() },
+            ]),
+          };
+        }),
+      });
+      return captured;
+    };
+
+    const promoCart = {
+      ...validCart,
+      discountAmount: 50,
+      promo: { promotionId: 'promo-1', code: 'SAVE50', description: null, applied: true, discountAmount: 50, message: null },
+    };
+
+    it('applies an admin coupon at checkout, taxes the food after it, and records the redemption', async () => {
+      jest.spyOn(cartService, 'getCart').mockResolvedValue(promoCart);
+      mockPromotionsService.evaluate.mockResolvedValue(promoCart.promo);
+      const captured = setupKp3Checkout();
+
+      await ordersService.checkout(customerId, { deliveryAddressId: 'addr-kp3' });
+
+      expect(mockPromotionsService.evaluate).toHaveBeenCalledWith(
+        expect.objectContaining({ promotionId: 'promo-1', customerId, itemTotal: 200, lock: true }),
+      );
+      // 200 food - 50 coupon = 150, 5% GST = 7.50; 150 + 30 delivery + 7.50
+      expect(captured.order.discountAmount).toBe('50.00');
+      expect(captured.order.taxAmount).toBe('7.50');
+      expect(captured.order.totalPayable).toBe('187.50');
+      expect(mockPromotionsService.recordRedemption).toHaveBeenCalledWith(
+        expect.anything(),
+        { promotionId: 'promo-1', customerId, orderId: 'order-promo', discountAmount: 50 },
+      );
+    });
+
+    it('stops checkout when the coupon stopped working after the customer saw it', async () => {
+      jest.spyOn(cartService, 'getCart').mockResolvedValue(promoCart);
+      mockPromotionsService.evaluate.mockResolvedValue({
+        ...promoCart.promo,
+        applied: false,
+        discountAmount: 0,
+        message: 'This coupon has been fully used.',
+      });
+      setupKp3Checkout();
+
+      await expect(ordersService.checkout(customerId, { deliveryAddressId: 'addr-kp3' })).rejects.toThrow(
+        'Coupon SAVE50 can no longer be used: This coupon has been fully used.',
+      );
+      expect(mockPromotionsService.recordRedemption).not.toHaveBeenCalled();
     });
 
     it('2. Address beyond 3 km: checkout rejected with clear error', async () => {
@@ -732,6 +827,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           name: 'Hyderabadi Biryani',
           quantity: 1,
           unitPrice: 300,
+          originalUnitPrice: 300,
+          discountLabel: null,
           totalPrice: 300,
           isAvailable: true,
           imageUrl: null,
@@ -742,6 +839,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       deliveryFee: 30,
       taxAmount: 15,
       taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 15, deliveryFeeTax: 0, taxAmount: 15 },
+      promo: null,
+      dishSavings: 0,
       discountAmount: 0,
       totalPayable: 345,
     };
@@ -1134,6 +1233,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           name: 'Paneer Kulcha',
           quantity: 2,
           unitPrice: 100.0,
+          originalUnitPrice: 100.0,
+          discountLabel: null,
           totalPrice: 200.0,
           isAvailable: true,
           imageUrl: null,
@@ -1144,6 +1245,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       deliveryFee: 30.0,
       taxAmount: 10.0,
       taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 10.0, deliveryFeeTax: 0, taxAmount: 10.0 },
+      promo: null,
+      dishSavings: 0,
       discountAmount: 0.0,
       totalPayable: 240.0,
     };
@@ -1514,6 +1617,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
           menuItemId: 'menu-1',
           name: 'Paneer Butter Masala',
           unitPrice: 250.0,
+          originalUnitPrice: 250.0,
+          discountLabel: null,
           quantity: 1,
           totalPrice: 250.0,
           isAvailable: true,
@@ -1523,6 +1628,8 @@ describe('Cart & Orders Management (Unit Tests)', () => {
       deliveryFee: 30.0,
       taxAmount: 12.5,
       taxes: { foodGstPercent: 5, deliveryFeeGstPercent: 0, foodTax: 12.5, deliveryFeeTax: 0, taxAmount: 12.5 },
+      promo: null,
+      dishSavings: 0,
       discountAmount: 0.0,
       totalPayable: 292.5,
       itemCount: 1,
