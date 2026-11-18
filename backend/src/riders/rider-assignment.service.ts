@@ -82,14 +82,14 @@ export class RiderAssignmentService {
   /**
    * Evaluates location freshness:
    * In production: strictly MAX_LOCATION_AGE_SECONDS (300s).
-   * In development: relaxed to maxAgeSeconds to support local QA and emulator testing.
+   * Only when NODE_ENV=development: relaxed for local QA and emulator testing (never in test, staging or production).
    */
   isLocationFresh(
     updatedAt: Date | null | undefined,
     capturedAt: Date | null | undefined,
     maxAgeSeconds: number = RiderAssignmentService.MAX_LOCATION_AGE_SECONDS,
   ): boolean {
-    const isDev = process.env.NODE_ENV !== 'production';
+    const isDev = process.env.NODE_ENV === 'development';
     if (isDev) {
       // In development, always accept recorded location for QA and multi-device testing
       return true;
@@ -130,7 +130,7 @@ export class RiderAssignmentService {
     const tx = typeof orderIdOrTx === 'object' && orderIdOrTx !== null ? orderIdOrTx : maybeTx;
     const dbClient = tx || this.db;
 
-    const isDev = process.env.NODE_ENV !== 'production';
+    const isDev = process.env.NODE_ENV === 'development';
     const pickupRadiusMeters = await this.getRiderPickupRadiusMeters();
     // Geographic bounding box pre-filter sized from the admin radius (+15% margin; relaxed in dev)
     const radiusDegLat = (pickupRadiusMeters / 111_320) * 1.15;
