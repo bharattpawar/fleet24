@@ -94,12 +94,15 @@ export class CustomerHomeController {
     const sections = (records[0]?.published as Section[] | undefined)?.filter(section => !section.hidden) ?? [];
     const eligible = outlets.filter(outlet => outlet.isAcceptingOrders &&
       (lat === undefined || (outlet.latitude != null && outlet.longitude != null)));
-    const needsMenu = sections.some(section => section.targets.some(target => target.type === 'dish' || target.type === 'category'));
-    const menus = new Map(needsMenu ? await Promise.all(eligible.map(async outlet =>
-      [outlet.id, (await this.menus.listMenuItemsForOutlet(outlet.id)).filter(item => item.effectiveIsAvailable && item.categoryIsActive)] as const,
-    )) : []);
+    const menus = new Map(await Promise.all(outlets.map(async outlet =>
+      [outlet.id, (await this.menus.listMenuItemsForOutlet(outlet.id))
+        .filter(item => item.effectiveIsAvailable && item.categoryIsActive)] as const,
+    )));
     return {
       outlets,
+      categoriesByOutlet: Object.fromEntries([...menus].map(([outletId, items]) =>
+        [outletId, [...new Set(items.map(item => item.categoryName).filter(Boolean))]],
+      )),
       sections: sections.flatMap(section => {
         const cards = section.targets.flatMap(target => {
           const matches = eligible.flatMap(outlet => {

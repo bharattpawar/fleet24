@@ -12,11 +12,19 @@ describe('Customer Home discovery', () => {
       draft: [row('Draft only', ['a'])],
       published: [row('Featured', ['b', 'missing', 'a']), row('Empty', ['closed']), row('Hidden', ['a'], true)],
     }] }) };
-    const menus = { getPublicActiveOutlets: jest.fn().mockResolvedValue([outlet('a'), outlet('b'), outlet('closed', false)]) };
+    const menus = {
+      getPublicActiveOutlets: jest.fn().mockResolvedValue([outlet('a'), outlet('b'), outlet('closed', false)]),
+      listMenuItemsForOutlet: jest.fn().mockResolvedValue([
+        { categoryName: 'Main Course', effectiveIsAvailable: true, categoryIsActive: true },
+        { categoryName: 'Main Course', effectiveIsAvailable: true, categoryIsActive: true },
+        { categoryName: 'Sides', effectiveIsAvailable: false, categoryIsActive: true },
+      ]),
+    };
     const controller = new CustomerHomeController(db as never, menus as never);
     const result = await controller.feed('28.48', '77.51');
     expect(menus.getPublicActiveOutlets).toHaveBeenCalledWith(28.48, 77.51);
     expect(result.outlets).toHaveLength(3);
+    expect(result.categoriesByOutlet).toEqual({ a: ['Main Course'], b: ['Main Course'], closed: ['Main Course'] });
     expect(result.sections.map(section => section.title)).toEqual(['Featured']);
     expect(result.sections[0].cards.map(card => card.outlet.id)).toEqual(['b', 'a']);
   });

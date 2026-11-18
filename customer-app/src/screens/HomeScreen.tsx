@@ -1,3 +1,4 @@
+import { cuisineCategories, normalizeCategory } from '../utils/homeCategories';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  Image,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
@@ -16,7 +16,7 @@ import { exploreColors as c } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '../api/client';
 import { RestaurantCard, OutletSummary } from '../components/RestaurantCard';
-import { USE_MOCK_DATA, MOCK_OUTLETS } from '../api/mockData';
+import { USE_MOCK_DATA, MOCK_OUTLETS, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { ExploreFiltersSheet } from '../components/ExploreFiltersSheet';
@@ -32,13 +32,6 @@ interface HomeScreenProps {
   onOpenProfile?: () => void;
 }
 
-interface CuisineCategory {
-  id: string;
-  name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  filterKey: string;
-}
-
 interface FeedSection {
   kind: 'banner' | 'category' | 'row';
   title: string;
@@ -47,15 +40,6 @@ interface FeedSection {
   targets: { type: string; id: string }[];
   cards: { outlet: OutletSummary; dish?: { id: string; name: string; imageUrl: string | null; effectivePrice: string; finalPrice?: string } }[];
 }
-
-const CUISINE_CATEGORIES: CuisineCategory[] = [
-  { id: 'all', name: 'All', icon: 'restaurant-outline', filterKey: 'all' },
-  { id: 'north_indian', name: 'North Indian', icon: 'flame-outline', filterKey: 'kulcha' },
-  { id: 'biryani', name: 'Biryani', icon: 'nutrition-outline', filterKey: 'biryani' },
-  { id: 'rolls', name: 'Rolls & Kathi', icon: 'fast-food-outline', filterKey: 'kathi' },
-  { id: 'south_indian', name: 'South Indian', icon: 'cafe-outline', filterKey: 'dakshin' },
-  { id: 'chai_snacks', name: 'Chai & Cafe', icon: 'leaf-outline', filterKey: 'chai' },
-];
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectOutlet,
@@ -67,6 +51,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { cart } = useCart();
   const { user, isAuthenticated } = useAuth();
   const [outlets, setOutlets] = useState<OutletSummary[]>([]);
+  const [categoriesByOutlet, setCategoriesByOutlet] = useState<Record<string, string[]>>({});
   const [sections, setSections] = useState<FeedSection[]>([]);
   const [categoryOutlets, setCategoryOutlets] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,18 +82,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const fetchOutlets = useCallback(async () => {
     const version = ++requestVersion.current;
     try {
-      const feed = USE_MOCK_DATA ? { outlets: MOCK_OUTLETS, sections: [] } :
-        await apiRequest<{ outlets: OutletSummary[]; sections: FeedSection[] }>('/public/customer-home' + coordinates)
-          .catch(async () => ({ outlets: await apiRequest<OutletSummary[]>('/public/outlets' + coordinates), sections: [] }));
+      const feed = USE_MOCK_DATA ? { outlets: MOCK_OUTLETS, sections: [], categoriesByOutlet: Object.fromEntries(MOCK_OUTLETS.map(outlet => [outlet.id, (MOCK_MENUS[outlet.id] ?? DEFAULT_MOCK_MENU).map(item => item.categoryName)])) } :
+        await apiRequest<{ outlets: OutletSummary[]; sections: FeedSection[]; categoriesByOutlet?: Record<string, string[]> }>('/public/customer-home' + coordinates)
+          .catch(async () => ({ outlets: await apiRequest<OutletSummary[]>('/public/outlets' + coordinates), sections: [], categoriesByOutlet: {} }));
       if (version !== requestVersion.current) return;
       setOutlets(feed.outlets);
       setSections(feed.sections);
+      setCategoriesByOutlet(feed.categoriesByOutlet ?? {});
       setHasError(false);
     } catch {
       if (version !== requestVersion.current) return;
       setHasError(true);
       setOutlets([]);
       setSections([]);
+      setCategoriesByOutlet({});
     } finally {
       if (version === requestVersion.current) {
         setLoadedCoordinates(coordinates);
@@ -131,10 +118,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     let result = list;
 
     if (categoryKey !== 'all') {
-      result = result.filter((o) => {
-        const text = (o.restaurantName + ' ' + o.outletName + ' ' + o.slug).toLowerCase();
-        return text.includes(categoryKey.toLowerCase());
-      });
+      result = result.filter(outlet => categoriesByOutlet[outlet.id]?.some(
+        name => `category:${normalizeCategory(name)}` === categoryKey,
+      ));
     }
 
     if (query.trim()) {
@@ -179,14 +165,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setIsAddressModalVisible(true);
   };
 
+  const categories = [{ id: 'all', name: 'All' }, ...cuisineCategories(categoriesByOutlet)];
+  const activeCategory = categories.some(category => category.id === selectedCategory) ? selectedCategory : 'all';
+
   // Header rendered cleanly above the FlatList
-  const matchingOutlets = applyFilters(categoryOutlets ? outlets.filter(outlet => categoryOutlets.includes(outlet.id)) : outlets, searchQuery, selectedCategory);
+  const matchingOutlets = applyFilters(categoryOutlets ? outlets.filter(outlet => categoryOutlets.includes(outlet.id)) : outlets, searchQuery, activeCategory);
   const filteredOutlets = openOnly
     ? matchingOutlets.filter((outlet) => outlet.isAcceptingOrders)
     : matchingOutlets;
   const openCount = filteredOutlets.filter((outlet) => outlet.isAcceptingOrders).length;
 
-  const hasCampaign = sections.some(section => section.kind === 'banner');
 
   const renderListHeader = () => (
     <View style={styles.headerContainer}>
@@ -320,8 +308,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryPillsScroll}
         >
-          {CUISINE_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.filterKey;
+          {categories.map((cat) => {
+            const isSelected = activeCategory === cat.id;
             return (
               <TouchableOpacity
                 key={cat.id}
@@ -331,11 +319,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 ]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
-                onPress={() => handleCategorySelect(cat.filterKey)}
+                onPress={() => handleCategorySelect(cat.id)}
                 activeOpacity={0.8}
               >
                 <Ionicons
-                  name={cat.icon}
+                  name="restaurant-outline"
                   size={15}
                   color={isSelected ? c.green : c.secondary}
                   style={styles.categoryChipIcon}
@@ -354,17 +342,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </ScrollView>
       </View>
 
-      {!hasCampaign && (
-        <View style={styles.foodBanner}>
-          <Image source={require('../../assets/images/biryani-campaign.png')} style={styles.bannerImage} resizeMode="cover" accessibilityLabel="Bowl of chicken biryani" />
-          <View style={styles.bannerText}>
-            <Text style={styles.bannerEyebrow}>FLEET24 PICKS</Text>
-            <Text style={styles.bannerTitle}>Big flavour.{'\n'}Every bite.</Text>
-            <Text style={styles.bannerSubtitle}>Find your next favourite.</Text>
-          </View>
-
-        </View>
-      )}
       </View>
 
       {notServiceable && (
@@ -391,11 +368,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <Text style={styles.tileLabel} numberOfLines={2}>{section.title}</Text>
             </TouchableOpacity>
           ))
-          : CUISINE_CATEGORIES.filter(category => category.id !== 'all').map(category => {
-            const photo = applyFilters(outlets, '', category.filterKey).find(outlet => outlet.logoUrl)?.logoUrl;
+          : categories.filter(category => category.id !== 'all').map(category => {
+            const photo = applyFilters(outlets, '', category.id).find(outlet => outlet.logoUrl)?.logoUrl;
             return (
               <TouchableOpacity key={category.id} style={styles.feedTile} accessibilityRole="button"
-                onPress={() => handleCategorySelect(category.filterKey)}>
+                onPress={() => handleCategorySelect(category.id)}>
                 <View style={styles.tilePhoto}><ExplorePhoto key={photo} uri={photo ?? null} /></View>
                 <Text style={styles.tileLabel} numberOfLines={2}>{category.name}</Text>
               </TouchableOpacity>
@@ -572,12 +549,6 @@ const styles = StyleSheet.create({
   outOfAreaText: { fontSize: 13, color: '#5C4033', marginTop: 2 },
   outOfAreaBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
   outOfAreaBtnText: { fontSize: 14, fontWeight: '800', color: '#8C3A1C' },
-  foodBanner: { marginHorizontal: 15, height: 190, backgroundColor: '#330D0C', borderRadius: 20, overflow: 'hidden', justifyContent: 'center' },
-  bannerText: { paddingHorizontal: 16, paddingVertical: 18, width: '54%' },
-  bannerEyebrow: { fontSize: 9, letterSpacing: 1.4, fontWeight: '800', color: '#FFE4BD', marginBottom: 7 },
-  bannerTitle: { fontSize: 26, lineHeight: 29, fontWeight: '800', letterSpacing: -0.8, color: '#FFFFFF' },
-  bannerSubtitle: { fontSize: 13, color: '#FFE4BD', marginTop: 8 },
-  bannerImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   addressHeader: { flex: 1, minWidth: 0, paddingRight: 12 },
   addressLabel: { color: c.green, fontSize: 20, fontWeight: '800', marginBottom: 4 },
   addressLine: { color: c.secondary, fontSize: 12 },
