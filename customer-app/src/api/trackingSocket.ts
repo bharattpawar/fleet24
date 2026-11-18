@@ -1,27 +1,8 @@
 import { io, Socket } from 'socket.io-client';
-import { Platform } from 'react-native';
 import { authStorage } from './storage';
-import { DEV_LAN_IP, DEV_PORT } from './client';
+import { SOCKET_URL } from './client';
 
-/**
- * Derives the WebSocket base server URL matching client.ts environment detection:
- * - EXPO_PUBLIC_SOCKET_URL takes precedence in Staging & Production builds.
- * - Android Emulator: http://10.0.2.2:4000
- * - Web: http://localhost:4000
- * - iOS Device / Expo Go: http://172.20.10.2:4000
- */
-export const WS_BASE_URL = (() => {
-  if (process.env.EXPO_PUBLIC_SOCKET_URL) {
-    return process.env.EXPO_PUBLIC_SOCKET_URL;
-  }
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${DEV_PORT}`;
-  }
-  if (Platform.OS === 'web') {
-    return `http://localhost:${DEV_PORT}`;
-  }
-  return `http://${DEV_LAN_IP}:${DEV_PORT}`;
-})();
+export const WS_BASE_URL = SOCKET_URL;
 
 export const WS_TRACKING_NAMESPACE = '/tracking';
 

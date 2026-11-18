@@ -1,3 +1,4 @@
+import { parseCorsOrigins } from './cors-origins';
 import { createHash } from 'crypto';
 import { plainToInstance } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
@@ -168,6 +169,9 @@ export function validate(config: Record<string, unknown>) {
       `[Fleet24 Backend Startup Error] Environment configuration validation failed: ${errorDetails}`,
     );
   }
+
+  const corsOrigins = parseCorsOrigins(validatedConfig.CORS_ORIGINS);
+  validatedConfig.CORS_ORIGINS = corsOrigins.join(',') || undefined;
 
   if (validatedConfig.NODE_ENV === Environment.Production) {
     const missing: string[] = [];

@@ -1,3 +1,4 @@
+import { isPrivateDevelopmentOrigin, parseCorsOrigins } from './config/cors-origins';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -48,10 +49,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
 
   // CORS Configuration
-  const corsOriginsRaw = configService.get<string>('CORS_ORIGINS', '');
-  const allowedOrigins = corsOriginsRaw
-    ? corsOriginsRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
-    : [];
+  const allowedOrigins = parseCorsOrigins(configService.get<string>('CORS_ORIGINS'));
+  const isDevelopment = configService.get<string>('NODE_ENV') === 'development';
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -59,15 +58,7 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
-      const isProduction = configService.get<string>('NODE_ENV') === 'production';
-      const isLocalDevOrigin =
-        origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('http://172.20.10.2:');
-      if (
-        allowedOrigins.includes(origin) ||
-        (!isProduction && (allowedOrigins.length === 0 || isLocalDevOrigin))
-      ) {
+      if (allowedOrigins.includes(origin) || (isDevelopment && isPrivateDevelopmentOrigin(origin))) {
         return callback(null, true);
       }
       callback(new Error(`Origin '${origin}' is not allowed by CORS policy.`));

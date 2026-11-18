@@ -1,6 +1,8 @@
 module.exports = {
   testEnvironment: 'node',
+  globals: { __DEV__: false },
   moduleNameMapper: {
+    '^expo-constants$': '<rootDir>/test/expo-constants-mock.js',
     '^react-native$': '<rootDir>/test/react-native-mock.js',
   },
   transform: {

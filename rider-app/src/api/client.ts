@@ -1,39 +1,13 @@
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { resolveApiBaseUrl } from './apiBaseUrl';
 import { authStorage } from './storage';
 
-/**
- * Environment & Network Configuration
- * - EXPO_PUBLIC_API_URL and EXPO_PUBLIC_SOCKET_URL take precedence in Staging & Production builds.
- * - Falls back cleanly to local platform defaults for local development.
- */
-export const DEV_LAN_IP = '172.20.10.2';
-export const DEV_PORT = 4000;
+export const API_BASE_URL = resolveApiBaseUrl(
+  process.env.EXPO_PUBLIC_API_URL,
+  __DEV__ ? Constants.expoConfig?.hostUri : undefined,
+);
 
-export const API_BASE_URL = (() => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${DEV_PORT}/api/v1`;
-  }
-  if (Platform.OS === 'web') {
-    return `http://localhost:${DEV_PORT}/api/v1`;
-  }
-  return `http://${DEV_LAN_IP}:${DEV_PORT}/api/v1`;
-})();
-
-export const SOCKET_URL = (() => {
-  if (process.env.EXPO_PUBLIC_SOCKET_URL) {
-    return process.env.EXPO_PUBLIC_SOCKET_URL;
-  }
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${DEV_PORT}`;
-  }
-  if (Platform.OS === 'web') {
-    return `http://localhost:${DEV_PORT}`;
-  }
-  return `http://${DEV_LAN_IP}:${DEV_PORT}`;
-})();
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL?.trim() || new URL(API_BASE_URL).origin;
 
 export interface ApiResponse<T> {
   success: boolean;

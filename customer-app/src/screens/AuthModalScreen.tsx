@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useEffectEvent } from 'react';
 import {
@@ -23,8 +24,12 @@ import { USE_MOCK_DATA } from '../api/mockData';
 // Ensure WebBrowser finishes auth redirects if invoked via web modal
 WebBrowser.maybeCompleteAuthSession();
 
-// Google Web / Expo OAuth Client ID
-const GOOGLE_CLIENT_ID = '840348382677-6loj3nm3cmkhafhdfs2ejlho1ibbquph.apps.googleusercontent.com';
+const googleConfig = Constants.expoConfig?.extra;
+const googleClientId: string | undefined = Platform.select({
+  web: googleConfig?.googleWebClientId,
+  ios: googleConfig?.googleIosClientId,
+  android: googleConfig?.googleAndroidClientId,
+})?.trim();
 
 const GOOGLE_DISCOVERY: AuthSession.DiscoveryDocument = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -57,7 +62,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   // Stable auth config with required OpenID Connect nonce to prevent render loops on web and native
   const [authConfig] = useState(
     () => ({
-      clientId: GOOGLE_CLIENT_ID,
+      clientId: googleClientId ?? '',
       scopes: ['openid', 'profile', 'email'],
       responseType: AuthSession.ResponseType.IdToken,
       usePKCE: false,
@@ -70,7 +75,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     authConfig,
-    GOOGLE_DISCOVERY,
+    googleClientId ? GOOGLE_DISCOVERY : null,
   );
 
   const handleGoogleToken = useEffectEvent(async (idToken: string) => {
@@ -111,6 +116,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   }, [response]);
 
   const handleTriggerGoogleAuth = async () => {
+    if (!googleClientId) return;
     if (USE_MOCK_DATA) {
       // In mock mode, emulate instantaneous smooth Google login
       setIsGoogleLoading(true);
@@ -303,31 +309,36 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
             </TouchableOpacity>
             )}
 
-            {/* Google Sign-In Primary / One-Tap Button */}
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleTriggerGoogleAuth}
-              disabled={isGoogleLoading || isLoading}
-              activeOpacity={0.85}
-            >
-              {isGoogleLoading ? (
-                <ActivityIndicator size="small" color={colors.textPrimary} />
-              ) : (
-                <>
-                  <View style={styles.googleIconContainer}>
-                    <Ionicons name="logo-google" size={18} color="#EA4335" />
-                  </View>
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {googleClientId && (
+              <>
+                {/* Google Sign-In Primary / One-Tap Button */}
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={handleTriggerGoogleAuth}
+                  disabled={isGoogleLoading || isLoading}
+                  activeOpacity={0.85}
+                >
+                  {isGoogleLoading ? (
+                    <ActivityIndicator size="small" color={colors.textPrimary} />
+                  ) : (
+                    <>
+                      <View style={styles.googleIconContainer}>
+                        <Ionicons name="logo-google" size={18} color="#EA4335" />
+                      </View>
+                      <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with phone</Text>
-              <View style={styles.dividerLine} />
-            </View>
+                {/* Divider */}
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with phone</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+              </>
+            )}
 
             {/* Phone Input */}
             <View style={styles.inputContainer}>
