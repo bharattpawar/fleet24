@@ -399,7 +399,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                   <View style={styles.orderPoolEarningsBox}>
                     <Text style={styles.orderPoolEarningsLabel}>Rider Earning</Text>
                     <Text style={styles.orderPoolEarningsVal}>
-                      ₹{item.estimatedEarnings || '45.00'}
+                      {item.estimatedEarnings ? `₹${item.estimatedEarnings}` : '—'}
                     </Text>
                   </View>
                 </View>

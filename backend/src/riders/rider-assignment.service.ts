@@ -475,7 +475,12 @@ export class RiderAssignmentService {
         destLon,
       );
 
-      const deliveryTripDistanceMeters = deliveryTripProximity.distanceMeters;
+      // Pay on the road distance measured at checkout when available (same rule as claim).
+      const checkoutRoadMeters = Number((order.deliveryAddressSnapshot as any)?.roadDistanceMeters);
+      const deliveryTripDistanceMeters =
+        Number.isFinite(checkoutRoadMeters) && checkoutRoadMeters > 0
+          ? checkoutRoadMeters
+          : deliveryTripProximity.distanceMeters;
 
       // 8. Successful Assignment: Create or update delivery assignment
       const offerExpiresAt = new Date(

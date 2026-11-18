@@ -105,8 +105,8 @@ export interface AvailableDeliveryOrder {
   itemsCount: number;
   itemsSummary: string;
   distanceMeters: number;
-  distanceKm: number;
-  estimatedEarnings: string;
+  distanceKm: number | null;
+  estimatedEarnings: string | null;
   outlet: {
     id: string;
     name: string;

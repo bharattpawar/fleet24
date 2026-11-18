@@ -60,14 +60,15 @@ export const IncomingOfferSheet: React.FC<IncomingOfferSheetProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Show only what the server knows; never a made-up distance or pay.
   const distanceKm =
     offer.distanceKm !== undefined && offer.distanceKm !== null
       ? String(offer.distanceKm)
       : offer.distanceMeters
       ? (offer.distanceMeters / 1000).toFixed(1)
-      : '1.2';
+      : null;
 
-  const estimatedEarnings = offer.estimatedEarnings || '45';
+  const estimatedEarnings = offer.estimatedEarnings || null;
 
   const handleAccept = async () => {
     if (isSubmitting) return;
@@ -115,12 +116,12 @@ export const IncomingOfferSheet: React.FC<IncomingOfferSheetProps> = ({
         <View style={styles.highlightCard}>
           <View>
             <Text style={styles.highlightLabel}>ESTIMATED PAY</Text>
-            <Text style={styles.highlightPay}>₹{estimatedEarnings}</Text>
+            <Text style={styles.highlightPay}>{estimatedEarnings ? `₹${estimatedEarnings}` : '—'}</Text>
           </View>
           <View style={styles.verticalDivider} />
           <View>
             <Text style={styles.highlightLabel}>TOTAL DISTANCE</Text>
-            <Text style={styles.highlightDistance}>{distanceKm} km</Text>
+            <Text style={styles.highlightDistance}>{distanceKm ? `${distanceKm} km` : '—'}</Text>
           </View>
           <View style={styles.verticalDivider} />
           <View>

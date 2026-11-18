@@ -16,6 +16,7 @@ import { inArray } from 'drizzle-orm';
 import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { calculateRiderProximity } from '../common/utils/geo';
+import { isUsableLocation } from '../users/address-location.util';
 import { RidersService } from './riders.service';
 import { RiderAssignmentService } from './rider-assignment.service';
 import { NotificationService } from './notification.service';
@@ -116,6 +117,22 @@ export class RiderOffersService {
   }
 
   /**
+   * Outlet-to-customer trip distance for pay and display: the road distance measured at checkout,
+   * else the straight line between the real points, else null (never a substituted value).
+   */
+  static tripDistanceMeters(
+    order: { deliveryAddressSnapshot?: unknown; deliveryLatitude?: unknown; deliveryLongitude?: unknown },
+    outlet: { latitude?: unknown; longitude?: unknown } | null | undefined,
+  ): number | null {
+    const road = Number((order.deliveryAddressSnapshot as any)?.roadDistanceMeters);
+    if (Number.isFinite(road) && road > 0) return road;
+    if (!outlet || !isUsableLocation(outlet.latitude, outlet.longitude)) return null;
+    if (!isUsableLocation(order.deliveryLatitude, order.deliveryLongitude)) return null;
+    return calculateRiderProximity(outlet.latitude as any, outlet.longitude as any, order.deliveryLatitude as any, order.deliveryLongitude as any)
+      .distanceMeters;
+  }
+
+  /**
    * Throws unless the rider may see or take deliveries: verified by an admin and not suspended.
    * Self-registration grants the `rider` role while verification is still 'pending', so role
    * checks alone are not enough for any path that exposes orders or customer addresses.
@@ -204,8 +221,8 @@ export class RiderOffersService {
           name: d.order.outlet.name,
           address: d.order.outlet.address,
           phone: d.order.outlet.phone,
-          latitude: Number(d.order.outlet.latitude || 28.4744),
-          longitude: Number(d.order.outlet.longitude || 77.504),
+          latitude: d.order.outlet.latitude != null ? Number(d.order.outlet.latitude) : undefined,
+          longitude: d.order.outlet.longitude != null ? Number(d.order.outlet.longitude) : undefined,
         },
         distanceMeters: Number(d.distanceMeters || 0),
         distanceKm: Number(((Number(d.distanceMeters || 0)) / 1000).toFixed(2)),
@@ -292,20 +309,16 @@ export class RiderOffersService {
       }
 
       // Proximity & delivery distance
-      const outletLat = Number(o.outlet?.latitude || 28.4744);
-      const outletLon = Number(o.outlet?.longitude || 77.5040);
-      let destLat = Number(o.deliveryLatitude || outletLat);
-      let destLon = Number(o.deliveryLongitude || outletLon);
-      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
-        destLat = outletLat + 0.0111;
-        destLon = outletLon + 0.0095;
-      }
-      const proximity = calculateRiderProximity(outletLat, outletLon, destLat, destLon);
-      const rawMeters = proximity.distanceMeters;
-      const distanceMeters = rawMeters <= 50 ? 1800 : rawMeters;
-      const distanceKm = Number((distanceMeters / 1000).toFixed(1));
+      const outletLat = o.outlet?.latitude != null ? Number(o.outlet.latitude) : undefined;
+      const outletLon = o.outlet?.longitude != null ? Number(o.outlet.longitude) : undefined;
+      const destLat = o.deliveryLatitude != null ? Number(o.deliveryLatitude) : undefined;
+      const destLon = o.deliveryLongitude != null ? Number(o.deliveryLongitude) : undefined;
+      const tripMeters = RiderOffersService.tripDistanceMeters(o, o.outlet);
+      const distanceMeters = tripMeters ?? 0;
+      const distanceKm = tripMeters === null ? null : Number((tripMeters / 1000).toFixed(1));
 
-      let estimatedEarnings = '45.00';
+      // Unknown distance pays the configured minimum earning; no hard-coded amount.
+      let estimatedEarnings: string | null = null;
       if (activeSettings?.settings) {
         try {
           const calc = this.financialSettingsService.calculateRiderEarning({
@@ -429,17 +442,9 @@ export class RiderOffersService {
         .from(schema.restaurantOutlets)
         .where(eq(schema.restaurantOutlets.id, order.outletId));
 
-      const outletLat = outlet ? Number(outlet.latitude) : 28.4744;
-      const outletLon = outlet ? Number(outlet.longitude) : 77.5040;
-      let destLat = Number(order.deliveryLatitude || outletLat);
-      let destLon = Number(order.deliveryLongitude || outletLon);
-      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
-        destLat = outletLat + 0.0111;
-        destLon = outletLon + 0.0095;
-      }
-      const proximity = calculateRiderProximity(outletLat, outletLon, destLat, destLon);
-      const rawMeters = proximity.distanceMeters;
-      const distanceMeters = rawMeters <= 50 ? 1800 : rawMeters;
+      // Real trip distance (road distance from checkout, else straight line); null when unknown.
+      const tripMeters = RiderOffersService.tripDistanceMeters(order, outlet);
+      const distanceMeters = tripMeters === null ? null : String(tripMeters);
 
       let deliveryRecord: any;
       if (existingDelivery) {
@@ -449,7 +454,7 @@ export class RiderOffersService {
             riderId: rider.id,
             status: 'accepted',
             assignedAt: existingDelivery.assignedAt || now,
-            distanceMeters: String(distanceMeters),
+            distanceMeters,
             offerExpiresAt: null,
             dispatchFailureReason: null,
             updatedAt: now,
@@ -465,7 +470,7 @@ export class RiderOffersService {
             riderId: rider.id,
             status: 'accepted',
             assignedAt: now,
-            distanceMeters: String(distanceMeters),
+            distanceMeters,
             offerExpiresAt: null,
             dispatchFailureReason: null,
           })
@@ -561,18 +566,15 @@ export class RiderOffersService {
     return activeDeliveries.map((d) => {
       const addressSnapshot = d.order.deliveryAddressSnapshot as any;
 
-      const rawMeters = Number(d.distanceMeters || 0);
-      const effectiveMeters = rawMeters <= 50 ? 1800 : rawMeters;
-      const effectiveKm = Number((effectiveMeters / 1000).toFixed(1));
+      const storedMeters = d.distanceMeters != null ? Number(d.distanceMeters) : null;
+      const effectiveMeters =
+        storedMeters !== null && Number.isFinite(storedMeters) ? storedMeters : RiderOffersService.tripDistanceMeters(d.order, d.order.outlet);
+      const effectiveKm = effectiveMeters === null ? null : Number((effectiveMeters / 1000).toFixed(1));
 
       const outletLat = Number(d.order.outlet.latitude);
       const outletLon = Number(d.order.outlet.longitude);
-      let destLat = Number(d.order.deliveryLatitude);
-      let destLon = Number(d.order.deliveryLongitude);
-      if (Math.abs(destLat - outletLat) < 0.0001 && Math.abs(destLon - outletLon) < 0.0001) {
-        destLat = outletLat + 0.0111;
-        destLon = outletLon + 0.0095;
-      }
+      const destLat = Number(d.order.deliveryLatitude);
+      const destLon = Number(d.order.deliveryLongitude);
 
       return {
         deliveryId: d.id,

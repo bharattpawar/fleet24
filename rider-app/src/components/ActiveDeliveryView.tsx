@@ -201,7 +201,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
               <View style={styles.distanceBadge}>
                 <Ionicons name="bicycle" size={12} color={colors.primary} />
                 <Text style={styles.distanceBadgeText}>
-                  Trip: {delivery.distanceKm ? `${delivery.distanceKm} km` : '1.5 km'}
+                  {delivery.distanceKm ? `Trip: ${delivery.distanceKm} km` : 'Trip distance unavailable'}
                 </Text>
               </View>
               {toTargetDistanceText && (
