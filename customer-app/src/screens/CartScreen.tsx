@@ -20,6 +20,7 @@ import { apiRequest } from '../api/client';
 import { USE_MOCK_DATA, MOCK_ADDRESSES, MOCK_ORDERS } from '../api/mockData';
 import { Address, AddressSelectionModal } from '../components/AddressSelectionModal';
 import { useDeliveryLocation } from '../context/DeliveryLocationContext';
+import { DeliveryEta, formatEta } from '../utils/deliveryEta';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { API_BASE_URL } from '../api/client';
@@ -70,6 +71,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   const [customerInstructions, setCustomerInstructions] = useState('');
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [repinTarget, setRepinTarget] = useState<Address | null>(null);
+  const [eta, setEta] = useState<DeliveryEta | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const isLoadingAddresses = !USE_MOCK_DATA && delivery.isLoading;
 
@@ -113,6 +115,25 @@ export const CartScreen: React.FC<CartScreenProps> = ({
       subscription.remove();
     };
   }, [isAuthenticated]);
+
+  // Delivery time from the cart's outlet to the selected address (prep + pickup + road travel).
+  const cartOutletId = cart?.outletId;
+  const cartItemCount = cart?.items.length ?? 0;
+  useEffect(() => {
+    setEta(null);
+    if (USE_MOCK_DATA || !isAuthenticated || !selectedAddress?.id || !cartOutletId || cartItemCount === 0) return;
+    if (selectedAddress.needsLocationConfirmation || selectedAddress.isServiceable === false) return;
+    let active = true;
+    apiRequest<{ deliveryEta: DeliveryEta | null }>(
+      `/cart/delivery-estimate?addressId=${encodeURIComponent(selectedAddress.id)}`,
+    )
+      .then((res) => active && setEta(res.deliveryEta))
+      .catch(() => active && setEta(null));
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, selectedAddress?.id, selectedAddress?.needsLocationConfirmation, selectedAddress?.isServiceable, cartOutletId, cartItemCount]);
+  const etaText = formatEta(eta);
 
   const handleAddNewAddress = async (newAddressDto: Omit<Address, 'id'>) => {
     if (USE_MOCK_DATA) {
@@ -534,10 +555,12 @@ export const CartScreen: React.FC<CartScreenProps> = ({
             <Text style={styles.outletName}>{cart.restaurantName}</Text>
             <Text style={styles.outletAddress}>{cart.outletName}</Text>
           </View>
-          <View style={styles.etaPill}>
-            <Ionicons name="time-outline" size={12} color={colors.primary} />
-            <Text style={styles.etaPillText}>30 min</Text>
-          </View>
+          {etaText ? (
+            <View style={styles.etaPill} accessibilityLabel={`Arrives in ${etaText}`}>
+              <Ionicons name="time-outline" size={12} color={colors.primary} />
+              <Text style={styles.etaPillText}>{etaText}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Delivery Address Selector Card */}

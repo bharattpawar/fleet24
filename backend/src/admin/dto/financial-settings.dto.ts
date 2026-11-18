@@ -173,6 +173,20 @@ export class DeliveryServiceabilityConfigDto {
   @Min(100)
   @Max(50000)
   maxRoadDistanceMeters: number = 3000;
+
+  /** Shortest delivery time promised to customers, in minutes. */
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(120)
+  minDeliveryMinutes?: number;
+
+  /** Prep + pickup minutes added before road travel time. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  handlingMinutes?: number;
 }
 
 export class FinancialSettingsPayloadDto {

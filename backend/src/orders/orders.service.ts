@@ -14,6 +14,8 @@ import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { isUsableLocation } from '../users/address-location.util';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
+import { estimateDeliveryEta } from '../common/utils/delivery-eta';
+import { calculateDistanceKm } from '../common/utils/geo';
 import { CheckoutDto, CancelOrderDto, OrderPaginationDto } from './dto/order.dto';
 import { CartService } from './cart.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -274,6 +276,13 @@ export class OrdersService {
       longitude: address.longitude,
       roadDistanceMeters: validatedDistanceMeters,
       durationSeconds: routeResult.durationSeconds,
+      // Delivery time promised at checkout, kept with the order so it does not change later.
+      deliveryEta: estimateDeliveryEta({
+        travelSeconds: routeResult.durationSeconds,
+        straightLineMeters:
+          calculateDistanceKm(outletLat, outletLon, Number(address.latitude), Number(address.longitude)) * 1000,
+        settings: activeSettings.settings?.deliveryServiceability,
+      }),
       policyVersionId: activeSettings.versionId,
       policyVersionNumber: activeSettings.versionNumber,
       routingProvider: routeResult.provider,

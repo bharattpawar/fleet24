@@ -25,6 +25,10 @@ export interface RiderDistanceSlab {
 
 export interface DeliveryServiceabilityConfig {
   maxRoadDistanceMeters: number; // e.g. 3000 (3 km)
+  /** Shortest delivery time ever promised to customers (minutes). Default 15. */
+  minDeliveryMinutes?: number;
+  /** Restaurant prep + rider pickup added before road travel time (minutes). Default 10. */
+  handlingMinutes?: number;
 }
 
 export interface FinancialSettingsPayload {

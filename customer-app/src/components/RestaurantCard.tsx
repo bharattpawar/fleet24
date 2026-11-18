@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { exploreColors as c } from '../theme/tokens';
 import { ExplorePhoto } from './ExplorePhoto';
+import { DeliveryEta, formatEta } from '../utils/deliveryEta';
 
 export interface OutletSummary {
   id: string;
@@ -12,6 +13,8 @@ export interface OutletSummary {
   address: string;
   deliveryRadiusKm: string;
   distanceKm?: number;
+  /** Server estimate for the selected delivery location. */
+  deliveryEta?: DeliveryEta | null;
   isAcceptingOrders: boolean;
 }
 
@@ -38,8 +41,12 @@ export function RestaurantCard({ outlet, onPress, editorial, compact }: { outlet
               <View style={[styles.statusDot, !outlet.isAcceptingOrders && styles.closedDot]} />
               <Text style={[styles.availability, compact && styles.compactCaption]}>{outlet.isAcceptingOrders ? 'Accepting orders' : 'Currently closed'}</Text>
             </View>
-            {typeof distance === 'number' && (
-              <Text style={[styles.caption, compact && styles.compactCaption]}>{distance.toFixed(1)} km away</Text>
+            {(formatEta(outlet.deliveryEta) || typeof distance === 'number') && (
+              <Text style={[styles.caption, compact && styles.compactCaption]}>
+                {[formatEta(outlet.deliveryEta), typeof distance === 'number' ? `${distance.toFixed(1)} km` : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
             )}
           </View>
           <Text style={[styles.caption, compact && styles.compactCaption]} numberOfLines={1}>{outlet.outletName}</Text>

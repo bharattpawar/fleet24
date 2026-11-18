@@ -33,6 +33,8 @@ export interface SettingsPayload {
   incentives: { riderPromotionalBonus?: number; peakBonusFlat?: number };
   deliveryServiceability?: {
     maxRoadDistanceMeters: number;
+    minDeliveryMinutes?: number;
+    handlingMinutes?: number;
   };
 }
 

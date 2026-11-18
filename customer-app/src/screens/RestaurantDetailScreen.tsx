@@ -19,6 +19,7 @@ import { useCart } from '../context/CartContext';
 import { ExplorePhoto } from '../components/ExplorePhoto';
 import { USE_MOCK_DATA, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatEta } from '../utils/deliveryEta';
 
 interface RestaurantDetailScreenProps {
   outlet: OutletSummary;
@@ -206,6 +207,12 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
               <Ionicons name="bicycle-outline" size={12} color={colors.primary} />
               <Text style={styles.metaPillText}>Up to {outlet.deliveryRadiusKm} km</Text>
             </View>
+            {formatEta(outlet.deliveryEta) && (
+              <View style={styles.metaPill}>
+                <Ionicons name="time-outline" size={12} color={colors.primary} />
+                <Text style={styles.metaPillText}>{formatEta(outlet.deliveryEta)}</Text>
+              </View>
+            )}
             {typeof outlet.distanceKm === 'number' && <View style={styles.metaPill}><Ionicons name="location-outline" size={12} color={colors.primary} /><Text style={styles.metaPillText}>{outlet.distanceKm.toFixed(1)} km away</Text></View>}
           </View>
         </View>

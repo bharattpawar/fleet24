@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   Inject,
   NotFoundException,
@@ -11,6 +12,10 @@ import { DRIZZLE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { AddCartItemDto, UpdateCartItemDto } from './dto/order.dto';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
+import { calculateDistanceKm } from '../common/utils/geo';
+import { isUsableLocation } from '../users/address-location.util';
+import { DeliveryEtaSettings, estimateDeliveryEta } from '../common/utils/delivery-eta';
+import { RoutingService } from '../routing/routing.service';
 
 export interface CalculatedCartItem {
   id: string; // cart item id
@@ -45,7 +50,74 @@ export class CartService {
     private readonly db: NodePgDatabase<typeof schema>,
     @Inject(FinancialSettingsService)
     private readonly financialSettingsService: FinancialSettingsService,
+    @Optional()
+    private readonly routingService?: RoutingService,
   ) {}
+
+  /**
+   * GET /cart/delivery-estimate?addressId=...
+   * Delivery time for the current cart's outlet to one of the customer's saved addresses:
+   * prep + pickup handling plus road travel time, never below the platform minimum.
+   */
+  async getDeliveryEstimate(customerId: string, addressId: string) {
+    const cart = await this.db.query.customerCarts.findFirst({
+      where: eq(schema.customerCarts.customerId, customerId),
+    });
+    if (!cart?.outletId) {
+      return { deliveryEta: null, reason: 'EMPTY_CART' as const };
+    }
+
+    const address = await this.db.query.customerAddresses.findFirst({
+      where: and(eq(schema.customerAddresses.id, addressId), eq(schema.customerAddresses.userId, customerId)),
+    });
+    if (!address) {
+      throw new NotFoundException('Delivery address not found.');
+    }
+    if (!isUsableLocation(address.latitude, address.longitude)) {
+      return { deliveryEta: null, reason: 'LOCATION_NOT_CONFIRMED' as const };
+    }
+
+    const outlet = await this.db.query.restaurantOutlets.findFirst({
+      where: eq(schema.restaurantOutlets.id, cart.outletId),
+    });
+    if (!outlet || !isUsableLocation(outlet.latitude, outlet.longitude)) {
+      return { deliveryEta: null, reason: 'OUTLET_LOCATION_MISSING' as const };
+    }
+
+    const origin = { latitude: Number(outlet.latitude), longitude: Number(outlet.longitude) };
+    const destination = { latitude: Number(address.latitude), longitude: Number(address.longitude) };
+
+    let travelSeconds: number | null = null;
+    let roadDistanceMeters: number | null = null;
+    if (this.routingService?.isAvailable()) {
+      try {
+        const route = await this.routingService.getRoute({ origin, destination });
+        if (route.status === 'OK') {
+          travelSeconds = route.durationSeconds;
+          roadDistanceMeters = route.distanceMeters;
+        }
+      } catch {
+        // fall back to the straight-line estimate below
+      }
+    }
+
+    let settings: DeliveryEtaSettings | undefined;
+    try {
+      const active = await this.financialSettingsService.getActiveSettings();
+      settings = active.settings?.deliveryServiceability;
+    } catch {
+      settings = undefined;
+    }
+
+    const straightLineMeters =
+      calculateDistanceKm(origin.latitude, origin.longitude, destination.latitude, destination.longitude) * 1000;
+
+    return {
+      deliveryEta: estimateDeliveryEta({ travelSeconds, straightLineMeters, settings }),
+      roadDistanceMeters,
+      reason: null,
+    };
+  }
 
   /**
    * Helper to resolve decimal currency rounding safely without floating point artifacts

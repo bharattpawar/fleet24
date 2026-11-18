@@ -1,4 +1,6 @@
 import {
+  Query,
+  ParseUUIDPipe,
   Controller,
   Get,
   Post,
@@ -21,6 +23,17 @@ import { Roles, CurrentUser, AuthenticatedUserPayload } from '../auth/decorators
 @Roles('customer')
 export class CartController {
   constructor(private readonly cartService: CartService) {}
+
+  /**
+   * GET /api/v1/cart/delivery-estimate?addressId=...
+   */
+  @Get('delivery-estimate')
+  async getDeliveryEstimate(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Query('addressId', new ParseUUIDPipe()) addressId: string,
+  ) {
+    return this.cartService.getDeliveryEstimate(user.userId, addressId);
+  }
 
   @Get()
   async getCart(@CurrentUser() user: AuthenticatedUserPayload) {

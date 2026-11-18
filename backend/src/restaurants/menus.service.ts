@@ -22,6 +22,7 @@ import { OutletAuthorizationService } from './outlet-auth.service';
 import { RoutingService } from '../routing/routing.service';
 import { FinancialSettingsService } from '../admin/financial-settings.service';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
+import { DeliveryEta, DeliveryEtaSettings, estimateDeliveryEta } from '../common/utils/delivery-eta';
 
 @Injectable()
 export class MenusService {
@@ -362,11 +363,13 @@ export class MenusService {
 
     // Determine platform max road distance from admin settings if available
     let adminMaxRoadDistanceMeters: number | undefined;
+    let etaSettings: DeliveryEtaSettings | undefined;
     if (this.financialSettingsService) {
       try {
         const activeSettings = await this.financialSettingsService.getActiveSettings();
         adminMaxRoadDistanceMeters =
           activeSettings.settings?.deliveryServiceability?.maxRoadDistanceMeters;
+        etaSettings = activeSettings.settings?.deliveryServiceability;
       } catch {
         // Fallback to outlet configuration or default
       }
@@ -383,6 +386,7 @@ export class MenusService {
       distanceKm?: number;
       isServiceable: boolean;
       serviceabilityStatus: 'VERIFIED' | 'UNVERIFIED';
+      deliveryEta?: DeliveryEta | null;
     }> = [];
 
     if (hasUserCoords) {
@@ -391,6 +395,7 @@ export class MenusService {
         outletLat: number;
         outletLon: number;
         maxAllowedMeters: number;
+        straightLineMeters: number;
       }> = [];
 
       // Stage 1: Fast Haversine straight-line pruning (mathematical lower bound)
@@ -418,8 +423,9 @@ export class MenusService {
           const maxAllowedMeters = adminMaxRoadDistanceMeters ?? 3000;
           const maxAllowedKm = maxAllowedMeters / 1000;
 
+          let straightLineKm: number;
           try {
-            const straightLineKm = calculateDistanceKm(outletLat, outletLon, userLat, userLon);
+            straightLineKm = calculateDistanceKm(outletLat, outletLon, userLat, userLon);
             if (straightLineKm > maxAllowedKm + 1e-6) {
               // Physically impossible to be within road distance; prune without API call
               continue;
@@ -433,6 +439,7 @@ export class MenusService {
             outletLat,
             outletLon,
             maxAllowedMeters,
+            straightLineMeters: straightLineKm * 1000,
           });
         }
       }
@@ -458,6 +465,11 @@ export class MenusService {
                   distanceKm: Math.round((route.distanceMeters / 1000) * 100) / 100,
                   isServiceable: true,
                   serviceabilityStatus: 'VERIFIED',
+                  deliveryEta: estimateDeliveryEta({
+                    travelSeconds: route.durationSeconds,
+                    straightLineMeters: c.straightLineMeters,
+                    settings: etaSettings,
+                  }),
                 });
               }
               // If route.distanceMeters > maxAllowedMeters, outlet is out of road distance; omitted from eligible delivery
@@ -470,6 +482,7 @@ export class MenusService {
                 distanceKm: undefined,
                 isServiceable: false,
                 serviceabilityStatus: 'UNVERIFIED',
+                deliveryEta: estimateDeliveryEta({ straightLineMeters: c.straightLineMeters, settings: etaSettings }),
               });
             }
           }
@@ -481,6 +494,7 @@ export class MenusService {
               distanceKm: undefined,
               isServiceable: false,
               serviceabilityStatus: 'UNVERIFIED',
+              deliveryEta: estimateDeliveryEta({ straightLineMeters: c.straightLineMeters, settings: etaSettings }),
             });
           }
         }
@@ -499,7 +513,7 @@ export class MenusService {
     }
 
     return eligibleOutletsWithDistance.map(
-      ({ outlet: o, distanceKm, isServiceable, serviceabilityStatus }) => ({
+      ({ outlet: o, distanceKm, isServiceable, serviceabilityStatus, deliveryEta }) => ({
         id: o.id,
         restaurantName: o.restaurant.name,
         restaurantId: o.restaurantId,
@@ -510,6 +524,8 @@ export class MenusService {
         distanceKm,
         isServiceable,
         serviceabilityStatus,
+        /** Estimated delivery minutes {minMinutes, maxMinutes}; absent without the customer's location. */
+        deliveryEta: deliveryEta ?? undefined,
         latitude: o.latitude,
         longitude: o.longitude,
         deliveryRadiusKm: o.deliveryRadiusKm,

@@ -58,6 +58,8 @@ export class FinancialSettingsService {
     },
     deliveryServiceability: {
       maxRoadDistanceMeters: 3000,
+      minDeliveryMinutes: 15,
+      handlingMinutes: 10,
     },
   };
 
