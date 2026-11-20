@@ -39,10 +39,12 @@ describe('validateHomeSections', () => {
     ]);
     expect(banner).toMatchObject({ image: media, imageLeft: 'asset:biryani', imageAlt: 'Biryani and brownies' });
     expect(tiles.targets[0]).toMatchObject({ image: 'asset:promo-percent', alt: 'Percent badge' });
+    expect(validateHomeSections([{ kind: 'rail', title: '', tabs: [{ label: 'Offers', filter: 'offers' }], targets: [] }], catalog)[0].title).toBe('');
   });
 
   it.each([
     ['not an array', 'nope'],
+    ['row without a title', [{ kind: 'row', title: '', targets: [{ type: 'outlet', id: 'o-1' }] }]],
     ['unknown kind', [{ kind: 'popup', title: 'x', targets: [] }]],
     ['banner without image', [{ kind: 'banner', title: 'x', cta: 'Go', targets: [{ type: 'outlet', id: 'o-1' }] }]],
     ['banner with non-http image', [{ kind: 'banner', title: 'x', cta: 'Go', image: 'javascript:alert(1)', targets: [{ type: 'outlet', id: 'o-1' }] }]],

@@ -107,10 +107,12 @@ export function validateHomeSections(input: unknown, catalog: HomeCatalog): Home
     const where = `Section ${index + 1}`;
     if (!raw || !HOME_SECTION_KINDS.includes(raw.kind)) throw new HomeSectionError(`${where}: unknown section type.`);
     const kind: HomeSectionKind = raw.kind;
-    if (!isText(raw.title, 100)) throw new HomeSectionError(`${where}: enter a title of up to 100 characters.`);
+    // Offer tiles and the restaurant toggle can sit without a heading, as in the reference layout.
+    const titleOptional = kind === 'tiles' || kind === 'rail';
+    if (!isText(raw.title, 100, !titleOptional)) throw new HomeSectionError(`${where}: enter a title of up to 100 characters.`);
     if (raw.hidden !== undefined && typeof raw.hidden !== 'boolean') throw new HomeSectionError(`${where}: invalid hidden flag.`);
 
-    const section: HomeSection = { kind, title: raw.title.trim(), targets: [] };
+    const section: HomeSection = { kind, title: typeof raw.title === 'string' ? raw.title.trim() : '', targets: [] };
     if (raw.hidden) section.hidden = true;
 
     if (kind === 'banner' || kind === 'category') {
