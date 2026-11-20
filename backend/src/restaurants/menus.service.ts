@@ -603,6 +603,10 @@ export class MenusService {
         deliveryRadiusKm: o.deliveryRadiusKm,
         isAcceptingOrders: o.isAcceptingOrders,
         operatingHours: o.operatingHours,
+        // Admin-edited home card content (null when not set).
+        offerTitle: o.offerTitle ?? null,
+        offerSubtitle: o.offerSubtitle ?? null,
+        coverImageUrl: o.coverImageUrl ?? null,
       }),
     );
   }

@@ -154,6 +154,25 @@ export class UpdateOutletDto {
   @Min(0.5)
   @Max(25)
   deliveryRadiusKm?: number;
+
+  /** Discount headline on the customer home card, e.g. "65% OFF". Send "" to clear. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  offerTitle?: string;
+
+  /** Discount sub-line, e.g. "UPTO ₹125". Send "" to clear. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  offerSubtitle?: string;
+
+  /** Card photo (https URL). Send "" to clear and fall back to the restaurant logo. */
+  @IsOptional()
+  @ValidateIf((o: UpdateOutletDto) => o.coverImageUrl !== '')
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { message: 'coverImageUrl must be an http(s) URL' })
+  @MaxLength(2048)
+  coverImageUrl?: string;
 }
 
 export class UpdateOrderAcceptanceDto {

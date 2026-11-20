@@ -115,6 +115,12 @@ export const restaurantOutlets = pgTable(
       .notNull(),
     isAcceptingOrders: boolean('is_accepting_orders').default(true).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    /** Customer home: discount headline on the card photo, e.g. "65% OFF" (admin-edited, optional). */
+    offerTitle: varchar('offer_title', { length: 30 }),
+    /** Customer home: discount sub-line under the headline, e.g. "UPTO ₹125". */
+    offerSubtitle: varchar('offer_subtitle', { length: 30 }),
+    /** Customer home: card photo; falls back to the restaurant logo when empty. */
+    coverImageUrl: text('cover_image_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

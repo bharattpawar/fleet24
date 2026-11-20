@@ -321,6 +321,10 @@ export class RestaurantsService {
         ...(dto.deliveryRadiusKm !== undefined
           ? { deliveryRadiusKm: dto.deliveryRadiusKm.toFixed(2) }
           : {}),
+        // Home card offer and photo: "" clears the value.
+        ...(dto.offerTitle !== undefined ? { offerTitle: dto.offerTitle.trim() || null } : {}),
+        ...(dto.offerSubtitle !== undefined ? { offerSubtitle: dto.offerSubtitle.trim() || null } : {}),
+        ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl.trim() || null } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.restaurantOutlets.id, outletId))
