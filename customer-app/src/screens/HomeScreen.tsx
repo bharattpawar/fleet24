@@ -20,6 +20,9 @@ import { USE_MOCK_DATA, MOCK_OUTLETS, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../a
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { ExploreFiltersSheet } from '../components/ExploreFiltersSheet';
+import { CuisineCircles, HeroBanner, OfferTiles, RestaurantRail, RotatingHint } from '../components/home/HomeSections';
+import { FeedAction, FeedSection, searchHints } from '../utils/homeFeed';
+import { home } from '../theme/homeTheme';
 import { ExplorePhoto } from '../components/ExplorePhoto';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { AddressSelectionModal, Address } from '../components/AddressSelectionModal';
@@ -30,15 +33,6 @@ interface HomeScreenProps {
   onViewCart?: () => void;
   onRequireAuth?: () => void;
   onOpenProfile?: () => void;
-}
-
-interface FeedSection {
-  kind: 'banner' | 'category' | 'row';
-  title: string;
-  image?: string;
-  cta?: string;
-  targets: { type: string; id: string }[];
-  cards: { outlet: OutletSummary; dish?: { id: string; name: string; imageUrl: string | null; effectivePrice: string; finalPrice?: string } }[];
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -54,6 +48,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [categoriesByOutlet, setCategoriesByOutlet] = useState<Record<string, string[]>>({});
   const [sections, setSections] = useState<FeedSection[]>([]);
   const [categoryOutlets, setCategoryOutlets] = useState<string[] | null>(null);
+  const [categoryLabel, setCategoryLabel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,9 +135,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setSearchQuery(text);
   };
 
-  const handleCategorySelect = (filterKey: string) => {
+  const handleCategorySelect = (filterKey: string, label = '') => {
     setCategoryOutlets(null);
     setSelectedCategory(filterKey);
+    setCategoryLabel(label);
+  };
+
+  const clearCategory = () => {
+    setCategoryOutlets(null);
+    setSelectedCategory('all');
+    setCategoryLabel('');
+  };
+
+  // Banners, tiles and cuisine circles all route through here.
+  const handleAction = (action: FeedAction) => {
+    if (action.type === 'outlet') onSelectOutlet(action.outlet, action.dishId);
+    else if (action.type === 'outlets') {
+      setSelectedCategory('all');
+      setCategoryOutlets(action.outletIds);
+      setCategoryLabel(action.label);
+    }
   };
 
   const onRefresh = () => {
@@ -170,273 +182,191 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Header rendered cleanly above the FlatList
   const matchingOutlets = applyFilters(categoryOutlets ? outlets.filter(outlet => categoryOutlets.includes(outlet.id)) : outlets, searchQuery, activeCategory);
-  const filteredOutlets = openOnly
+  // Open kitchens first; closed ones stay visible but sink to the bottom.
+  const filteredOutlets = (openOnly
     ? matchingOutlets.filter((outlet) => outlet.isAcceptingOrders)
-    : matchingOutlets;
+    : matchingOutlets
+  ).slice().sort((a, b) => Number(b.isAcceptingOrders) - Number(a.isAcceptingOrders));
   const openCount = filteredOutlets.filter((outlet) => outlet.isAcceptingOrders).length;
 
+
+  const hints = searchHints(sections);
+  const heroIndex = sections.findIndex(section => section.kind === 'banner');
+  const firstCategoryIndex = sections.findIndex(section => section.kind === 'category');
+  const categorySections = sections.filter(section => section.kind === 'category');
+  const hasCuratedContent = sections.some(section => section.kind === 'row' || section.kind === 'rail');
+  const filterActive = Boolean(categoryOutlets) || activeCategory !== 'all';
+  const filterName = categoryLabel || categories.find(category => category.id === activeCategory)?.name || 'Selected';
+
+  const renderSection = (section: FeedSection, index: number) => {
+    switch (section.kind) {
+      case 'banner':
+        return index === heroIndex ? null : <HeroBanner key={index} onSheet section={section} onAction={handleAction} />;
+      case 'tiles':
+        return <OfferTiles key={index} section={section} onAction={handleAction} />;
+      case 'rail':
+        return <RestaurantRail key={index} section={section} outlets={outlets} onSelectOutlet={outlet => onSelectOutlet(outlet)} />;
+      case 'category':
+        return index === firstCategoryIndex ? <CuisineCircles key={index} sections={categorySections} onAction={handleAction} /> : null;
+      case 'row':
+        return (
+          <View key={index} style={styles.featuredDishesSection}>
+            <Text style={[styles.sectionHeaderTitle, { marginHorizontal: gutter }]}>{section.title}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+              {section.cards.map(({ outlet, dish }, cardIndex) => (
+                <View key={cardIndex} style={styles.curatedCard}>
+                  {dish ? (
+                    <TouchableOpacity accessibilityRole="button" onPress={() => onSelectOutlet(outlet, dish.id)}>
+                      <View style={styles.curatedPhoto}><ExplorePhoto uri={dish.imageUrl} /></View>
+                      <Text style={styles.foodTitle} numberOfLines={2}>{dish.name}</Text>
+                      <Text style={styles.kitchenName} numberOfLines={1}>{outlet.restaurantName}</Text>
+                      <Text style={styles.foodPriceText}>₹{dish.finalPrice ?? dish.effectivePrice}</Text>
+                    </TouchableOpacity>
+                  ) : <RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} />}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
 
   const renderListHeader = () => (
     <View style={styles.headerContainer}>
       <View style={styles.heroHeader}>
-      {/* 1. First Row: Brand Wordmark (Left) and Notification + Account Actions (Right) */}
-      <View style={styles.brandRow}>
-        <TouchableOpacity style={styles.addressHeader} onPress={openAddressPicker} accessibilityRole="button" accessibilityLabel={location ? `Delivering to ${location.title}. Change delivery address` : 'Set delivery address'}>
-          <Text style={styles.addressLabel}>{location ? location.title : 'Set location'} <Ionicons name="chevron-forward" size={16} /></Text>
-          <Text style={styles.addressLine} numberOfLines={1}>
-            {location ? location.subtitle : 'Sign in to add your delivery address'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.headerActionsRight}>
-          {/* Notification Button */}
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={20} color={c.green} />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
-
-          {/* Profile / Sign In Button */}
-          {isAuthenticated ? (
-            <TouchableOpacity
-              style={styles.avatarButton}
-              onPress={onOpenProfile}
-              activeOpacity={0.8}
-              accessibilityLabel="Profile"
-            >
-              <Text style={styles.avatarText}>
-                {(user?.fullName || 'U').charAt(0).toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.signInButton}
-              onPress={onRequireAuth}
-              activeOpacity={0.8}
-              accessibilityLabel="Sign In"
-            >
-              <Ionicons name="person-outline" size={14} color={c.green} />
-              <Text style={styles.signInButtonText}>Sign In</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Cart Button */}
-          {onViewCart && (
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={onViewCart}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Cart"
-            >
-              <Ionicons name="cart-outline" size={20} color={c.green} />
-              {cart && cart.itemCount > 0 ? (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.foodIdentity}>
-        <View style={styles.foodIdentityIcon}><Ionicons name="fast-food" size={30} color="#FFFFFF" /></View>
-        <View><Text style={styles.brandTitle}>Fleet24 Food</Text><Text style={styles.foodIdentityCaption}>Your neighbourhood. Delivered.</Text></View>
-      </View>
-
-      {/* 3. Main Heading: Clean Typographic Hierarchy, No Random Italics */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBarContainer}>
-          <Ionicons
-            name="search-outline"
-            size={18}
-            color={c.secondary}
-            style={styles.searchLeftIcon}
-          />
-          <TextInput
-            placeholder="Search for dishes & kitchens"
-            placeholderTextColor={c.secondary}
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-            style={styles.searchInput}
-            returnKeyType="search"
-          />
-          {searchQuery ? (
-            <TouchableOpacity
-              onPress={() => handleSearchChange('')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close-circle" size={18} color={c.secondary} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.filterIconButton,
-            openOnly && styles.filterIconButtonActive,
-          ]}
-          onPress={() => setFiltersVisible(true)}
-          activeOpacity={0.8}
-          accessibilityLabel={openOnly ? 'Filters, 1 active' : 'Filters'}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: filtersVisible }}
-        >
-          <Ionicons
-            name="options-outline"
-            size={18}
-            color={openOnly ? '#FFFFFF' : c.green}
-          />
-          {openOnly && (
-            <View style={styles.filterCount}>
-              <Text style={styles.cartBadgeText}>1</Text>
+        <View style={styles.brandRow}>
+          <TouchableOpacity style={styles.addressHeader} onPress={openAddressPicker} accessibilityRole="button" accessibilityLabel={location ? `Delivering to ${location.title}. Change delivery address` : 'Set delivery address'}>
+            <View style={styles.addressTitleRow}>
+              <Ionicons name="navigate" size={18} color={home.cta} />
+              <Text style={styles.addressLabel} numberOfLines={1}>{location ? location.title : 'Set location'}</Text>
+              <Ionicons name="chevron-down" size={18} color={home.onHeader} />
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.addressLine} numberOfLines={1}>
+              {location ? location.subtitle : 'Sign in to add your delivery address'}
+            </Text>
+          </TouchableOpacity>
 
-      {/* 5. Horizontal Category Selector: Consistent Chips, Adequate Padding */}
-      <View style={styles.categorySection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryPillsScroll}
-        >
-          {categories.map((cat) => {
-            const isSelected = activeCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  isSelected && styles.categoryChipSelected,
-                ]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
-                onPress={() => handleCategorySelect(cat.id)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="restaurant-outline"
-                  size={15}
-                  color={isSelected ? c.green : c.secondary}
-                  style={styles.categoryChipIcon}
-                />
-                <Text
-                  style={[
-                    styles.categoryChipLabel,
-                    isSelected && styles.categoryChipLabelSelected,
-                  ]}
-                >
-                  {cat.name}
-                </Text>
+          <View style={styles.headerActionsRight}>
+            {onViewCart && (
+              <TouchableOpacity style={styles.iconButton} onPress={onViewCart} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Cart">
+                <Ionicons name="bag-handle-outline" size={20} color={home.onHeader} />
+                {cart && cart.itemCount > 0 ? (
+                  <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.itemCount}</Text></View>
+                ) : null}
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      </View>
-
-      {notServiceable && (
-        <View style={styles.outOfAreaCard} accessibilityRole="alert">
-          <Ionicons name="location-outline" size={22} color="#8C3A1C" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.outOfAreaTitle}>We don’t deliver here yet</Text>
-            <Text style={styles.outOfAreaText}>Fleet24 currently delivers in {serviceAreas}.</Text>
+            )}
+            {isAuthenticated ? (
+              <TouchableOpacity style={styles.avatarButton} onPress={onOpenProfile} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Profile">
+                <Text style={styles.avatarText}>{(user?.fullName || 'U').charAt(0).toUpperCase()}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.avatarButton} onPress={onRequireAuth} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Sign in">
+                <Ionicons name="person" size={18} color={home.onCta} />
+              </TouchableOpacity>
+            )}
           </View>
-          <TouchableOpacity onPress={openAddressPicker} accessibilityRole="button" style={styles.outOfAreaBtn}>
-            <Text style={styles.outOfAreaBtnText}>Change</Text>
+        </View>
+
+        <View style={styles.searchRow}>
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchField}>
+              {!searchQuery && <RotatingHint hints={hints} />}
+              <TextInput
+                accessibilityLabel={`Search for ${hints[0]}`}
+                value={searchQuery}
+                onChangeText={handleSearchChange}
+                style={[styles.searchInput, !searchQuery && StyleSheet.absoluteFill]}
+                returnKeyType="search"
+              />
+            </View>
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Clear search">
+                <Ionicons name="close-circle" size={18} color={home.muted} />
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="search" size={20} color={home.accent} />
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.filterIconButton, openOnly && styles.filterIconButtonActive]}
+            onPress={() => setFiltersVisible(true)}
+            activeOpacity={0.8}
+            accessibilityLabel={openOnly ? 'Filters, 1 active' : 'Filters'}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: filtersVisible }}
+          >
+            <Text style={[styles.filterCaption, openOnly && styles.filterCaptionActive]}>{openOnly ? 'OPEN' : 'FILTER'}</Text>
+            <Ionicons name={openOnly ? 'toggle' : 'toggle-outline'} size={22} color={openOnly ? home.onCta : home.accent} />
           </TouchableOpacity>
         </View>
-      )}
-      <Text style={styles.discoveryHeading}>What’s on your mind?</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
-        {sections.some(section => section.kind === 'category')
-          ? sections.filter(section => section.kind === 'category').map((section, index) => (
-            <TouchableOpacity key={section.targets[0].id + index} style={styles.feedTile} accessibilityRole="button" onPress={() => {
-              setSelectedCategory('all');
-              setCategoryOutlets(section.cards.map(card => card.outlet.id));
-            }}>
-              <View style={styles.tilePhoto}><ExplorePhoto key={section.image} uri={section.image ?? null} /></View>
-              <Text style={styles.tileLabel} numberOfLines={2}>{section.title}</Text>
-            </TouchableOpacity>
-          ))
-          : categories.filter(category => category.id !== 'all').map(category => {
-            const photo = applyFilters(outlets, '', category.id).find(outlet => outlet.logoUrl)?.logoUrl;
-            return (
-              <TouchableOpacity key={category.id} style={styles.feedTile} accessibilityRole="button"
-                onPress={() => handleCategorySelect(category.id)}>
-                <View style={styles.tilePhoto}><ExplorePhoto key={photo} uri={photo ?? null} /></View>
-                <Text style={styles.tileLabel} numberOfLines={2}>{category.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-      </ScrollView>
-      {sections.some(section => section.kind === 'banner') && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
-          {sections.filter(section => section.kind === 'banner').map((section, index) => (
-            <TouchableOpacity key={index} style={styles.campaign} accessibilityRole="button" onPress={() => {
-              if (section.targets[0].type === 'category') {
-                setSelectedCategory('all');
-                setCategoryOutlets(section.cards.map(card => card.outlet.id));
-              } else {
-                const { outlet, dish } = section.cards[0];
-                onSelectOutlet(outlet, dish?.id);
-              }
-            }}>
-              <ExplorePhoto key={section.image} uri={section.image ?? null} />
-              <View style={styles.campaignCopy}>
-                <Text style={styles.campaignTitle} numberOfLines={2}>{section.title}</Text>
-                <Text style={styles.campaignCta}>{section.cta}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-      {!sections.some(section => section.kind === 'row') && filteredOutlets.length > 0 && (
-        <View style={styles.spotlightSection}>
-          <View style={styles.spotlightHeading}><Ionicons name="restaurant-outline" size={22} color={c.green} /><Text style={styles.spotlightTitle}>In the spotlight</Text></View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
-            {filteredOutlets.slice(0, 8).map(outlet => <View key={outlet.id} style={styles.curatedCard}><RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} /></View>)}
-          </ScrollView>
-        </View>
-      )}
-      {sections.filter(section => section.kind === 'row').map((section, index) => (
-        <View key={index} style={styles.featuredDishesSection}>
-          <Text style={[styles.sectionHeaderTitle, { marginHorizontal: gutter }]}>{section.title}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
-            {section.cards.map(({ outlet, dish }, cardIndex) => (
-              <View key={cardIndex} style={styles.curatedCard}>
-                {dish ? (
-                  <TouchableOpacity accessibilityRole="button" onPress={() => onSelectOutlet(outlet, dish.id)}>
-                    <View style={styles.curatedPhoto}><ExplorePhoto uri={dish.imageUrl} /></View>
-                    <Text style={styles.foodTitle} numberOfLines={2}>{dish.name}</Text>
-                    <Text style={styles.kitchenName} numberOfLines={1}>{outlet.restaurantName}</Text>
-                    <Text style={styles.foodPriceText}>₹{dish.finalPrice ?? dish.effectivePrice}</Text>
-                  </TouchableOpacity>
-                ) : <RestaurantCard compact outlet={outlet} onPress={() => onSelectOutlet(outlet)} />}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      ))}
 
-      <View style={styles.popularSectionHeader}>
-        <View style={styles.sectionHeading}>
-          <Text style={styles.sectionHeaderTitle}>Nearby kitchens</Text>
-        </View>
-        {!hasError && (
-          <Text style={styles.sectionHeaderSubtitle}>
-            {openCount} {openCount === 1 ? 'kitchen' : 'kitchens'} ready to deliver
-          </Text>
+        {heroIndex >= 0 && <HeroBanner section={sections[heroIndex]} onAction={handleAction} />}
+      </View>
+
+      <View style={styles.sheet}>
+        {notServiceable && (
+          <View style={styles.outOfAreaCard} accessibilityRole="alert">
+            <Ionicons name="location-outline" size={22} color="#8C3A1C" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.outOfAreaTitle}>We don’t deliver here yet</Text>
+              <Text style={styles.outOfAreaText}>Fleet24 currently delivers in {serviceAreas}.</Text>
+            </View>
+            <TouchableOpacity onPress={openAddressPicker} accessibilityRole="button" style={styles.outOfAreaBtn}>
+              <Text style={styles.outOfAreaBtnText}>Change</Text>
+            </TouchableOpacity>
+          </View>
         )}
+
+        {sections.map(renderSection)}
+
+        {/* Until admin publishes cuisine circles, build them from live menus. */}
+        {categorySections.length === 0 && categories.length > 1 && (
+          <View style={styles.block}>
+            <Text style={styles.discoveryHeading}>What’s on your mind?</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedStrip}>
+              {categories.filter(category => category.id !== 'all').map(category => {
+                const photo = applyFilters(outlets, '', category.id).find(outlet => outlet.coverImageUrl || outlet.logoUrl);
+                const uri = photo?.coverImageUrl || photo?.logoUrl || null;
+                return (
+                  <TouchableOpacity key={category.id} style={styles.feedTile} accessibilityRole="button" onPress={() => handleCategorySelect(category.id, category.name)}>
+                    <View style={styles.tilePhoto}><ExplorePhoto key={uri} uri={uri} /></View>
+                    <Text style={styles.tileLabel} numberOfLines={2}>{category.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {!hasCuratedContent && filteredOutlets.length > 0 && (
+          <RestaurantRail
+            section={{ kind: 'rail', title: 'In the spotlight', tabs: [{ label: 'Nearby', filter: 'all' }, { label: 'Fastest', filter: 'fast' }], targets: [], cards: [] }}
+            outlets={outlets}
+            onSelectOutlet={outlet => onSelectOutlet(outlet)}
+          />
+        )}
+
+        <View style={styles.popularSectionHeader}>
+          <View style={styles.sectionHeading}>
+            <View style={styles.sectionRule} />
+            <Text style={styles.allTitle}>ALL RESTAURANTS</Text>
+            <View style={styles.sectionRule} />
+          </View>
+          {!hasError && (
+            <Text style={styles.sectionHeaderSubtitle}>
+              {openCount} {openCount === 1 ? 'kitchen' : 'kitchens'} ready to deliver
+            </Text>
+          )}
+          {filterActive && (
+            <TouchableOpacity style={styles.activeFilter} onPress={clearCategory} accessibilityRole="button" accessibilityLabel={`Showing ${filterName}. Clear`}>
+              <Text style={styles.activeFilterText}>{filterName}</Text>
+              <Ionicons name="close" size={14} color={home.accent} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -533,124 +463,80 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   );
 };
 
-const gutter = 15;
-const panel = {
-  backgroundColor: c.surface,
-  borderWidth: 1,
-  borderColor: c.border,
-  borderRadius: 12,
-};
-const shadow = { boxShadow: '0px 2px 4px rgba(17, 30, 23, 0.06)' };
+const gutter = home.gutter;
 const row = { flexDirection: 'row', alignItems: 'center' } as const;
 
 const styles = StyleSheet.create({
-  outOfAreaCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 15, marginBottom: 18, padding: 14, borderRadius: 16, backgroundColor: '#FDF3EC' },
+  container: { flex: 1, backgroundColor: home.sheet },
+  listContent: { paddingBottom: 12, backgroundColor: home.sheet },
+  listWithCart: { paddingBottom: 80 },
+  headerContainer: { paddingTop: 0 },
+  cardWrapper: { paddingHorizontal: gutter },
+
+  // Brand header: location, search, hero banner
+  heroHeader: {
+    paddingBottom: 30,
+    backgroundColor: home.headerTop,
+    backgroundImage: `linear-gradient(180deg, ${home.headerTop} 0%, ${home.headerBottom} 100%)`,
+  },
+  brandRow: { ...row, justifyContent: 'space-between', paddingHorizontal: gutter, paddingTop: 14, paddingBottom: 6 },
+  addressHeader: { flex: 1, minWidth: 0, paddingRight: 12 },
+  addressTitleRow: { ...row, gap: 4 },
+  addressLabel: { color: home.onHeader, fontSize: 20, fontWeight: '900', letterSpacing: -0.4, flexShrink: 1 },
+  addressLine: { color: home.onHeaderMuted, fontSize: 12, marginTop: 2, marginLeft: 22 },
+  headerActionsRight: { ...row, gap: 10 },
+  iconButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  avatarButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: home.cta, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: home.onCta, fontWeight: '900', fontSize: 16 },
+  cartBadge: { position: 'absolute', right: 0, top: 0, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: home.cta, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
+  cartBadgeText: { color: home.onCta, fontSize: 10, fontWeight: '800' },
+
+  searchRow: { ...row, marginHorizontal: gutter, gap: 10, marginTop: 12 },
+  searchBarContainer: { ...row, flex: 1, minWidth: 0, height: 50, paddingHorizontal: 14, gap: 8, borderRadius: 14, backgroundColor: home.sheet },
+  searchField: { flex: 1, minWidth: 0, height: '100%', justifyContent: 'center' },
+  searchInput: { flex: 1, minWidth: 0, color: home.ink, fontSize: 15, paddingVertical: 0 },
+  filterIconButton: { width: 58, height: 50, borderRadius: 14, backgroundColor: home.sheet, alignItems: 'center', justifyContent: 'center' },
+  filterIconButtonActive: { backgroundColor: home.cta },
+  filterCaption: { color: home.accent, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  filterCaptionActive: { color: home.onCta },
+
+  // White content sheet overlapping the header
+  sheet: { backgroundColor: home.sheet, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -18, paddingTop: 2 },
+  block: { marginTop: 22 },
+  outOfAreaCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: gutter, marginTop: 18, padding: 14, borderRadius: 16, backgroundColor: '#FDF3EC' },
   outOfAreaTitle: { fontSize: 15, fontWeight: '800', color: '#8C3A1C' },
   outOfAreaText: { fontSize: 13, color: '#5C4033', marginTop: 2 },
   outOfAreaBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
   outOfAreaBtnText: { fontSize: 14, fontWeight: '800', color: '#8C3A1C' },
-  addressHeader: { flex: 1, minWidth: 0, paddingRight: 12 },
-  addressLabel: { color: c.green, fontSize: 20, fontWeight: '800', marginBottom: 4 },
-  addressLine: { color: c.secondary, fontSize: 12 },
-  foodIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFFFFF' },
-  foodIdentityIcon: { width: 54, height: 54, borderRadius: 17, backgroundColor: '#187547', alignItems: 'center', justifyContent: 'center' },
-  foodIdentityCaption: { color: c.secondary, fontSize: 12, marginTop: 3 },
-  spotlightSection: { marginTop: 8, marginBottom: 20 },
-  spotlightHeading: { marginHorizontal: 15, marginBottom: 16, backgroundColor: '#F0F2F1', borderRadius: 28, padding: 16, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center' },
-  spotlightTitle: { color: '#174D32', fontSize: 17, fontWeight: '800' },
-  heroHeader: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden', paddingBottom: 14, marginBottom: 22 },
-  heroFeature: { height: 184, marginHorizontal: 15, borderRadius: 18, overflow: 'hidden', backgroundColor: '#073C2A' },
-  heroFeatureCopy: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 13, backgroundColor: 'rgba(3, 44, 26, 0.78)' },
-  heroFeatureLabel: { color: '#D9F5E6', fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  discoveryHeading: { fontSize: 19, fontWeight: '800', color: '#191919', marginHorizontal: 15, marginBottom: 14 },
-  tileLabel: { color: '#474747', fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  feedStrip: { paddingHorizontal: 14, gap: 12, paddingBottom: 14 },
-  feedTile: { width: 76, alignItems: 'center', gap: 5 },
-  tilePhoto: { width: 70, height: 70, borderRadius: 35, overflow: 'hidden' },
-  campaign: { width: 316, height: 142, backgroundColor: c.green, overflow: 'hidden', borderRadius: 16, justifyContent: 'flex-end' },
-  campaignCopy: { position: 'absolute', left: 0, bottom: 0, right: 0, padding: 12, backgroundColor: 'rgba(0, 28, 18, 0.8)' },
-  campaignTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
-  campaignCta: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', marginTop: 4 },
-  curatedCard: { width: 132, backgroundColor: '#FFFFFF', paddingBottom: 8 },
-  curatedPhoto: { aspectRatio: 0.88, borderRadius: 18, overflow: 'hidden' },
 
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  listContent: { paddingBottom: 12 },
-  listWithCart: { paddingBottom: 80 },
-  headerContainer: { paddingTop: 0 },
-  cardWrapper: { paddingHorizontal: gutter },
-  brandRow: { ...row, justifyContent: 'space-between', paddingHorizontal: gutter, paddingVertical: 18, backgroundColor: '#FAF7F0' },
-  brandLeftGroup: { ...row, gap: 6 },
-  brandTitle: { color: c.green, fontSize: 27, fontWeight: '900', letterSpacing: -1 },
-  brandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFAA65' },
-  headerActionsRight: { ...row, gap: 5 },
-  iconButton: { ...panel, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  signInButton: { ...row, height: 40, paddingHorizontal: 6, gap: 3 },
-  signInButtonText: { color: c.green, fontSize: 12, fontWeight: '700' },
-  avatarButton: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: c.tint,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { color: c.green, fontWeight: '800' },
-  notificationDot: { position: 'absolute', right: 8, top: 8, width: 5, height: 5, borderRadius: 3, backgroundColor: '#FFAA65' },
-  cartBadge: {
-    position: 'absolute', right: 2, top: 2, minWidth: 14, borderRadius: 8,
-    backgroundColor: c.green, paddingHorizontal: 3, alignItems: 'center',
-  },
-  cartBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
-  locationSelectorRow: {
-    ...panel, ...row, minHeight: 42, marginHorizontal: gutter, marginTop: 8, paddingHorizontal: 12, gap: 10,
-  },
-  locationMainText: { flex: 1, fontSize: 14, fontWeight: '800', color: c.ink },
-  searchRow: { ...row, marginHorizontal: gutter, gap: 8, marginTop: 16, marginBottom: 6 },
-  searchBarContainer: { ...panel, ...shadow, ...row, flex: 1, minWidth: 0, height: 50, paddingHorizontal: 12 },
-  searchLeftIcon: { marginRight: 8 },
-  searchInput: { flex: 1, minWidth: 0, color: c.ink, fontSize: 14, paddingVertical: 0 },
-  filterIconButton: { ...panel, ...shadow, width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
-  filterCount: {
-    position: 'absolute', top: -5, right: -4, minWidth: 16, height: 16,
-    alignItems: 'center', justifyContent: 'center', borderRadius: 8,
-    backgroundColor: c.green, borderColor: c.surface, borderWidth: 1,
-  },
-  filterIconButtonActive: { backgroundColor: c.green, borderColor: c.green },
-  categorySection: { marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#ECEEEB' },
-  categoryPillsScroll: { paddingHorizontal: gutter, paddingBottom: 3, gap: 8 },
-  categoryChip: { ...row, minHeight: 42, paddingHorizontal: 10, borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  categoryChipSelected: { borderBottomColor: c.green },
-  categoryChipIcon: { marginRight: 6 },
-  categoryChipLabel: { color: c.secondary, fontSize: 12, fontWeight: '600' },
-  categoryChipLabelSelected: { color: c.green },
-  sectionHeading: { ...row, gap: 12 },
-  sectionRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.secondary },
-  sectionHeaderTitle: { color: '#191919', fontSize: 21, lineHeight: 28, fontWeight: '800' },
-  editorialHeading: { fontFamily: 'InstrumentSerifItalic' },
-  editorialName: { fontFamily: 'BaskervvilleRegular', fontWeight: '400' },
-  sectionHeaderSubtitle: { color: c.secondary, fontSize: 12, lineHeight: 16, marginTop: 2 },
-  featuredDishesSection: { marginBottom: 24, gap: 12 },
-  foodGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 9, marginTop: 11 },
-  foodCard: { ...panel, backgroundColor: c.background, width: '49%', overflow: 'hidden' },
-  foodImageContainer: { width: '100%', aspectRatio: 1.04, overflow: 'hidden' },
-  foodBody: { flex: 1, padding: 8 },
-  foodTitle: { color: '#202326', fontSize: 15, lineHeight: 20, minHeight: 40, fontWeight: '700', letterSpacing: -0.4, marginTop: 8 },
-  kitchenName: { color: '#777B80', fontSize: 12, lineHeight: 17, marginTop: 3, marginBottom: 5 },
-  foodFooter: {
-    ...row, flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, marginTop: 'auto',
-    paddingTop: 7, borderTopWidth: 1, borderTopColor: c.border,
-  },
-  foodPriceText: { color: '#202326', fontSize: 14, lineHeight: 19, fontWeight: '700' },
-  orderNowBtn: { ...row, gap: 3, backgroundColor: c.green, borderRadius: 16, paddingHorizontal: 7, paddingVertical: 5 },
-  orderNowBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
-  vegIndicatorPill: {
-    position: 'absolute', top: 7, right: 7, width: 15, height: 15,
-    borderRadius: 3, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center',
-  },
-  vegIndicatorDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.green },
-  popularSectionHeader: { marginHorizontal: gutter, marginBottom: 11 },
+  discoveryHeading: { fontSize: 18, fontWeight: '800', color: home.ink, marginHorizontal: gutter, marginBottom: 12 },
+  feedStrip: { paddingHorizontal: gutter, gap: 12, paddingBottom: 4 },
+  feedTile: { width: 80, alignItems: 'center', gap: 6 },
+  tilePhoto: { width: 76, height: 76, borderRadius: 38, overflow: 'hidden' },
+  tileLabel: { color: '#3D4152', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+  featuredDishesSection: { marginTop: 24, gap: 12 },
+  sectionHeaderTitle: { color: home.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  curatedCard: { width: 140, backgroundColor: home.sheet, paddingBottom: 8 },
+  curatedPhoto: { aspectRatio: 0.9, borderRadius: home.radius, overflow: 'hidden' },
+  foodTitle: { color: home.ink, fontSize: 15, lineHeight: 20, minHeight: 40, fontWeight: '700', letterSpacing: -0.4, marginTop: 8 },
+  kitchenName: { color: home.muted, fontSize: 12, lineHeight: 17, marginTop: 3, marginBottom: 5 },
+  foodPriceText: { color: home.ink, fontSize: 14, lineHeight: 19, fontWeight: '700' },
+
+  popularSectionHeader: { marginHorizontal: gutter, marginTop: 28, marginBottom: 14, alignItems: 'center', gap: 4 },
+  sectionHeading: { ...row, gap: 12, alignSelf: 'stretch' },
+  sectionRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#C9CAD0' },
+  allTitle: { color: home.muted, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  sectionHeaderSubtitle: { color: home.muted, fontSize: 12, lineHeight: 16 },
+  activeFilter: { ...row, gap: 4, marginTop: 6, paddingHorizontal: 12, minHeight: 32, borderRadius: 999, borderWidth: 1, borderColor: home.accent, backgroundColor: home.tileBg },
+  activeFilterText: { color: home.accent, fontSize: 13, fontWeight: '700' },
+
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: c.secondary },
+  loadingText: { fontSize: 14, color: home.muted },
   emptyContainer: { paddingVertical: 32, alignItems: 'center', paddingHorizontal: gutter, gap: 6 },
-  emptyIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: c.tint, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: c.ink },
-  emptySubtitle: { fontSize: 13, color: c.secondary, textAlign: 'center' },
-  retry: { backgroundColor: c.green, borderRadius: 12, padding: 12 },
+  emptyIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: home.tileBg, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: home.ink },
+  emptySubtitle: { fontSize: 13, color: home.muted, textAlign: 'center' },
+  retry: { backgroundColor: home.accent, borderRadius: 12, padding: 12 },
+  orderNowBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });

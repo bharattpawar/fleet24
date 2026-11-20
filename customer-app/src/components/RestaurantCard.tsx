@@ -16,6 +16,12 @@ export interface OutletSummary {
   /** Server estimate for the selected delivery location. */
   deliveryEta?: DeliveryEta | null;
   isAcceptingOrders: boolean;
+  /** Admin-set discount text for Home, e.g. "50% OFF". */
+  offerTitle?: string | null;
+  /** Admin-set sub-line, e.g. "UPTO ₹100". */
+  offerSubtitle?: string | null;
+  /** Admin-set food photo for Home cards; falls back to logoUrl. */
+  coverImageUrl?: string | null;
 }
 
 export function RestaurantCard({ outlet, onPress, editorial, compact }: { outlet: OutletSummary; onPress: () => void; editorial?: boolean; compact?: boolean }) {
@@ -30,7 +36,13 @@ export function RestaurantCard({ outlet, onPress, editorial, compact }: { outlet
       style={[styles.card, compact && styles.compactCard]}
     >
       <View style={[styles.photo, compact && styles.compactPhoto]}>
-        <ExplorePhoto key={outlet.logoUrl} uri={outlet.logoUrl} />
+        <ExplorePhoto key={outlet.coverImageUrl || outlet.logoUrl} uri={outlet.coverImageUrl || outlet.logoUrl} />
+        {outlet.offerTitle ? (
+          <View style={styles.offerShade}>
+            <Text style={[styles.offerTitle, compact && styles.compactOfferTitle]} numberOfLines={1}>{outlet.offerTitle}</Text>
+            {outlet.offerSubtitle ? <Text style={styles.offerSubtitle} numberOfLines={1}>{outlet.offerSubtitle}</Text> : null}
+          </View>
+        ) : null}
         {!outlet.isAcceptingOrders && <Text style={styles.closed}>Closed</Text>}
       </View>
       <View style={[styles.content, compact && styles.compactContent]}>
@@ -66,6 +78,13 @@ const styles = StyleSheet.create({
     borderColor: c.border, marginBottom: 24, overflow: 'hidden',
   },
   photo: { aspectRatio: 1.9, overflow: 'hidden' },
+  offerShade: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, paddingTop: 28, paddingBottom: 9,
+    backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.78) 100%)',
+  },
+  offerTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: -0.4 },
+  compactOfferTitle: { fontSize: 16 },
+  offerSubtitle: { color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.4, opacity: 0.9 },
   closed: {
     position: 'absolute', top: 8, left: 8, color: c.ink, backgroundColor: c.surface,
     paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10, fontSize: 11, fontWeight: '600',
