@@ -1,4 +1,8 @@
+import { isImageRef } from '../home-art';
 import {
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
   IsString,
   IsNotEmpty,
   IsOptional,
@@ -13,6 +17,17 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+
+@ValidatorConstraint({ name: 'imageRef' })
+export class ImageRefConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown) {
+    return isImageRef(value);
+  }
+  defaultMessage() {
+    return 'coverImageUrl must be an uploaded image, a built-in illustration or an http(s) URL';
+  }
+}
 
 export class PaginationQueryDto {
   @IsOptional()
@@ -167,10 +182,10 @@ export class UpdateOutletDto {
   @MaxLength(30)
   offerSubtitle?: string;
 
-  /** Card photo (https URL). Send "" to clear and fall back to the restaurant logo. */
+  /** Card photo: uploaded `media:<id>`, built-in `asset:<key>` or an http(s) URL. Send "" to clear and fall back to the logo. */
   @IsOptional()
   @ValidateIf((o: UpdateOutletDto) => o.coverImageUrl !== '')
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { message: 'coverImageUrl must be an http(s) URL' })
+  @Validate(ImageRefConstraint)
   @MaxLength(2048)
   coverImageUrl?: string;
 }

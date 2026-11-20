@@ -23,6 +23,24 @@ describe('validateHomeSections', () => {
     expect(out[1].title).toBe('Weekend feast');
   });
 
+  it('accepts uploaded media, built-in illustrations, alt text and a shortcut row', () => {
+    const media = 'media:3f2b6c1e-8d4a-4f6b-9c2d-1a2b3c4d5e6f';
+    const [shortcuts, banner, tiles] = validateHomeSections([
+      { kind: 'shortcuts', title: 'Services', shortcuts: [
+        { title: 'Food', image: 'asset:shortcut-food', action: 'food', alt: 'Burger' },
+        { title: 'Quick', image: media, action: 'fast', badge: '10 MINS' },
+      ], targets: [] },
+      { kind: 'banner', title: 'Feast', cta: 'Order now', image: media, imageLeft: 'asset:biryani', imageAlt: 'Biryani and brownies', targets: [{ type: 'outlet', id: 'o-1' }] },
+      { kind: 'tiles', title: 'Deals', targets: [{ type: 'outlet', id: 'o-1', title: '65% OFF', image: 'asset:promo-percent', alt: 'Percent badge' }] },
+    ], catalog);
+    expect(shortcuts.shortcuts).toEqual([
+      { title: 'Food', image: 'asset:shortcut-food', action: 'food', alt: 'Burger' },
+      { title: 'Quick', image: media, action: 'fast', badge: '10 MINS' },
+    ]);
+    expect(banner).toMatchObject({ image: media, imageLeft: 'asset:biryani', imageAlt: 'Biryani and brownies' });
+    expect(tiles.targets[0]).toMatchObject({ image: 'asset:promo-percent', alt: 'Percent badge' });
+  });
+
   it.each([
     ['not an array', 'nope'],
     ['unknown kind', [{ kind: 'popup', title: 'x', targets: [] }]],
@@ -35,6 +53,9 @@ describe('validateHomeSections', () => {
       { kind: 'search_hints', title: 'a', hints: ['x'], targets: [] },
       { kind: 'search_hints', title: 'b', hints: ['y'], targets: [] },
     ]],
+    ['banner pointing at an unknown built-in illustration', [{ kind: 'banner', title: 'x', cta: 'Go', image: 'asset:not-real', targets: [{ type: 'outlet', id: 'o-1' }] }]],
+    ['shortcut with an action the app does not have', [{ kind: 'shortcuts', title: 's', shortcuts: [{ title: 'Dineout', image: 'asset:shortcut-food', action: 'dineout' }], targets: [] }]],
+    ['seven shortcuts', [{ kind: 'shortcuts', title: 's', shortcuts: Array.from({ length: 7 }, () => ({ title: 'Food', image: 'asset:shortcut-food', action: 'food' })), targets: [] }]],
     ['row pointing at a missing outlet', [{ kind: 'row', title: 'x', targets: [{ type: 'outlet', id: 'gone' }] }]],
     ['category section pointing at a dish', [{ kind: 'category', title: 'x', image: img, targets: [{ type: 'dish', id: 'd-1' }] }]],
   ])('rejects %s', (_label, input) => {

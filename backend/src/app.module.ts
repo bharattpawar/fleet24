@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RestaurantsModule } from './restaurants/restaurants.module';
+import { MediaModule } from './media/media.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { RidersModule } from './riders/riders.module';
@@ -30,6 +31,7 @@ import { PromotionsModule } from './promotions/promotions.module';
     AuthModule,
     UsersModule,
     RestaurantsModule,
+    MediaModule,
     OrdersModule,
     PaymentsModule,
     RidersModule,

@@ -257,6 +257,109 @@ export class MenusService {
     return result;
   }
 
+  /**
+   * Veg facts per outlet over dishes it can sell right now:
+   * hasVeg = at least one veg dish, pureVeg = every available dish is veg.
+   */
+  async vegFactsByOutlet(outletIds: string[]): Promise<Record<string, { hasVeg: boolean; pureVeg: boolean }>> {
+    const result: Record<string, { hasVeg: boolean; pureVeg: boolean }> = Object.fromEntries(
+      outletIds.map((id) => [id, { hasVeg: false, pureVeg: false }]),
+    );
+    if (outletIds.length === 0) return result;
+    const rows = await this.db
+      .select({
+        outletId: schema.restaurantOutlets.id,
+        hasVeg: sql<boolean>`bool_or(${schema.menuItems.isVeg})`,
+        pureVeg: sql<boolean>`bool_and(${schema.menuItems.isVeg})`,
+      })
+      .from(schema.restaurantOutlets)
+      .innerJoin(schema.menuItems, eq(schema.menuItems.restaurantId, schema.restaurantOutlets.restaurantId))
+      .leftJoin(
+        schema.outletMenuItemOverrides,
+        and(
+          eq(schema.outletMenuItemOverrides.outletId, schema.restaurantOutlets.id),
+          eq(schema.outletMenuItemOverrides.menuItemId, schema.menuItems.id),
+        ),
+      )
+      .where(
+        and(
+          inArray(schema.restaurantOutlets.id, outletIds),
+          sql`coalesce(${schema.outletMenuItemOverrides.isAvailable}, ${schema.menuItems.isAvailable}) = true`,
+        ),
+      )
+      .groupBy(schema.restaurantOutlets.id);
+    for (const row of rows) result[row.outletId] = { hasVeg: Boolean(row.hasVeg), pureVeg: Boolean(row.pureVeg) };
+    return result;
+  }
+
+  /** Cuisines the restaurant declared when it applied (latest application wins). */
+  async cuisinesByRestaurant(restaurantIds: string[]): Promise<Record<string, string[]>> {
+    const result: Record<string, string[]> = {};
+    if (restaurantIds.length === 0) return result;
+    const rows = await this.db
+      .select({
+        restaurantId: schema.restaurantApplications.restaurantId,
+        cuisines: schema.restaurantApplications.cuisines,
+      })
+      .from(schema.restaurantApplications)
+      .where(inArray(schema.restaurantApplications.restaurantId, restaurantIds))
+      .orderBy(desc(schema.restaurantApplications.createdAt));
+    for (const row of rows) {
+      if (result[row.restaurantId]) continue;
+      result[row.restaurantId] = (row.cuisines ?? []).filter((c): c is string => typeof c === 'string' && c.trim().length > 0);
+    }
+    return result;
+  }
+
+  /** Dishes whose name matches `term`, limited to dishes these outlets can sell now. */
+  async searchAvailableDishes(outletIds: string[], term: string, limit = 30) {
+    if (outletIds.length === 0 || !term.trim()) return [];
+    const pattern = `%${term.trim().replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+    const rows = await this.db
+      .select({
+        outletId: schema.restaurantOutlets.id,
+        id: schema.menuItems.id,
+        name: schema.menuItems.name,
+        imageUrl: schema.menuItems.imageUrl,
+        isVeg: schema.menuItems.isVeg,
+        basePrice: schema.menuItems.basePrice,
+        customPrice: schema.outletMenuItemOverrides.customPrice,
+        discountType: schema.menuItems.discountType,
+        discountValue: schema.menuItems.discountValue,
+      })
+      .from(schema.restaurantOutlets)
+      .innerJoin(schema.menuItems, eq(schema.menuItems.restaurantId, schema.restaurantOutlets.restaurantId))
+      .leftJoin(
+        schema.outletMenuItemOverrides,
+        and(
+          eq(schema.outletMenuItemOverrides.outletId, schema.restaurantOutlets.id),
+          eq(schema.outletMenuItemOverrides.menuItemId, schema.menuItems.id),
+        ),
+      )
+      .where(
+        and(
+          inArray(schema.restaurantOutlets.id, outletIds),
+          sql`${schema.menuItems.name} ILIKE ${pattern}`,
+          sql`coalesce(${schema.outletMenuItemOverrides.isAvailable}, ${schema.menuItems.isAvailable}) = true`,
+        ),
+      )
+      .limit(limit);
+    return rows.map((row) => {
+      const effectivePrice = row.customPrice ?? row.basePrice;
+      return {
+        outletId: row.outletId,
+        dish: {
+          id: row.id,
+          name: row.name,
+          imageUrl: row.imageUrl,
+          isVeg: row.isVeg,
+          effectivePrice,
+          finalPrice: applyDishDiscount(Number(effectivePrice), row.discountType, row.discountValue).toFixed(2),
+        },
+      };
+    });
+  }
+
   async getMenuItemById(itemId: string) {
     const item = await this.db.query.menuItems.findFirst({
       where: eq(schema.menuItems.id, itemId),

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Inject, Put, Query, UseGuards } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Roles } from '../auth/decorators/auth.decorators';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -55,14 +55,74 @@ export class CustomerHomeController {
     return { saved: true };
   }
 
-  @Get('public/customer-home')
-  async feed(@Query('latitude') latitude?: string, @Query('longitude') longitude?: string) {
+  /** Veg flags and declared cuisines for each outlet, two queries in total. */
+  private async outletFacts(outlets: Array<{ id: string; restaurantId?: string }>) {
+    const [vegByOutlet, cuisinesByRestaurant] = await Promise.all([
+      this.menus.vegFactsByOutlet(outlets.map(outlet => outlet.id)),
+      this.menus.cuisinesByRestaurant([...new Set(outlets.flatMap(outlet => outlet.restaurantId ? [outlet.restaurantId] : []))]),
+    ]);
+    const cuisinesByOutlet = Object.fromEntries(
+      outlets.map(outlet => [outlet.id, (outlet.restaurantId && cuisinesByRestaurant[outlet.restaurantId]) || []]),
+    );
+    return { vegByOutlet, cuisinesByOutlet };
+  }
+
+  private parseCoordinates(latitude?: string, longitude?: string) {
     const lat = latitude === undefined ? undefined : Number(latitude);
     const lon = longitude === undefined ? undefined : Number(longitude);
     if ((lat !== undefined || lon !== undefined) &&
         (lat === undefined || lon === undefined || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)) {
       throw new BadRequestException('Invalid delivery coordinates.');
     }
+    return { lat, lon };
+  }
+
+  /**
+   * GET /public/search?q=biryani&latitude=&longitude=
+   * Restaurants whose name, outlet, declared cuisine or menu category matches, plus matching dishes
+   * they can sell now. Only kitchens the customer could see on Home are searched.
+   */
+  @Get('public/search')
+  async search(@Query('q') q?: string, @Query('latitude') latitude?: string, @Query('longitude') longitude?: string) {
+    const term = (q ?? '').trim();
+    if (term.length < 2) throw new BadRequestException('Type at least 2 characters to search.');
+    if (term.length > 60) throw new BadRequestException('Search is limited to 60 characters.');
+    const { lat, lon } = this.parseCoordinates(latitude, longitude);
+    const outlets = await this.menus.getPublicActiveOutlets(lat, lon);
+    const ids = outlets.map(outlet => outlet.id);
+    const [categoriesByOutlet, facts, dishes] = await Promise.all([
+      this.menus.listAvailableCategoryNamesByOutlet(ids),
+      this.outletFacts(outlets),
+      this.menus.searchAvailableDishes(ids, term),
+    ]);
+    const needle = term.toLowerCase();
+    const has = (value?: string | null) => Boolean(value && value.toLowerCase().includes(needle));
+    const dishOutletIds = new Set(dishes.map(match => match.outletId));
+    const matched = outlets.filter(outlet =>
+      has(outlet.restaurantName) || has(outlet.outletName) ||
+      facts.cuisinesByOutlet[outlet.id]?.some(has) || categoriesByOutlet[outlet.id]?.some(has) ||
+      dishOutletIds.has(outlet.id));
+    // Open kitchens and direct name matches first.
+    const rank = (outlet: (typeof outlets)[number]) =>
+      (outlet.isAcceptingOrders ? 0 : 2) + (has(outlet.restaurantName) ? 0 : 1);
+    matched.sort((a, b) => rank(a) - rank(b) || (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+    const byId = new Map(outlets.map(outlet => [outlet.id, outlet]));
+    return {
+      query: term,
+      outlets: matched,
+      dishes: dishes.flatMap(match => {
+        const outlet = byId.get(match.outletId);
+        return outlet ? [{ outlet, dish: match.dish }] : [];
+      }),
+      vegByOutlet: facts.vegByOutlet,
+      cuisinesByOutlet: facts.cuisinesByOutlet,
+      categoriesByOutlet,
+    };
+  }
+
+  @Get('public/customer-home')
+  async feed(@Query('latitude') latitude?: string, @Query('longitude') longitude?: string) {
+    const { lat, lon } = this.parseCoordinates(latitude, longitude);
     const [outlets, records] = await Promise.all([
       this.menus.getPublicActiveOutlets(lat, lon),
       this.db.select().from(schema.customerHome),
@@ -82,6 +142,7 @@ export class CustomerHomeController {
       // Cuisine chips: one query for all outlets instead of loading every menu
       this.menus.listAvailableCategoryNamesByOutlet(outlets.map(outlet => outlet.id)),
     ]);
+    const { vegByOutlet, cuisinesByOutlet } = await this.outletFacts(outlets);
     const menus = new Map(menuEntries);
     // Category destinations: the app filters Home by this cuisine name when tapped.
     const categoryIds = sections.flatMap(section => section.targets.filter(t => t.type === 'category').map(t => t.id));
@@ -97,9 +158,11 @@ export class CustomerHomeController {
     return {
       outlets,
       categoriesByOutlet,
+      vegByOutlet,
+      cuisinesByOutlet,
       sections: sections.flatMap(section => {
         // Rail toggle and search hints carry no destinations: the app builds them from `outlets`.
-        if (section.kind === 'rail' || section.kind === 'search_hints') return [{ ...section, cards: [] }];
+        if (section.kind === 'rail' || section.kind === 'search_hints' || section.kind === 'shortcuts') return [{ ...section, cards: [] }];
         const resolve = (target: HomeTarget) => {
           const matches = eligible.flatMap(outlet => {
             const dish = target.type === 'dish' ? menus.get(outlet.id)?.find(item => item.id === target.id) : undefined;
