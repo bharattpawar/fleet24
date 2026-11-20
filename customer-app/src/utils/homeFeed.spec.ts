@@ -1,4 +1,4 @@
-import { railOutlets, searchHints, targetAction, outletPhoto, DEFAULT_SEARCH_HINT, FeedSection } from './homeFeed';
+import { railOutlets, searchHints, targetAction, outletPhoto, DEFAULT_SEARCH_HINT, FeedSection, vegOutlets, cuisineLine } from './homeFeed';
 import type { OutletSummary } from '../components/RestaurantCard';
 
 const outlet = (id: string, extra: Partial<OutletSummary> = {}): OutletSummary => ({
@@ -28,6 +28,17 @@ describe('home feed helpers', () => {
   it('prefers the admin cover photo over the logo', () => {
     expect(outletPhoto(outlet('a', { coverImageUrl: 'https://img.test/cover.jpg' }))).toBe('https://img.test/cover.jpg');
     expect(outletPhoto(outlet('a'))).toBe('https://img.test/a-logo.png');
+  });
+
+  it('veg mode keeps kitchens that sell at least one veg dish', () => {
+    const list = [outlet('a'), outlet('b'), outlet('c')];
+    expect(vegOutlets(list, { a: { hasVeg: true, pureVeg: true }, b: { hasVeg: false, pureVeg: false } }).map(o => o.id)).toEqual(['a']);
+  });
+
+  it('cuisine line prefers declared cuisines, else menu categories', () => {
+    expect(cuisineLine('a', { a: ['Bakery', 'Desserts'] }, { a: ['Cakes'] })).toBe('Bakery, Desserts');
+    expect(cuisineLine('b', { b: [] }, { b: ['Starters', 'Starters', 'Breads', 'Rolls', 'Extra'] })).toBe('Starters, Breads, Rolls');
+    expect(cuisineLine('c', {}, {})).toBe('');
   });
 
   it('turns a banner or tile destination into an action', () => {

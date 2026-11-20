@@ -32,13 +32,14 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
     }
   }) as any;
 }
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { DeliveryLocationProvider } from './src/context/DeliveryLocationContext';
-import { colors, exploreColors } from './src/theme/tokens';
+import { colors } from './src/theme/tokens';
+import { home } from './src/theme/homeTheme';
 import { OutletSummary } from './src/components/RestaurantCard';
 
 // Screens
@@ -59,9 +60,9 @@ const tabs: {
   icon: keyof typeof Ionicons.glyphMap;
   activeIcon: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { id: 'home', label: 'Explore', icon: 'home-outline', activeIcon: 'home' },
-  { id: 'orders', label: 'Orders', icon: 'clipboard-outline', activeIcon: 'clipboard' },
-  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  { id: 'home', label: 'Food', icon: 'fast-food-outline', activeIcon: 'fast-food' },
+  { id: 'orders', label: 'Reorder', icon: 'receipt-outline', activeIcon: 'receipt' },
+  { id: 'profile', label: 'Account', icon: 'person-circle-outline', activeIcon: 'person-circle' },
 ];
 
 function MainApp() {
@@ -72,6 +73,9 @@ function MainApp() {
   const [isRiderMode, setIsRiderMode] = useState(false);
   const [isCartVisible, setIsCartVisible] = useState(false);
   const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
+  // Veg mode is shared by Home and restaurant menus for the whole session.
+  const [vegMode, setVegMode] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Handle Tab Switch
   const handleTabChange = (tab: Tab) => {
@@ -135,6 +139,8 @@ function MainApp() {
           onBack={() => setSelectedOutlet(null)}
           onViewCart={() => setIsCartVisible(true)}
           onRequireAuth={() => setIsAuthModalVisible(true)}
+          vegOnly={vegMode}
+          onToggleVegOnly={() => setVegMode(v => !v)}
         />
       );
     }
@@ -147,6 +153,9 @@ function MainApp() {
             onViewCart={() => setIsCartVisible(true)}
             onRequireAuth={() => setIsAuthModalVisible(true)}
             onOpenProfile={() => handleTabChange('profile')}
+            onOpenOrders={() => handleTabChange('orders')}
+            vegMode={vegMode}
+            onToggleVeg={() => setVegMode(v => !v)}
           />
         );
       }
@@ -168,16 +177,19 @@ function MainApp() {
     }
   };
 
-  return (
-    <SafeAreaView style={[styles.container, activeTab === 'home' && !selectedOutlet && !isCartVisible && styles.exploreBackground]}>
-      <StatusBar style="dark" />
-      
-      {/* Screen Body */}
-      <View style={styles.body}>{renderContent()}</View>
+  const onHome = activeTab === 'home' && !selectedOutlet && !isCartVisible && !trackingOrderId && !isRiderMode;
+  const showNav = !isCartVisible && !selectedOutlet;
 
-      {/* Integrated Bottom Navigation Bar */}
-      {!isCartVisible && !selectedOutlet && (
-        <View style={styles.bottomNavBar} accessibilityRole="tablist">
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, onHome && styles.homeTop]}>
+      <StatusBar style={onHome ? 'light' : 'dark'} />
+
+      {/* Screen Body */}
+      <View style={[styles.body, !showNav && { paddingBottom: insets.bottom }]}>{renderContent()}</View>
+
+      {/* Bottom navigation: fixed, white, orange for the current tab */}
+      {showNav && (
+        <View style={[styles.bottomNavBar, { paddingBottom: Math.max(insets.bottom, 6) }]} accessibilityRole="tablist">
           {tabs.map(({ id, label, icon, activeIcon }) => {
             const selected = activeTab === id;
             return (
@@ -186,16 +198,13 @@ function MainApp() {
                 style={styles.navTab}
                 onPress={() => handleTabChange(id)}
                 accessibilityRole="tab"
+                accessibilityLabel={label}
                 accessibilityState={{ selected }}
                 activeOpacity={0.7}
               >
-                <Ionicons
-                  name={selected ? activeIcon : icon}
-                  size={22}
-                  color={selected ? exploreColors.green : exploreColors.secondary}
-                />
-                <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{label}</Text>
                 <View style={[styles.navIndicator, selected && styles.navIndicatorActive]} />
+                <Ionicons name={selected ? activeIcon : icon} size={24} color={selected ? home.accent : '#6B6E78'} />
+                <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -240,24 +249,25 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
-  exploreBackground: { backgroundColor: exploreColors.background },
+  homeTop: { backgroundColor: home.headerTop },
   bottomNavBar: {
     flexDirection: 'row',
-    backgroundColor: exploreColors.background,
-    borderTopWidth: 1,
-    borderTopColor: exploreColors.border,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D9DAE0',
+    boxShadow: '0px -2px 10px rgba(16, 25, 79, 0.06)',
   },
   navTab: {
     flex: 1,
-    minHeight: 56,
-    paddingTop: 6,
+    minHeight: 58,
+    paddingTop: 0,
     paddingBottom: 4,
     gap: 2,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
-  navLabel: { fontSize: 12, fontWeight: '500', color: exploreColors.secondary },
-  navLabelActive: { color: exploreColors.green, fontWeight: '700' },
-  navIndicator: { width: '54%', maxWidth: 72, height: 4, borderRadius: 2, marginTop: 2 },
-  navIndicatorActive: { backgroundColor: exploreColors.green },
+  navLabel: { fontSize: 11, fontWeight: '600', color: '#6B6E78' },
+  navLabelActive: { color: home.accent, fontWeight: '800' },
+  navIndicator: { width: 34, height: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, marginBottom: 6 },
+  navIndicatorActive: { backgroundColor: home.accent },
 });

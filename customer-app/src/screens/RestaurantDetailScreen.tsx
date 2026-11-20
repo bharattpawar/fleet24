@@ -13,10 +13,11 @@ import { colors, spacing } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { apiRequest } from '../api/client';
 import { MenuItemCard, MenuItemData } from '../components/MenuItemCard';
+import { HomeImage } from '../components/home/HomeImage';
+import { fallbackArt } from '../utils/imageRef';
 import { OutletSummary } from '../components/RestaurantCard';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { useCart } from '../context/CartContext';
-import { ExplorePhoto } from '../components/ExplorePhoto';
 import { USE_MOCK_DATA, MOCK_MENUS, DEFAULT_MOCK_MENU } from '../api/mockData';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatEta } from '../utils/deliveryEta';
@@ -27,6 +28,9 @@ interface RestaurantDetailScreenProps {
   onBack: () => void;
   onViewCart: () => void;
   onRequireAuth: () => void;
+  /** Veg mode from Home: hide non-veg dishes until the customer turns it off. */
+  vegOnly?: boolean;
+  onToggleVegOnly?: () => void;
 }
 
 export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
@@ -34,6 +38,8 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
   featuredDishId,
   onBack,
   onViewCart,
+  vegOnly = false,
+  onToggleVegOnly,
 }) => {
   const insets = useSafeAreaInsets();
   const { cart, addItem, updateQuantity, removeItem, clearCart } = useCart();
@@ -154,15 +160,16 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.description &&
         item.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesCat && matchesSearch;
+    return matchesCat && matchesSearch && (!vegOnly || item.isVeg);
   });
+  const hiddenNonVeg = vegOnly ? items.filter(item => !item.isVeg).length : 0;
 
   const renderHeader = () => (
     <View style={styles.headerWrapper}>
       {/* Restaurant Hero Card */}
       <View style={styles.heroCard}>
         <View style={styles.imageBox}>
-          <ExplorePhoto key={outlet.logoUrl} uri={outlet.logoUrl} />
+          <HomeImage source={outlet.coverImageUrl || outlet.logoUrl} fallback={fallbackArt(outlet.restaurantName)} alt={`${outlet.restaurantName} food`} />
           <View style={styles.imageGradientOverlay} />
 
           {/* Floating Status Pill */}
@@ -263,6 +270,19 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
         </View>
       )}
 
+      {vegOnly && (
+        <View style={styles.vegNotice}>
+          <Text style={styles.vegNoticeText}>
+            Veg mode is on{hiddenNonVeg ? ` · ${hiddenNonVeg} non-veg ${hiddenNonVeg === 1 ? 'dish' : 'dishes'} hidden` : ''}
+          </Text>
+          {onToggleVegOnly && (
+            <TouchableOpacity onPress={onToggleVegOnly} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.vegNoticeAction}>Show all</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Section Headline */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>
@@ -350,6 +370,9 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  vegNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#EAF7EF' },
+  vegNoticeText: { flex: 1, color: '#16472A', fontSize: 13, fontWeight: '600' },
+  vegNoticeAction: { color: '#F36C35', fontSize: 13, fontWeight: '800' },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

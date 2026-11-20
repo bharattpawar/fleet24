@@ -1,161 +1,180 @@
-import React, { useEffect, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ExplorePhoto } from '../ExplorePhoto';
+import { HomeImage } from './HomeImage';
 import type { OutletSummary } from '../RestaurantCard';
 import { formatEta } from '../../utils/deliveryEta';
-import { FeedAction, FeedSection, RailFilter, outletPhoto, railOutlets, targetAction } from '../../utils/homeFeed';
+import { fallbackArt } from '../../utils/imageRef';
+import { FeedAction, FeedCard, FeedSection, RailFilter, outletPhoto, targetAction } from '../../utils/homeFeed';
+import type { SearchState } from '../../hooks/useHomeSearch';
 import { home, photoShade } from '../../theme/homeTheme';
 
-/** "Search for 'biryani'" — cycles through admin-set hints with a short slide. */
-export function RotatingHint({ hints }: { hints: string[] }) {
-  const [index, setIndex] = useState(0);
-  const [slide] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    if (hints.length < 2) return;
-    const timer = setInterval(() => {
-      Animated.timing(slide, { toValue: -1, duration: 220, useNativeDriver: true }).start(() => {
-        setIndex(i => (i + 1) % hints.length);
-        slide.setValue(1);
-        Animated.timing(slide, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-      });
-    }, 2800);
-    return () => clearInterval(timer);
-  }, [hints.length, slide]);
-  const hint = hints[index % hints.length];
+const G = home.gutter;
+
+/* ------------------------------------------------------------------ segmented filter pills */
+
+export function OfferFilterPills({ tabs, active, onChange }: { tabs: { label: string; filter: RailFilter }[]; active: number; onChange: (index: number) => void }) {
   return (
-    <View style={styles.hintRow} pointerEvents="none">
-      <Text style={styles.hintStatic}>Search for </Text>
-      <Animated.Text
-        numberOfLines={1}
-        style={[styles.hintMoving, { opacity: slide.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 1, 0] }), transform: [{ translateY: slide.interpolate({ inputRange: [-1, 1], outputRange: [-12, 12] }) }] }]}
-      >
-        ‘{hint}’
-      </Animated.Text>
+    <View style={styles.pills} accessibilityRole="tablist">
+      {tabs.map((tab, i) => {
+        const selected = i === active;
+        return (
+          <TouchableOpacity
+            key={tab.label + i}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(i)}
+            style={[styles.pill, selected && styles.pillSelected]}
+          >
+            <Text style={[styles.pillText, selected && styles.pillTextSelected]} numberOfLines={1}>{tab.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-/** Big campaign card: eyebrow, headline, offer line, lime button, photo on the right. */
-export function HeroBanner({ section, onAction, onSheet }: { section: FeedSection; onAction: (action: FeedAction) => void; onSheet?: boolean }) {
-  const action = targetAction(section.targets[0], section.cards, section.title);
+/* ------------------------------------------------------------------ deal card (compact, horizontal rail) */
+
+export interface CardFacts {
+  cuisine: (outletId: string) => string;
+  isFavorite: (outletId: string) => boolean;
+  onToggleFavorite: (outletId: string) => void;
+}
+
+function Heart({ outlet, facts, size = 22, style }: { outlet: OutletSummary; facts: CardFacts; size?: number; style?: object }) {
+  const favorite = facts.isFavorite(outlet.id);
   return (
-    <TouchableOpacity activeOpacity={0.9} accessibilityRole="button" accessibilityLabel={`${section.title}. ${section.cta ?? ''}`} onPress={() => onAction(action)} style={[styles.hero, onSheet && styles.heroOnSheet]}>
-      <View style={styles.heroCopy}>
-        {section.eyebrow ? <Text style={styles.heroEyebrow} numberOfLines={1}>{section.eyebrow}</Text> : null}
-        <Text style={styles.heroTitle} numberOfLines={2}>{section.title}</Text>
-        {section.subtitle ? <Text style={styles.heroSubtitle} numberOfLines={2}>{section.subtitle}</Text> : null}
-        {section.cta ? (
-          <View style={styles.heroCta}>
-            <Text style={styles.heroCtaText}>{section.cta}</Text>
-            <Ionicons name="arrow-forward" size={14} color={home.onCta} />
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.heroPhoto}>
-        <ExplorePhoto key={section.image} uri={section.image ?? null} />
-      </View>
+    <TouchableOpacity
+      style={[styles.heart, style]}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: favorite }}
+      accessibilityLabel={favorite ? `Remove ${outlet.restaurantName} from favourites` : `Add ${outlet.restaurantName} to favourites`}
+      onPress={() => facts.onToggleFavorite(outlet.id)}
+    >
+      <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={size} color={favorite ? home.heart : '#FFFFFF'} />
     </TouchableOpacity>
   );
 }
 
-/** Row of small offer cards, each with its own photo, title and sub-line. */
-export function OfferTiles({ section, onAction }: { section: FeedSection; onAction: (action: FeedAction) => void }) {
+function MetaLine({ outlet }: { outlet: OutletSummary }) {
+  const eta = formatEta(outlet.deliveryEta);
+  const distance = typeof outlet.distanceKm === 'number' ? `${outlet.distanceKm.toFixed(1)} km` : null;
   return (
-    <View style={styles.block}>
-      {section.title ? <Text style={styles.blockTitle}>{section.title}</Text> : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
-        {section.targets.map((tile, i) => (
-          <TouchableOpacity
-            key={tile.type + tile.id + i}
-            accessibilityRole="button"
-            accessibilityLabel={[tile.title, tile.subtitle].filter(Boolean).join(', ')}
-            activeOpacity={0.88}
-            style={styles.tile}
-            onPress={() => onAction(targetAction(tile, tile.cards ?? [], tile.title ?? section.title))}
-          >
-            <Text style={styles.tileTitle} numberOfLines={2}>{tile.title}</Text>
-            {tile.subtitle ? <Text style={styles.tileSubtitle} numberOfLines={1}>{tile.subtitle}</Text> : null}
-            <View style={styles.tilePhoto}><ExplorePhoto key={tile.image} uri={tile.image ?? null} /></View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-/** Segmented toggle over a restaurant rail. The last card is cut off on purpose to show it scrolls. */
-export function RestaurantRail({ section, outlets, onSelectOutlet }: { section: FeedSection; outlets: OutletSummary[]; onSelectOutlet: (outlet: OutletSummary) => void }) {
-  const tabs = section.tabs?.length ? section.tabs : [{ label: 'All', filter: 'all' as RailFilter }];
-  const [active, setActive] = useState(0);
-  const { width } = useWindowDimensions();
-  const cardWidth = Math.min(168, Math.round((width - home.gutter * 2) / 2.35));
-  const list = railOutlets(outlets, tabs[Math.min(active, tabs.length - 1)].filter);
-  return (
-    <View style={styles.block}>
-      {section.title ? <Text style={styles.blockTitle}>{section.title}</Text> : null}
-      {tabs.length > 1 && (
-        <View style={styles.toggle} accessibilityRole="tablist">
-          {tabs.map((tab, i) => (
-            <TouchableOpacity
-              key={tab.label + i}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: i === active }}
-              onPress={() => setActive(i)}
-              style={[styles.toggleItem, i === active && styles.toggleItemActive]}
-            >
-              <Text style={[styles.toggleText, i === active && styles.toggleTextActive]} numberOfLines={1}>{tab.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-      {list.length === 0 ? (
-        <Text style={styles.railEmpty}>Nothing here right now — check the other tab.</Text>
+    <View style={styles.metaRow}>
+      {outlet.isAcceptingOrders ? (
+        <View style={styles.etaBadge}><Ionicons name="time" size={10} color="#FFFFFF" /></View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
-          {list.map(outlet => (
-            <TouchableOpacity key={outlet.id} accessibilityRole="button" accessibilityLabel={outlet.restaurantName} activeOpacity={0.88} style={{ width: cardWidth }} onPress={() => onSelectOutlet(outlet)}>
-              <View style={[styles.railPhoto, { height: Math.round(cardWidth * 1.08) }]}>
-                <ExplorePhoto key={outletPhoto(outlet)} uri={outletPhoto(outlet)} />
-                {outlet.offerTitle ? (
-                  <View style={styles.railShade}>
-                    <Text style={styles.railOffer} numberOfLines={1}>{outlet.offerTitle}</Text>
-                    {outlet.offerSubtitle ? <Text style={styles.railOfferSub} numberOfLines={1}>{outlet.offerSubtitle}</Text> : null}
-                  </View>
-                ) : null}
-                {!outlet.isAcceptingOrders && <Text style={styles.closedBadge}>Closed</Text>}
-              </View>
-              <Text style={styles.railName} numberOfLines={1}>{outlet.restaurantName}</Text>
-              <Text style={styles.railMeta} numberOfLines={1}>
-                {[formatEta(outlet.deliveryEta), typeof outlet.distanceKm === 'number' ? `${outlet.distanceKm.toFixed(1)} km` : null].filter(Boolean).join(' · ') || outlet.outletName}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <View style={[styles.etaBadge, styles.closedBadgeDot]}><Ionicons name="moon" size={9} color="#FFFFFF" /></View>
       )}
+      <Text style={styles.metaText} numberOfLines={1}>
+        {outlet.isAcceptingOrders ? [eta, distance].filter(Boolean).join(' • ') || 'Open now' : 'Closed now'}
+      </Text>
     </View>
   );
 }
 
-/** "What's on your mind?" round cuisine photos. */
-export function CuisineCircles({ sections, onAction }: { sections: FeedSection[]; onAction: (action: FeedAction) => void }) {
+export function DealCard({ outlet, width, facts, onPress }: { outlet: OutletSummary; width: number; facts: CardFacts; onPress: () => void }) {
+  const cuisine = facts.cuisine(outlet.id);
+  const photoHeight = Math.round(width * 1.05);
+  return (
+    <View style={{ width }}>
+      <TouchableOpacity activeOpacity={0.88} accessibilityRole="button" accessibilityLabel={[outlet.restaurantName, outlet.offerTitle, outlet.offerSubtitle].filter(Boolean).join(', ')} onPress={onPress}>
+        <View style={[styles.dealPhoto, { height: photoHeight }, !outlet.isAcceptingOrders && styles.dimmed]}>
+          <HomeImage source={outletPhoto(outlet)} fallback={fallbackArt(cuisine, outlet.restaurantName)} alt={`${outlet.restaurantName} food`} />
+          {outlet.offerTitle ? (
+            <View style={styles.dealShade}>
+              <Text style={styles.dealOffer} numberOfLines={1}>{outlet.offerTitle}</Text>
+              {outlet.offerSubtitle ? <Text style={styles.dealOfferSub} numberOfLines={1}>{outlet.offerSubtitle}</Text> : null}
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.dealName} numberOfLines={1}>{outlet.restaurantName}</Text>
+        <MetaLine outlet={outlet} />
+        {cuisine ? <Text style={styles.dealCuisine} numberOfLines={1}>{cuisine}</Text> : null}
+      </TouchableOpacity>
+      <Heart outlet={outlet} facts={facts} size={19} />
+    </View>
+  );
+}
+
+export function DealRail({ outlets, facts, onSelectOutlet, emptyText }: { outlets: OutletSummary[]; facts: CardFacts; onSelectOutlet: (outlet: OutletSummary) => void; emptyText: string }) {
+  const { width } = useWindowDimensions();
+  // ~2.85 cards per screen: the next card is cut off to show the row scrolls.
+  const cardWidth = Math.round((Math.min(width, 520) - G) / 2.85) - 10;
+  if (!outlets.length) return <Text style={styles.railEmpty}>{emptyText}</Text>;
+  return (
+    <FlatList
+      horizontal
+      data={outlets}
+      keyExtractor={item => item.id}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.dealRail}
+      ItemSeparatorComponent={RailGap}
+      initialNumToRender={4}
+      windowSize={3}
+      renderItem={({ item }) => <DealCard outlet={item} width={cardWidth} facts={facts} onPress={() => onSelectOutlet(item)} />}
+    />
+  );
+}
+
+function RailGap() {
+  return <View style={{ width: 10 }} />;
+}
+
+/* ------------------------------------------------------------------ restaurant list item (compact, vertical list) */
+
+export function RestaurantListItem({ outlet, facts, onPress }: { outlet: OutletSummary; facts: CardFacts; onPress: () => void }) {
+  const cuisine = facts.cuisine(outlet.id);
+  return (
+    <View>
+      <TouchableOpacity style={styles.listItem} activeOpacity={0.88} accessibilityRole="button" accessibilityLabel={[outlet.restaurantName, outlet.offerTitle].filter(Boolean).join(', ')} onPress={onPress}>
+        <View style={[styles.listPhoto, !outlet.isAcceptingOrders && styles.dimmed]}>
+          <HomeImage source={outletPhoto(outlet)} fallback={fallbackArt(cuisine, outlet.restaurantName)} alt={`${outlet.restaurantName} food`} />
+          {outlet.offerTitle ? (
+            <View style={styles.dealShade}>
+              <Text style={styles.listOffer} numberOfLines={1}>{outlet.offerTitle}</Text>
+              {outlet.offerSubtitle ? <Text style={styles.dealOfferSub} numberOfLines={1}>{outlet.offerSubtitle}</Text> : null}
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.listBody}>
+          <Text style={styles.listName} numberOfLines={2}>{outlet.restaurantName}</Text>
+          <MetaLine outlet={outlet} />
+          {cuisine ? <Text style={styles.dealCuisine} numberOfLines={1}>{cuisine}</Text> : null}
+          <Text style={styles.listOutlet} numberOfLines={1}>{outlet.outletName}</Text>
+        </View>
+      </TouchableOpacity>
+      <Heart outlet={outlet} facts={facts} size={18} style={styles.listHeart} />
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ cuisine circles */
+
+export function CuisineCircles({ sections, onAction, onPressSection, title = 'What’s on your mind?' }: {
+  sections: FeedSection[];
+  onAction: (action: FeedAction) => void;
+  /** Overrides the default tap (used for circles built from live menus rather than admin content). */
+  onPressSection?: (section: FeedSection) => void;
+  title?: string;
+}) {
   if (!sections.length) return null;
-  // Two rows that scroll together, as in the reference.
   const columns: FeedSection[][] = [];
-  sections.forEach((section, i) => {
-    if (i % 2 === 0) columns.push([section]);
-    else columns[columns.length - 1].push(section);
-  });
+  sections.forEach((section, i) => (i % 2 === 0 ? columns.push([section]) : columns[columns.length - 1].push(section)));
   return (
     <View style={styles.block}>
-      <Text style={styles.blockTitle}>What’s on your mind?</Text>
+      <Text style={styles.blockTitle}>{title}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
         {columns.map((column, c) => (
           <View key={c} style={styles.circleColumn}>
             {column.map((section, i) => (
               <TouchableOpacity key={i} accessibilityRole="button" accessibilityLabel={section.title} style={styles.circleItem}
-                onPress={() => onAction(targetAction(section.targets[0] && { ...section.targets[0], name: section.categoryName ?? section.title }, section.cards, section.title))}>
-                <View style={styles.circlePhoto}><ExplorePhoto key={section.image} uri={section.image ?? null} /></View>
+                onPress={() => onPressSection ? onPressSection(section) : onAction(targetAction(section.targets[0] && { ...section.targets[0], name: section.categoryName ?? section.title }, section.cards, section.title))}>
+                <View style={styles.circlePhoto}>
+                  <HomeImage source={section.image} fallback={fallbackArt(section.title)} alt={section.imageAlt} fit="contain" />
+                </View>
                 <Text style={styles.circleLabel} numberOfLines={1}>{section.title}</Text>
               </TouchableOpacity>
             ))}
@@ -166,52 +185,134 @@ export function CuisineCircles({ sections, onAction }: { sections: FeedSection[]
   );
 }
 
-const styles = StyleSheet.create({
-  hintRow: { flexDirection: 'row', alignItems: 'center', flex: 1, overflow: 'hidden', height: 22 },
-  hintStatic: { color: home.muted, fontSize: 15 },
-  hintMoving: { color: home.muted, fontSize: 15, flexShrink: 1 },
+/* ------------------------------------------------------------------ curated row (admin-picked outlets/dishes) */
 
-  hero: {
-    marginHorizontal: home.gutter, marginTop: 14, borderRadius: 22, minHeight: 168, overflow: 'hidden',
-    flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
-  },
-  heroOnSheet: { backgroundColor: home.headerTop, borderWidth: 0, marginTop: 22 },
-  heroCopy: { flex: 1, padding: 16, justifyContent: 'center', gap: 4 },
-  heroEyebrow: { color: home.cta, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
-  heroTitle: { color: home.onHeader, fontSize: 24, lineHeight: 28, fontWeight: '900', letterSpacing: -0.6 },
-  heroSubtitle: { color: home.onHeaderMuted, fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  heroCta: {
-    alignSelf: 'flex-start', marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: home.cta, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9,
-  },
-  heroCtaText: { color: home.onCta, fontSize: 13, fontWeight: '800' },
-  heroPhoto: { width: '42%', overflow: 'hidden', borderTopLeftRadius: 80, borderBottomLeftRadius: 80 },
+export function CuratedRow({ section, cards, facts, onSelectOutlet }: { section: FeedSection; cards: FeedCard[]; facts: CardFacts; onSelectOutlet: (outlet: OutletSummary, dishId?: string) => void }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.round((Math.min(width, 520) - G) / 2.85) - 10;
+  if (!cards.length) return null;
+  return (
+    <View style={styles.block}>
+      <Text style={styles.blockTitle}>{section.title}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.strip, { gap: 10 }]}>
+        {cards.map(({ outlet, dish }, i) => dish ? (
+          <TouchableOpacity key={i} style={{ width: cardWidth }} accessibilityRole="button" accessibilityLabel={`${dish.name} from ${outlet.restaurantName}`} onPress={() => onSelectOutlet(outlet, dish.id)}>
+            <View style={[styles.dealPhoto, { height: Math.round(cardWidth * 1.05) }]}>
+              <HomeImage source={dish.imageUrl} fallback={fallbackArt(dish.name)} alt={dish.name} />
+            </View>
+            <Text style={styles.dealName} numberOfLines={1}>{dish.name}</Text>
+            <Text style={styles.metaText} numberOfLines={1}>₹{dish.finalPrice ?? dish.effectivePrice} • {outlet.restaurantName}</Text>
+          </TouchableOpacity>
+        ) : (
+          <DealCard key={i} outlet={outlet} width={cardWidth} facts={facts} onPress={() => onSelectOutlet(outlet)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ search results */
+
+export function SearchResults({ search, vegMode, facts, onSelectOutlet, onRetry }: {
+  search: SearchState;
+  vegMode: boolean;
+  facts: CardFacts;
+  onSelectOutlet: (outlet: OutletSummary, dishId?: string) => void;
+  onRetry: () => void;
+}) {
+  if (search.status === 'idle') return null;
+  if (search.status === 'loading') {
+    return <View style={styles.searchState}><ActivityIndicator color={home.accent} /><Text style={styles.metaText}>Searching for “{search.query}”…</Text></View>;
+  }
+  if (search.status === 'error') {
+    return (
+      <View style={styles.searchState}>
+        <Text style={styles.searchEmptyTitle}>Search isn’t working right now</Text>
+        <TouchableOpacity accessibilityRole="button" onPress={onRetry} style={styles.retry}><Text style={styles.retryText}>Try again</Text></TouchableOpacity>
+      </View>
+    );
+  }
+  const { result } = search;
+  const outlets = vegMode ? result.outlets.filter(o => result.vegByOutlet[o.id]?.hasVeg) : result.outlets;
+  const dishes = vegMode ? result.dishes.filter(d => d.dish.isVeg) : result.dishes;
+  if (!outlets.length && !dishes.length) {
+    return (
+      <View style={styles.searchState}>
+        <Ionicons name="search" size={28} color={home.muted} />
+        <Text style={styles.searchEmptyTitle}>No results for “{result.query}”</Text>
+        <Text style={styles.metaText}>{vegMode ? 'Veg mode is on. Try turning it off, or ' : 'Try '}a restaurant, dish or cuisine name.</Text>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {dishes.length > 0 && (
+        <View style={styles.block}>
+          <Text style={styles.blockTitle}>Dishes</Text>
+          {dishes.slice(0, 12).map(({ outlet, dish }) => (
+            <TouchableOpacity key={outlet.id + dish.id} style={styles.dishRow} accessibilityRole="button" accessibilityLabel={`${dish.name}, ₹${dish.finalPrice ?? dish.effectivePrice}, from ${outlet.restaurantName}`} onPress={() => onSelectOutlet(outlet, dish.id)}>
+              <View style={styles.dishThumb}><HomeImage source={dish.imageUrl} fallback={fallbackArt(dish.name)} alt={dish.name} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.listName} numberOfLines={1}>{dish.name}</Text>
+                <Text style={styles.metaText} numberOfLines={1}>₹{dish.finalPrice ?? dish.effectivePrice} • {outlet.restaurantName}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={home.muted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      {outlets.length > 0 && (
+        <View style={styles.block}>
+          <Text style={styles.blockTitle}>Restaurants</Text>
+          {outlets.map(outlet => <RestaurantListItem key={outlet.id} outlet={outlet} facts={facts} onPress={() => onSelectOutlet(outlet)} />)}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  pills: { flexDirection: 'row', marginHorizontal: G, padding: 4, borderRadius: 999, backgroundColor: home.pill },
+  pill: { flex: 1, minHeight: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  pillSelected: { backgroundColor: '#FFFFFF', boxShadow: '0px 1px 4px rgba(16, 25, 79, 0.16)' },
+  pillText: { color: '#4A4D55', fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  pillTextSelected: { color: home.accent },
+
+  dealRail: { paddingHorizontal: G, paddingTop: 14 },
+  dealPhoto: { borderRadius: home.radius, overflow: 'hidden', backgroundColor: '#F6EFE6' },
+  dimmed: { opacity: 0.55 },
+  dealShade: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 9, paddingTop: 34, paddingBottom: 8, backgroundImage: photoShade },
+  dealOffer: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  dealOfferSub: { color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  heart: { position: 'absolute', top: 6, right: 6, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.22)' },
+  listHeart: { top: 16, left: home.gutter + 116 - 36, right: undefined },
+  dealName: { color: home.ink, fontSize: 14, fontWeight: '800', marginTop: 7, letterSpacing: -0.2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  etaBadge: { width: 15, height: 15, borderRadius: 8, backgroundColor: home.veg, alignItems: 'center', justifyContent: 'center' },
+  closedBadgeDot: { backgroundColor: '#9A9CA3' },
+  metaText: { color: '#3E4152', fontSize: 12, fontWeight: '600' },
+  dealCuisine: { color: home.muted, fontSize: 12, marginTop: 1 },
+  railEmpty: { color: home.muted, fontSize: 13, marginHorizontal: G, marginTop: 16 },
+
+  listItem: { flexDirection: 'row', gap: 14, paddingHorizontal: G, paddingVertical: 10 },
+  listPhoto: { width: 116, height: 132, borderRadius: home.radius, overflow: 'hidden', backgroundColor: '#F6EFE6' },
+  listOffer: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  listBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 1 },
+  listName: { color: home.ink, fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
+  listOutlet: { color: home.muted, fontSize: 12, marginTop: 1 },
 
   block: { marginTop: 22 },
-  blockTitle: { color: home.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginHorizontal: home.gutter, marginBottom: 12 },
-  strip: { paddingHorizontal: home.gutter, gap: 12 },
+  blockTitle: { color: home.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.3, marginHorizontal: G, marginBottom: 12 },
+  strip: { paddingHorizontal: G, gap: 12 },
+  circleColumn: { gap: 12 },
+  circleItem: { width: 78, alignItems: 'center', gap: 5 },
+  circlePhoto: { width: 74, height: 74, borderRadius: 37, overflow: 'hidden' },
+  circleLabel: { color: '#3E4152', fontSize: 12, fontWeight: '600' },
 
-  tile: { width: 112, height: 132, borderRadius: 16, backgroundColor: home.tileBg, padding: 10, overflow: 'hidden' },
-  tileTitle: { color: home.ink, fontSize: 14, lineHeight: 17, fontWeight: '900', letterSpacing: -0.3 },
-  tileSubtitle: { color: home.muted, fontSize: 11, fontWeight: '700', marginTop: 2 },
-  tilePhoto: { position: 'absolute', right: -8, bottom: -8, width: 72, height: 72, borderRadius: 36, overflow: 'hidden' },
-
-  toggle: { flexDirection: 'row', marginHorizontal: home.gutter, marginBottom: 14, padding: 4, borderRadius: 999, backgroundColor: home.chip, alignSelf: 'flex-start' },
-  toggleItem: { paddingHorizontal: 16, minHeight: 36, borderRadius: 999, justifyContent: 'center' },
-  toggleItemActive: { backgroundColor: home.sheet, boxShadow: '0px 1px 4px rgba(0,0,0,0.12)' },
-  toggleText: { color: home.muted, fontSize: 13, fontWeight: '700' },
-  toggleTextActive: { color: home.accent },
-  railEmpty: { color: home.muted, fontSize: 13, marginHorizontal: home.gutter },
-  railPhoto: { borderRadius: home.radius, overflow: 'hidden', backgroundColor: home.chip },
-  railShade: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 10, paddingTop: 36, paddingBottom: 8, backgroundImage: photoShade },
-  railOffer: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
-  railOfferSub: { color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
-  closedBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: home.sheet, color: home.ink, fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
-  railName: { color: home.ink, fontSize: 15, fontWeight: '800', marginTop: 8, letterSpacing: -0.3 },
-  railMeta: { color: home.muted, fontSize: 12, marginTop: 2 },
-
-  circleColumn: { gap: 14 },
-  circleItem: { width: 80, alignItems: 'center', gap: 6 },
-  circlePhoto: { width: 76, height: 76, borderRadius: 38, overflow: 'hidden' },
-  circleLabel: { color: '#3D4152', fontSize: 13, fontWeight: '600' },
+  searchState: { alignItems: 'center', gap: 8, paddingVertical: 32, paddingHorizontal: G },
+  searchEmptyTitle: { color: home.ink, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  retry: { backgroundColor: home.accent, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  retryText: { color: '#FFFFFF', fontWeight: '800' },
+  dishRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: G, paddingVertical: 8 },
+  dishThumb: { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', backgroundColor: home.pill },
 });

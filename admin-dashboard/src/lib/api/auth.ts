@@ -17,9 +17,11 @@ export const authApi = {
     return res.data;
   },
 
+  /** GET /auth/me returns the profile itself; older builds wrapped it as { user }. */
   getMe: async (): Promise<{ user: UserProfile }> => {
-    const res = await apiClient.get<{ user: UserProfile }>('/auth/me');
-    return res.data;
+    const res = await apiClient.get<UserProfile | { user: UserProfile }>('/auth/me');
+    const data = res.data;
+    return data && 'user' in data ? data : { user: data as UserProfile };
   },
 
   logout: async (): Promise<{ message: string }> => {

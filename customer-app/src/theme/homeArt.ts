@@ -3,7 +3,6 @@
  * Admin content refers to them as `asset:<key>`; they are also the fallback whenever an
  * uploaded photo is missing or fails to load. Keep keys in sync with backend/src/restaurants/home-art.ts.
  */
-/* eslint-disable @typescript-eslint/no-require-imports */
 export const HOME_ART = {
   'beverages': require('../../assets/home/beverages.webp'),
   'biryani': require('../../assets/home/biryani.webp'),

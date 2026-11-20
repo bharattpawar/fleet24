@@ -7,6 +7,7 @@ export interface FeedDish {
   id: string;
   name: string;
   imageUrl: string | null;
+  isVeg?: boolean;
   effectivePrice: string;
   finalPrice?: string;
 }
@@ -22,15 +23,34 @@ export interface FeedTarget {
   title?: string;
   subtitle?: string;
   image?: string;
+  alt?: string;
   /** Category name, for category tiles. */
   name?: string;
   cards?: FeedCard[];
 }
 
+export type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile';
+
+export interface FeedShortcut {
+  title: string;
+  image: string;
+  alt?: string;
+  badge?: string;
+  action: ShortcutAction;
+}
+
+export interface VegFacts {
+  hasVeg: boolean;
+  pureVeg: boolean;
+}
+
 export interface FeedSection {
-  kind: 'banner' | 'tiles' | 'category' | 'row' | 'rail' | 'search_hints';
+  kind: 'banner' | 'tiles' | 'category' | 'row' | 'rail' | 'search_hints' | 'shortcuts';
   title: string;
   image?: string;
+  imageLeft?: string;
+  imageAlt?: string;
+  shortcuts?: FeedShortcut[];
   cta?: string;
   eyebrow?: string;
   subtitle?: string;
@@ -89,4 +109,29 @@ export function targetAction(target: FeedTarget | undefined, cards: FeedCard[], 
     return { type: 'outlets', outletIds: [...new Set(cards.map(card => card.outlet.id))], label: target.name ?? label };
   }
   return { type: 'outlet', outlet: cards[0].outlet, dishId: cards[0].dish?.id };
+}
+
+/** Shown until admin publishes a shortcut row: only destinations the app really has. */
+export const DEFAULT_SHORTCUTS: FeedShortcut[] = [
+  { title: 'FOOD', image: 'asset:shortcut-food', action: 'food', alt: 'Burger' },
+  { title: 'OFFERS', image: 'asset:shortcut-offers', action: 'offers', alt: 'Discount tag' },
+  { title: 'FAST', image: 'asset:shortcut-fast', action: 'fast', alt: 'Lightning bolt' },
+  { title: 'REORDER', image: 'asset:shortcut-orders', action: 'orders', alt: 'Shopping bag' },
+];
+
+/** Shown until admin publishes a restaurant toggle. */
+export const DEFAULT_RAIL_TABS: { label: string; filter: RailFilter }[] = [
+  { label: 'OFFERS FOR YOU', filter: 'offers' },
+  { label: 'FASTEST DELIVERY', filter: 'fast' },
+];
+
+/** Restaurants allowed in veg mode: those that can sell at least one veg dish. */
+export function vegOutlets(outlets: OutletSummary[], vegByOutlet: Record<string, VegFacts>): OutletSummary[] {
+  return outlets.filter(outlet => vegByOutlet[outlet.id]?.hasVeg);
+}
+
+/** One short cuisine line for a card: declared cuisines, else menu categories. */
+export function cuisineLine(outletId: string, cuisinesByOutlet: Record<string, string[]>, categoriesByOutlet: Record<string, string[]>): string {
+  const list = cuisinesByOutlet[outletId]?.length ? cuisinesByOutlet[outletId] : categoriesByOutlet[outletId] ?? [];
+  return [...new Set(list)].slice(0, 3).join(', ');
 }
