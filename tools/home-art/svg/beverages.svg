@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#2b1a0e" flood-opacity="0.28"/>
+  </filter>
+  <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+    <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#3a2410" flood-opacity="0.25"/>
+  </filter>
+  <radialGradient id="plate" cx="50%" cy="42%" r="60%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="78%" stop-color="#f4f1ec"/><stop offset="100%" stop-color="#ddd6cc"/>
+  </radialGradient>
+  <radialGradient id="steel" cx="45%" cy="38%" r="65%">
+    <stop offset="0%" stop-color="#f6f7f9"/><stop offset="60%" stop-color="#c9ced6"/><stop offset="100%" stop-color="#8f97a3"/>
+  </radialGradient>
+  <radialGradient id="bowlIn" cx="50%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#3b2a20"/><stop offset="100%" stop-color="#1e140e"/>
+  </radialGradient>
+  <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+</defs>
+<ellipse cx="256" cy="452" rx="130" ry="22" fill="#2b1a0e" opacity="0.2"/><g filter="url(#shadow)"><path d="M150,110 L362,110 L338,440 Q336,456 320,456 L192,456 Q176,456 174,440 Z" fill="#fdfbf7" opacity="0.35"/></g><path d="M160,170 L352,170 L338,438 Q336,450 322,450 L190,450 Q176,450 174,438 Z" fill="#a8622a"/><path d="M160,170 L352,170 L346,250 L166,250 Z" fill="#f4e3c8"/><rect x="210" y="290" width="42" height="40" rx="8" fill="#ffffff" opacity="0.45" transform="rotate(15 210 290)"/><rect x="290" y="320" width="42" height="40" rx="8" fill="#ffffff" opacity="0.45" transform="rotate(15 290 320)"/><rect x="240" y="360" width="42" height="40" rx="8" fill="#ffffff" opacity="0.45" transform="rotate(15 240 360)"/><path d="M150,110 L362,110 L338,440 Q336,456 320,456 L192,456 Q176,456 174,440 Z" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="5"/><rect x="290" y="40" width="18" height="230" rx="9" fill="#2f9e57" transform="rotate(12 300 150)"/><path d="M180,130 L190,420" stroke="#ffffff" stroke-width="10" stroke-opacity="0.5" stroke-linecap="round"/><circle cx="230" cy="200" r="10" fill="#7a4220"/><circle cx="270" cy="210" r="8" fill="#7a4220"/></svg>

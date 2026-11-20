@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#2b1a0e" flood-opacity="0.28"/>
+  </filter>
+  <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+    <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#3a2410" flood-opacity="0.25"/>
+  </filter>
+  <radialGradient id="plate" cx="50%" cy="42%" r="60%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="78%" stop-color="#f4f1ec"/><stop offset="100%" stop-color="#ddd6cc"/>
+  </radialGradient>
+  <radialGradient id="steel" cx="45%" cy="38%" r="65%">
+    <stop offset="0%" stop-color="#f6f7f9"/><stop offset="60%" stop-color="#c9ced6"/><stop offset="100%" stop-color="#8f97a3"/>
+  </radialGradient>
+  <radialGradient id="bowlIn" cx="50%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#3b2a20"/><stop offset="100%" stop-color="#1e140e"/>
+  </radialGradient>
+  <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+</defs>
+<ellipse cx="256" cy="420" rx="190" ry="34" fill="#2b1a0e" opacity="0.18"/><g transform="rotate(-20 190 270)" filter="url(#shadow)"><rect x="128" y="150" width="124" height="250" rx="60" fill="#e9b875"/><rect x="128" y="260" width="124" height="140" rx="20" fill="#f6efe3"/><path d="M128,300 l124,-20" stroke="#d9cbb5" stroke-width="3"/><ellipse cx="190" cy="170" rx="60" ry="40" fill="#f6d6a0"/><ellipse cx="190" cy="172" rx="48" ry="30" fill="#b9541d"/><circle cx="212" cy="185" r="8" fill="#fff2d6"/><circle cx="155" cy="158" r="8" fill="#fff2d6"/><circle cx="176" cy="153" r="8" fill="#e33b2f"/><circle cx="207" cy="169" r="8" fill="#7fbf45"/><circle cx="167" cy="174" r="9" fill="#fff2d6"/><circle cx="202" cy="176" r="6" fill="#8b3a12"/><circle cx="178" cy="156" r="9" fill="#fff2d6"/><circle cx="186" cy="156" r="7" fill="#fff2d6"/><circle cx="159" cy="154" r="10" fill="#fff2d6"/></g><g transform="rotate(16 320 270)" filter="url(#shadow)"><rect x="258" y="150" width="124" height="250" rx="60" fill="#e9b875"/><rect x="258" y="260" width="124" height="140" rx="20" fill="#f6efe3"/><path d="M258,300 l124,-20" stroke="#d9cbb5" stroke-width="3"/><ellipse cx="320" cy="170" rx="60" ry="40" fill="#f6d6a0"/><ellipse cx="320" cy="172" rx="48" ry="30" fill="#b9541d"/><circle cx="319" cy="185" r="7" fill="#7fbf45"/><circle cx="330" cy="162" r="8" fill="#fff2d6"/><circle cx="327" cy="156" r="10" fill="#e33b2f"/><circle cx="291" cy="179" r="7" fill="#e33b2f"/><circle cx="311" cy="161" r="8" fill="#7fbf45"/><circle cx="296" cy="159" r="9" fill="#fff2d6"/><circle cx="310" cy="173" r="7" fill="#8b3a12"/><circle cx="286" cy="169" r="9" fill="#8b3a12"/><circle cx="289" cy="170" r="9" fill="#7fbf45"/></g></svg>

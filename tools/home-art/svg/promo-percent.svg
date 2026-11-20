@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#2b1a0e" flood-opacity="0.28"/>
+  </filter>
+  <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+    <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#3a2410" flood-opacity="0.25"/>
+  </filter>
+  <radialGradient id="plate" cx="50%" cy="42%" r="60%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="78%" stop-color="#f4f1ec"/><stop offset="100%" stop-color="#ddd6cc"/>
+  </radialGradient>
+  <radialGradient id="steel" cx="45%" cy="38%" r="65%">
+    <stop offset="0%" stop-color="#f6f7f9"/><stop offset="60%" stop-color="#c9ced6"/><stop offset="100%" stop-color="#8f97a3"/>
+  </radialGradient>
+  <radialGradient id="bowlIn" cx="50%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#3b2a20"/><stop offset="100%" stop-color="#1e140e"/>
+  </radialGradient>
+  <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+</defs>
+<g filter="url(#shadow)"><path d="M256,40 L300,90 L366,80 L376,146 L436,176 L406,236 L436,296 L376,326 L366,392 L300,382 L256,432 L212,382 L146,392 L136,326 L76,296 L106,236 L76,176 L136,146 L146,80 L212,90 Z" fill="#2f6bff"/></g><circle cx="256" cy="236" r="130" fill="#4f86ff"/><circle cx="206" cy="186" r="36" fill="none" stroke="#ffffff" stroke-width="22"/><circle cx="306" cy="286" r="36" fill="none" stroke="#ffffff" stroke-width="22"/><path d="M316,160 L196,312" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/></svg>
