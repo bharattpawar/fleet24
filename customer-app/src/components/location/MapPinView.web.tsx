@@ -3,30 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { MovingPin } from './MovingPin';
 import type { MapPinViewProps } from './MapPinView';
 import { colors } from '../../theme/tokens';
-
-declare global {
-  interface Window {
-    google?: any;
-    __fleet24MapsPromise?: Promise<any>;
-  }
-}
-
-const BROWSER_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-function loadGoogleMaps(key: string): Promise<any> {
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  if (!window.__fleet24MapsPromise) {
-    window.__fleet24MapsPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly`;
-      script.async = true;
-      script.onload = () => (window.google?.maps ? resolve(window.google.maps) : reject(new Error('Maps failed to load')));
-      script.onerror = () => reject(new Error('Maps failed to load'));
-      document.head.appendChild(script);
-    });
-  }
-  return window.__fleet24MapsPromise;
-}
+import { GOOGLE_MAPS_BROWSER_KEY as BROWSER_KEY, loadGoogleMaps } from '../../utils/googleMapsWeb';
 
 /** Web map (Google Maps JavaScript API) with the same fixed centre pin as native. */
 export function MapPinView({ latitude, longitude, recenterKey, onMoveStart, onMoveEnd, style }: MapPinViewProps) {

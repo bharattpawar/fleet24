@@ -31,6 +31,13 @@ import {
 } from './dto/delivery-completion.dto';
 import { ServiceZonesService } from '../service-zones/service-zones.service';
 
+/** Numeric DB columns arrive as strings; returns null for missing or non-numeric values. */
+function toFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 @Injectable()
 export class RiderOffersService {
   private readonly logger = new Logger(RiderOffersService.name);
@@ -1428,6 +1435,8 @@ export class RiderOffersService {
         name: order.outlet.name,
         address: order.outlet.address,
         phone: order.outlet.phone,
+        latitude: toFiniteNumber(order.outlet.latitude),
+        longitude: toFiniteNumber(order.outlet.longitude),
       },
       rider: delivery?.rider
         ? {
