@@ -20,7 +20,7 @@ const groups = [
   ] },
   { label: 'Directory', items: [
     { path: '/customers', label: 'Customers', icon: Users },
-    { path: '/customer-home', label: 'Customer Home', icon: Store },
+    { path: '/customer-home', label: 'Home Screen', icon: Store },
     { path: '/restaurants', label: 'Restaurants', icon: Store },
     { path: '/outlets', label: 'Outlets', icon: MapPin },
     { path: '/riders', label: 'Delivery Fleet', icon: Bike },

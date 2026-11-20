@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restaurantsApi } from '@/lib/api/restaurants';
 import type { RestaurantOutlet } from '@/types/restaurants';
 import { Settings, AlertCircle } from 'lucide-react';
+import { ImageField } from '@/components/media/ImageField';
 
 interface OutletDeliverySettingsModalProps {
   isOpen: boolean;
@@ -172,10 +173,13 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 <input type="text" maxLength={30} placeholder="UPTO ₹100" value={offerSubtitle} onChange={(e) => setOfferSubtitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
               </label>
             </div>
-            <label className="text-[11px] font-semibold text-slate-600 block">Cover photo URL (falls back to logo)
-              <input type="url" placeholder="https://ik.imagekit.io/…" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
-            </label>
-            {coverImageUrl.trim() && <img src={coverImageUrl.trim()} alt="Cover preview" className="h-20 w-full rounded-lg object-cover" />}
+            <ImageField
+              label="Cover photo (falls back to the logo)"
+              optional
+              value={coverImageUrl}
+              onChange={setCoverImageUrl}
+              aspect={{ width: 4, height: 3, hint: '1200 × 900' }}
+            />
           </fieldset>
 
           <div className="flex items-center justify-end gap-3 pt-3">

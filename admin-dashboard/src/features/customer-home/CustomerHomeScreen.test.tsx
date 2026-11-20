@@ -16,6 +16,7 @@ describe('CustomerHomeScreen', () => {
   beforeEach(() => {
     api.get.mockReset().mockResolvedValue({ data: { draft: [], catalog } });
     api.put.mockReset().mockResolvedValue({ data: {} });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   it('builds search hints, offer tiles and a rail toggle and publishes them', async () => {
@@ -27,7 +28,8 @@ describe('CustomerHomeScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add offer tiles' }));
     fireEvent.change(screen.getAllByLabelText(/^Title/)[0], { target: { value: 'Offers for you' } });
     fireEvent.change(screen.getByLabelText(/Tile title/), { target: { value: 'Flat 50% OFF' } });
-    fireEvent.change(screen.getByLabelText(/Tile photo URL/), { target: { value: 'https://img.test/a.jpg' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Built-in illustration' }));
+    fireEvent.click(screen.getByRole('option', { name: /Lightning/ }));
     fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'o-1' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Add restaurant rail toggle' }));
@@ -37,9 +39,21 @@ describe('CustomerHomeScreen', () => {
     const [, body] = api.put.mock.calls[0];
     expect(body.publish).toBe(true);
     expect(body.sections[0]).toMatchObject({ kind: 'search_hints', hints: ['biryani'] });
-    expect(body.sections[1]).toMatchObject({ kind: 'tiles', title: 'Offers for you', targets: [{ type: 'outlet', id: 'o-1', title: 'Flat 50% OFF', image: 'https://img.test/a.jpg' }] });
+    expect(body.sections[1]).toMatchObject({ kind: 'tiles', title: 'Offers for you', targets: [{ type: 'outlet', id: 'o-1', title: 'Flat 50% OFF', image: 'asset:promo-bolt' }] });
     expect(body.sections[2].tabs.map((t: { filter: string }) => t.filter)).toEqual(['fast', 'offers']);
     expect(await screen.findByRole('status')).toHaveTextContent('published');
+  });
+
+  it('starter layout fills the draft with real destinations and built-in art', async () => {
+    render(<CustomerHomeScreen />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Load starter layout' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    const { sections } = api.put.mock.calls[0][1];
+    expect(sections.map((s: { kind: string }) => s.kind)).toEqual(['shortcuts', 'search_hints', 'banner', 'tiles', 'rail', 'category']);
+    expect(sections[2].targets).toEqual([{ type: 'category', id: 'cat-1' }]);
+    expect(sections[5]).toMatchObject({ title: 'Biryani', image: 'asset:biryani' });
+    expect(sections[0].shortcuts[0]).toMatchObject({ action: 'food', image: 'asset:shortcut-food' });
   });
 
   it('shows the server validation message', async () => {

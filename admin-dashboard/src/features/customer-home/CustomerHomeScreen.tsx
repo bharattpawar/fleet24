@@ -1,26 +1,35 @@
 import { useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { apiClient } from '@/lib/api/client';
+import { imageRefUrl } from '@/lib/api/media';
+import { ImageField } from '@/components/media/ImageField';
+import { starterLayout } from './starterLayout';
 
 type TargetType = 'category' | 'restaurant' | 'outlet' | 'dish';
-type Kind = 'search_hints' | 'banner' | 'tiles' | 'rail' | 'category' | 'row';
+type Kind = 'shortcuts' | 'search_hints' | 'banner' | 'tiles' | 'rail' | 'category' | 'row';
 type RailFilter = 'all' | 'offers' | 'fast';
-type Target = { type: TargetType; id: string; title?: string; subtitle?: string; image?: string };
+type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile';
+type Shortcut = { title: string; image: string; alt?: string; badge?: string; action: ShortcutAction };
+type Target = { type: TargetType; id: string; title?: string; subtitle?: string; image?: string; alt?: string };
 type Section = {
   kind: Kind;
   title: string;
   image?: string;
+  imageLeft?: string;
+  imageAlt?: string;
   cta?: string;
   eyebrow?: string;
   subtitle?: string;
   hidden?: boolean;
   tabs?: { label: string; filter: RailFilter }[];
   hints?: string[];
+  shortcuts?: Shortcut[];
   targets: Target[];
 };
 type Catalog = Record<TargetType, { id: string; name: string }[]>;
 
 const KIND_LABEL: Record<Kind, string> = {
+  shortcuts: 'Service shortcuts',
   search_hints: 'Search hints',
   banner: 'Hero banner',
   tiles: 'Offer tiles',
@@ -29,6 +38,7 @@ const KIND_LABEL: Record<Kind, string> = {
   row: 'Curated row',
 };
 const KIND_HELP: Record<Kind, string> = {
+  shortcuts: 'Up to 6 picture cards under the location. Each opens a real part of the app; the first one is shown as selected.',
   search_hints: 'Rotating texts in the search bar, e.g. “biryani”. One per Home.',
   banner: 'Big campaign card at the top: small line, headline, offer line, photo and button.',
   tiles: 'Row of small offer cards. Each tile has its own photo, title and sub-line.',
@@ -36,6 +46,15 @@ const KIND_HELP: Record<Kind, string> = {
   category: 'One round cuisine photo. Tapping it filters Home by that menu category.',
   row: 'Hand-picked outlets or dishes in a horizontal row.',
 };
+const SHORTCUT_ACTIONS: { value: ShortcutAction; label: string }[] = [
+  { value: 'food', label: 'Food home (top of page)' },
+  { value: 'offers', label: 'Restaurants with offers' },
+  { value: 'fast', label: 'Fastest delivery' },
+  { value: 'veg', label: 'Veg mode' },
+  { value: 'favourites', label: 'My favourites' },
+  { value: 'orders', label: 'Orders / reorder' },
+  { value: 'profile', label: 'Profile' },
+];
 const RAIL_FILTERS: { value: RailFilter; label: string }[] = [
   { value: 'all', label: 'All nearby' },
   { value: 'offers', label: 'With offers' },
@@ -44,9 +63,10 @@ const RAIL_FILTERS: { value: RailFilter; label: string }[] = [
 
 function blankSection(kind: Kind): Section {
   switch (kind) {
+    case 'shortcuts': return { kind, title: 'Services', shortcuts: [{ title: 'FOOD', image: 'asset:shortcut-food', action: 'food' }], targets: [] };
     case 'search_hints': return { kind, title: 'Search hints', hints: [''], targets: [] };
     case 'rail': return { kind, title: '', tabs: [{ label: 'Near & Fast', filter: 'fast' }, { label: 'Offers', filter: 'offers' }], targets: [] };
-    case 'tiles': return { kind, title: '', targets: [{ type: 'outlet', id: '', title: '', image: '' }] };
+    case 'tiles': return { kind, title: '', targets: [{ type: 'outlet', id: '', title: '', image: 'asset:promo-percent' }] };
     case 'category': return { kind, title: '', targets: [{ type: 'category', id: '' }] };
     default: return { kind, title: '', targets: [{ type: 'outlet', id: '' }] };
   }
@@ -95,6 +115,14 @@ export function CustomerHomeScreen() {
 
   const name = (target: Target) => catalog?.[target.type].find(item => item.id === target.id)?.name ?? 'Choose a destination';
   const hasHints = sections.some(section => section.kind === 'search_hints');
+  const hasShortcuts = sections.some(section => section.kind === 'shortcuts');
+
+  function loadStarter() {
+    if (!catalog) return;
+    if (sections.length && !window.confirm('Replace the current draft with the starter layout? The live app is unchanged until you publish.')) return;
+    setSections(starterLayout(catalog) as Section[]);
+    setNotice('Starter layout loaded into the draft. Edit the offer texts, then Publish.');
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -110,13 +138,19 @@ export function CustomerHomeScreen() {
             <button className="admin-control" onClick={() => setPreview(!preview)}>{preview ? 'Edit draft' : 'Preview draft'}</button>
             <button className="admin-control" disabled={busy} onClick={() => void save(false)}>Save draft</button>
             <button className="admin-primary" disabled={busy} onClick={() => void save(true)}>Publish</button>
+            <button className="admin-control" disabled={busy} onClick={loadStarter}>Load starter layout</button>
           </div>
           {preview ? (
             <div className="space-y-4">
               <p className="text-sm">Draft preview. Delivery location and live availability decide which cards each customer sees.</p>
               {sections.filter(section => !section.hidden).map((section, i) => (
                 <article key={i} className="admin-panel overflow-hidden">
-                  {section.image && <img className="h-32 w-full object-cover" src={section.image} alt="" />}
+                  {(section.image || section.imageLeft) && (
+                    <div className="flex h-32 gap-1 bg-slate-900">
+                      {section.imageLeft && <img className="h-full flex-1 object-contain" src={imageRefUrl(section.imageLeft) ?? ''} alt="" />}
+                      {section.image && <img className="h-full flex-1 object-contain" src={imageRefUrl(section.image) ?? ''} alt={section.imageAlt ?? ''} />}
+                    </div>
+                  )}
                   <div className="space-y-1 p-4">
                     <p className="text-xs uppercase">{KIND_LABEL[section.kind]}{section.eyebrow ? ` · ${section.eyebrow}` : ''}</p>
                     <h2 className="font-semibold">{section.title}</h2>
@@ -124,11 +158,20 @@ export function CustomerHomeScreen() {
                     {section.cta && <p className="font-medium">{section.cta} →</p>}
                     {section.hints && <p className="text-sm">{section.hints.map(hint => `Search for “${hint}”`).join(' · ')}</p>}
                     {section.tabs && <p className="text-sm">{section.tabs.map(tab => tab.label).join(' | ')}</p>}
+                    {section.shortcuts && (
+                      <div className="flex gap-2">
+                        {section.shortcuts.map((item, j) => (
+                          <div key={j} className={`w-20 rounded-lg p-1 text-center text-xs font-bold ${j === 0 ? 'bg-white text-slate-900 ring-1 ring-slate-300' : 'bg-slate-900 text-white'}`}>
+                            <img className="mx-auto h-10 w-10 object-contain" src={imageRefUrl(item.image) ?? ''} alt={item.alt ?? ''} />{item.title}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {section.kind === 'tiles' ? (
                       <div className="flex gap-2 overflow-x-auto">
                         {section.targets.map((tile, j) => (
                           <div key={j} className="w-32 shrink-0 rounded border">
-                            {tile.image && <img className="h-20 w-full object-cover" src={tile.image} alt="" />}
+                            {tile.image && <img className="h-20 w-full object-contain" src={imageRefUrl(tile.image) ?? ''} alt={tile.alt ?? ''} />}
                             <p className="px-2 text-sm font-semibold">{tile.title}</p>
                             <p className="px-2 pb-2 text-xs">{tile.subtitle}</p>
                           </div>
@@ -146,7 +189,7 @@ export function CustomerHomeScreen() {
                   <button
                     key={kind}
                     className="admin-control"
-                    disabled={kind === 'search_hints' && hasHints}
+                    disabled={(kind === 'search_hints' && hasHints) || (kind === 'shortcuts' && hasShortcuts)}
                     onClick={() => setSections([...sections, blankSection(kind)])}
                   >Add {KIND_LABEL[kind].toLowerCase()}</button>
                 ))}
@@ -170,8 +213,50 @@ export function CustomerHomeScreen() {
                     <label className="block">Offer line (optional) <input className={field} maxLength={80} placeholder="Flat ₹150 OFF on your favourites" value={section.subtitle ?? ''} onChange={e => update(i, { subtitle: e.target.value })} /></label>
                     <label className="block">Button label <input className={field} maxLength={40} placeholder="Order now" value={section.cta ?? ''} onChange={e => update(i, { cta: e.target.value })} /></label>
                   </>}
+                  {section.kind === 'banner' && (
+                    <ImageField label="Left food photo" optional value={section.imageLeft} onChange={ref => update(i, { imageLeft: ref })}
+                      aspect={{ width: 1, height: 1, hint: '800 × 800, transparent PNG/WebP' }} />
+                  )}
                   {(section.kind === 'banner' || section.kind === 'category') && (
-                    <label className="block">Photo URL <input type="url" className={field} value={section.image ?? ''} onChange={e => update(i, { image: e.target.value })} /></label>
+                    <ImageField
+                      label={section.kind === 'banner' ? 'Right food photo' : 'Round photo'}
+                      value={section.image}
+                      onChange={ref => update(i, { image: ref })}
+                      alt={section.imageAlt}
+                      onAltChange={text => update(i, { imageAlt: text })}
+                      aspect={{ width: 1, height: 1, hint: '800 × 800' }}
+                    />
+                  )}
+
+                  {section.kind === 'shortcuts' && (
+                    <div className="space-y-3">
+                      {(section.shortcuts ?? []).map((item, j) => {
+                        const change = (next: Partial<Shortcut>) => update(i, { shortcuts: section.shortcuts!.map((s, k) => k === j ? { ...s, ...next } : s) });
+                        return (
+                          <div key={j} className="space-y-2 rounded border p-3">
+                            <strong className="block text-sm">Shortcut {j + 1}{j === 0 ? ' (shown selected)' : ''}</strong>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <label className="block text-sm">Label <input className={field} maxLength={14} value={item.title} onChange={e => change({ title: e.target.value })} /></label>
+                              <label className="block text-sm">Badge (optional) <input className={field} maxLength={12} placeholder="10 MINS" value={item.badge ?? ''} onChange={e => change({ badge: e.target.value })} /></label>
+                              <label className="block text-sm">Opens
+                                <select className={field} value={item.action} onChange={e => change({ action: e.target.value as ShortcutAction })}>
+                                  {SHORTCUT_ACTIONS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                                </select>
+                              </label>
+                            </div>
+                            <ImageField label="Picture" value={item.image} onChange={ref => change({ image: ref })} alt={item.alt} onAltChange={text => change({ alt: text })}
+                              aspect={{ width: 1, height: 1, hint: '256 × 256, transparent PNG/WebP' }} />
+                            <div className="flex gap-2">
+                              <button className="admin-control" disabled={!j} onClick={() => update(i, { shortcuts: move(section.shortcuts!, j, -1) })}>Left</button>
+                              <button className="admin-control" disabled={j === section.shortcuts!.length - 1} onClick={() => update(i, { shortcuts: move(section.shortcuts!, j, 1) })}>Right</button>
+                              <button className="admin-control" disabled={section.shortcuts!.length === 1} onClick={() => update(i, { shortcuts: section.shortcuts!.filter((_, k) => k !== j) })}>Remove</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <button className="admin-control" disabled={(section.shortcuts ?? []).length >= 6}
+                        onClick={() => update(i, { shortcuts: [...(section.shortcuts ?? []), { title: '', image: 'asset:shortcut-offers', action: 'offers' }] })}>Add shortcut</button>
+                    </div>
                   )}
 
                   {section.kind === 'search_hints' && (
@@ -214,7 +299,8 @@ export function CustomerHomeScreen() {
                           <strong className="block text-sm">Tile {j + 1}</strong>
                           <label className="block">Tile title <input className={field} maxLength={40} placeholder="Flat 50% OFF" value={target.title ?? ''} onChange={e => change({ title: e.target.value })} /></label>
                           <label className="block">Tile sub-line (optional) <input className={field} maxLength={40} placeholder="On top biryanis" value={target.subtitle ?? ''} onChange={e => change({ subtitle: e.target.value })} /></label>
-                          <label className="block">Tile photo URL <input type="url" className={field} value={target.image ?? ''} onChange={e => change({ image: e.target.value })} /></label>
+                          <ImageField label="Tile picture" value={target.image} onChange={ref => change({ image: ref })} alt={target.alt} onAltChange={text => change({ alt: text })}
+                            aspect={{ width: 1, height: 1, hint: '400 × 400, transparent PNG/WebP' }} />
                         </>}
                         <div className="flex flex-wrap gap-2">
                           <select aria-label="Destination type" className="admin-control" value={target.type} onChange={e => change({ type: e.target.value as TargetType, id: '' })}>
@@ -234,7 +320,7 @@ export function CustomerHomeScreen() {
                           <button
                             className="admin-control"
                             disabled={section.targets.length >= max}
-                            onClick={() => update(i, { targets: [...section.targets, section.kind === 'tiles' ? { type: 'outlet', id: '', title: '', image: '' } : { type: 'outlet', id: '' }] })}
+                            onClick={() => update(i, { targets: [...section.targets, section.kind === 'tiles' ? { type: 'outlet', id: '', title: '', image: 'asset:promo-percent' } : { type: 'outlet', id: '' }] })}
                           >{section.kind === 'tiles' ? 'Add tile' : 'Add card'}</button>
                         )}
                       </div>
