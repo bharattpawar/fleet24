@@ -24,6 +24,9 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
   const [latitude, setLatitude] = useState(outlet.latitude);
   const [longitude, setLongitude] = useState(outlet.longitude);
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState(outlet.deliveryRadiusKm || '5.0');
+  const [offerTitle, setOfferTitle] = useState(outlet.offerTitle ?? '');
+  const [offerSubtitle, setOfferSubtitle] = useState(outlet.offerSubtitle ?? '');
+  const [coverImageUrl, setCoverImageUrl] = useState(outlet.coverImageUrl ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
@@ -35,6 +38,9 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
         deliveryRadiusKm: parseFloat(deliveryRadiusKm),
+        offerTitle: offerTitle.trim(),
+        offerSubtitle: offerSubtitle.trim(),
+        coverImageUrl: coverImageUrl.trim(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'restaurant', restaurantId] });
@@ -50,7 +56,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-60">
-      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
         <div className="flex items-center gap-2 text-[#205641]">
           <Settings className="w-5 h-5" />
           <h3 className="text-sm font-bold text-[#171A21]">Outlet & Delivery Configuration</h3>
@@ -154,6 +160,23 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               />
             </div>
           </div>
+
+          <fieldset className="space-y-2 rounded-xl border border-[#205641]/30 p-3">
+            <legend className="px-1 text-[11px] font-bold text-[#205641]">Home offer (customer app card)</legend>
+            <p className="text-[11px] text-slate-600">Shown over the food photo on Home. Leave blank for no offer; the Offers tab only lists outlets with a discount line.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-[11px] font-semibold text-slate-600 block">Discount line
+                <input type="text" maxLength={30} placeholder="50% OFF" value={offerTitle} onChange={(e) => setOfferTitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-600 block">Sub-line
+                <input type="text" maxLength={30} placeholder="UPTO ₹100" value={offerSubtitle} onChange={(e) => setOfferSubtitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
+              </label>
+            </div>
+            <label className="text-[11px] font-semibold text-slate-600 block">Cover photo URL (falls back to logo)
+              <input type="url" placeholder="https://ik.imagekit.io/…" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
+            </label>
+            {coverImageUrl.trim() && <img src={coverImageUrl.trim()} alt="Cover preview" className="h-20 w-full rounded-lg object-cover" />}
+          </fieldset>
 
           <div className="flex items-center justify-end gap-3 pt-3">
             <button

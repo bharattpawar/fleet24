@@ -57,6 +57,12 @@ export interface RestaurantOutlet {
   deliveryRadiusKm: string;
   isAcceptingOrders: boolean;
   isActive: boolean;
+  /** Discount text shown on the customer Home card, e.g. "50% OFF". */
+  offerTitle?: string | null;
+  /** Sub-line under the discount, e.g. "UPTO ₹100". */
+  offerSubtitle?: string | null;
+  /** Food photo for the customer Home card (falls back to the logo). */
+  coverImageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +157,10 @@ export interface CreateOutletPayload {
 }
 
 export interface UpdateOutletPayload {
+  /** Empty string clears the field. */
+  offerTitle?: string;
+  offerSubtitle?: string;
+  coverImageUrl?: string;
   name?: string;
   phone?: string;
   address?: string;
