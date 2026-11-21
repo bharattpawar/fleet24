@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
   Logger,
   forwardRef,
 } from '@nestjs/common';
@@ -237,7 +238,14 @@ export class RestaurantOrdersService {
     dto: UpdateRestaurantOrderStatusDto,
   ) {
     const result = await this.db.transaction(async (tx) => {
-      // 1. Fetch current order with row check
+      // 1. Lock the order row first: a customer cancel, admin cancel or a second kitchen device may be
+      //    changing it right now, and the decision below must be made on the latest committed status.
+      await tx
+        .select({ id: schema.orders.id })
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId))
+        .for('update');
+
       const order = await tx.query.orders.findFirst({
         where: eq(schema.orders.id, orderId),
         with: {
@@ -287,8 +295,12 @@ export class RestaurantOrdersService {
           status: dto.status,
           updatedAt: new Date(),
         })
-        .where(eq(schema.orders.id, orderId))
+        .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, order.status)))
         .returning();
+
+      if (!updatedOrder) {
+        throw new ConflictException('This order was just updated by someone else. Refresh and try again.');
+      }
 
       // 7. Insert status audit trail entry
       await tx.insert(schema.orderStatusHistory).values({

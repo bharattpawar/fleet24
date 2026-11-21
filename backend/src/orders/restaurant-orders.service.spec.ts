@@ -19,7 +19,6 @@ describe('RestaurantOrdersService (Unit Tests)', () => {
 
   beforeEach(async () => {
     mockDb = {
-      select: jest.fn(),
       query: {
         restaurants: {
           findMany: jest.fn().mockResolvedValue([]),
@@ -44,6 +43,12 @@ describe('RestaurantOrdersService (Unit Tests)', () => {
       }),
       insert: jest.fn().mockReturnValue({
         values: jest.fn(),
+      }),
+      // Row lock taken before reading the order (SELECT ... FOR UPDATE).
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({ for: jest.fn().mockResolvedValue([{ id: 'locked' }]) }),
+        }),
       }),
       transaction: jest.fn(async (cb) => cb(mockDb)),
     };
