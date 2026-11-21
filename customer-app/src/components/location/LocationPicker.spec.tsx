@@ -69,15 +69,23 @@ const pressByLabel = (root: TestRenderer.ReactTestInstance, text: string) => {
 };
 
 describe('LocationPicker', () => {
+  const mounted: TestRenderer.ReactTestRenderer[] = [];
+  const mount = async (el: React.ReactElement) => {
+    let r!: TestRenderer.ReactTestRenderer;
+    await act(async () => { r = TestRenderer.create(el); });
+    mounted.push(r);
+    return r;
+  };
   beforeEach(() => jest.useFakeTimers({ doNotFake: ['setTimeout'] }));
-  afterEach(() => jest.useRealTimers());
+  // Unmount so pending geocode replies cannot update a finished test (they used to log after Jest finished).
+  afterEach(async () => {
+    await act(async () => { mounted.splice(0).forEach((r) => r.unmount()); });
+    jest.useRealTimers();
+  });
 
   it('search → pick place → confirm pin → details → saves real coordinates', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
-    let renderer!: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      renderer = TestRenderer.create(<LocationPicker onCancel={jest.fn()} onSubmit={onSubmit} />);
-    });
+    const renderer = await mount(<LocationPicker onCancel={jest.fn()} onSubmit={onSubmit} />);
     const root = renderer.root;
     expect(textOf(root)).toContain('Use my current location');
 
@@ -114,27 +122,51 @@ describe('LocationPicker', () => {
   });
 
   it('uses the phone GPS point and reverse-geocodes it', async () => {
-    let renderer!: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      renderer = TestRenderer.create(<LocationPicker onCancel={jest.fn()} onSubmit={jest.fn()} />);
-    });
+    const renderer = await mount(<LocationPicker onCancel={jest.fn()} onSubmit={jest.fn()} />);
     await pressByLabel(renderer.root, 'Use my current location');
     await flush();
     expect(geo.reverseGeocode).toHaveBeenCalledWith(28.4721, 77.4912);
     expect(textOf(renderer.root)).toContain('Alpha 2');
   });
 
-  it('opens an unconfirmed legacy address in search, not on the fake point', async () => {
-    let renderer!: TestRenderer.ReactTestRenderer;
+  it('a late geocode reply for an earlier pin does not replace a place picked from search', async () => {
+    const held: Array<(v: unknown) => void> = [];
+    const finishGps = (v: unknown) => held.splice(0).forEach((resolve) => resolve(v));
+    (geo.reverseGeocode as jest.Mock).mockImplementation(() => new Promise((resolve) => { held.push(resolve); }));
+    const renderer = await mount(<LocationPicker onCancel={jest.fn()} onSubmit={jest.fn()} />);
+    const root = renderer.root;
+
+    await pressByLabel(root, 'Use my current location'); // GPS pin is still resolving...
+    await flush();
+    await pressByLabel(root, 'Change');
+    await act(async () => { root.findByType('TextInput' as any).props.onChangeText('sharda'); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 350)); });
+    await flush();
+    await pressByLabel(root, 'Sharda University');
+    await flush();
+    expect(textOf(root)).toContain('Knowledge Park III');
+
     await act(async () => {
-      renderer = TestRenderer.create(
-        <LocationPicker
-          initial={{ addressLine1: 'Room 14', latitude: '28.4855000', longitude: '77.5135000', needsLocationConfirmation: true }}
-          onCancel={jest.fn()}
-          onSubmit={jest.fn()}
-        />,
-      );
+      finishGps({ latitude: 28.4721, longitude: 77.4912, formattedAddress: 'Alpha 2, Greater Noida 201310', area: 'Alpha 2', city: 'Greater Noida', state: 'Uttar Pradesh', postalCode: '201310' });
     });
+    await flush();
+    expect(root.findByType('MapPinView' as any).props.latitude).toBeCloseTo(28.4731235);
+    expect(textOf(root)).toContain('Knowledge Park III');
+    expect(textOf(root)).not.toContain('Alpha 2');
+    (geo.reverseGeocode as jest.Mock).mockResolvedValue({
+      latitude: 28.4721, longitude: 77.4912, formattedAddress: 'Alpha 2, Greater Noida 201310',
+      area: 'Alpha 2', city: 'Greater Noida', state: 'Uttar Pradesh', postalCode: '201310',
+    });
+  });
+
+  it('opens an unconfirmed legacy address in search, not on the fake point', async () => {
+    const renderer = await mount(
+      <LocationPicker
+        initial={{ addressLine1: 'Room 14', latitude: '28.4855000', longitude: '77.5135000', needsLocationConfirmation: true }}
+        onCancel={jest.fn()}
+        onSubmit={jest.fn()}
+      />,
+    );
     expect(renderer.root.findAllByType('MapPinView' as any)).toHaveLength(0);
     expect(textOf(renderer.root)).toContain('Use my current location');
   });

@@ -150,6 +150,10 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
   }, [step]);
 
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (moveTimer.current) clearTimeout(moveTimer.current);
+    resolveSeq.current++; // ignore replies that arrive after the picker closes
+  }, []);
   const handleMoveEnd = (latitude: number, longitude: number) => {
     if (center && Math.abs(center.latitude - latitude) < 1e-6 && Math.abs(center.longitude - longitude) < 1e-6 && resolved) {
       return;
@@ -163,9 +167,15 @@ export function LocationPicker({ initial, title, onCancel, onSubmit }: LocationP
     setCenter({ latitude, longitude });
     setRecenterKey((k) => k + 1);
     if (known) {
+      // Retire any pending drag/GPS lookup so its late reply cannot replace the place just picked.
+      if (moveTimer.current) clearTimeout(moveTimer.current);
+      const seq = ++resolveSeq.current;
+      setResolving(false);
       setResolved(known);
       setServiceable(null);
-      isServiceable(latitude, longitude).then(setServiceable).catch(() => setServiceable(null));
+      isServiceable(latitude, longitude)
+        .then((value) => seq === resolveSeq.current && setServiceable(value))
+        .catch(() => seq === resolveSeq.current && setServiceable(null));
     } else {
       setResolved(null);
       resolvePoint(latitude, longitude);
