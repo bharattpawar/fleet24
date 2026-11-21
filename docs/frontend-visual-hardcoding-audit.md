@@ -52,12 +52,14 @@ Customer paths in the table are relative to `customer-app/` unless otherwise sta
 
 ## Restaurant app
 
+- Update after the original audit: the restaurant app now also has a bundled, articulated 3D chef startup animation (`src/components/motion/CharacterScene.tsx`, `assets/illustrations/startup/`). Its character, kitchen scenery and intro styling are fixed source assets, not admin settings.
 - Menu photographs are DB/API `item.imageUrl` values. The owner can edit the image URL and see a preview in `src/screens/RestaurantMenuScreen.tsx` (the menu image and form preview both use React Native Image).
 - Screen/kitchen/card backgrounds, badges, status colours, icons, spacing and fonts are fixed in `src/theme/tokens.ts` and component styles. No configurable screen-background photograph was found in the runtime source.
 - Launcher/adaptive icons and favicon are fixed asset paths in `app.json`. Fonts are bundled in `App.tsx`.
 
 ## Rider app
 
+- Update after the original audit: the rider app now also has a bundled 3D scooter-courier startup animation (`src/components/motion/CharacterScene.tsx`, `assets/illustrations/startup/`). Its character, parallax city/road scenery and intro styling are fixed source assets, not admin settings.
 - The profile avatar uses the API `profileImageUrl` when present and a fixed icon fallback in `src/components/RiderHeader.tsx`.
 - **The rider map's background is a stylized code-drawn map canvas:** roads, grid, water and park are fixed View shapes in `src/components/RiderMap.tsx:111` and its style definitions. It is not a live Google basemap or a DB-selected map image. GPS state/coordinates come from runtime data; that does not make the background roads geographically real.
 - Radar/pin artwork, dashboard backgrounds, cards, status colours, fonts and icon names are fixed styles/tokens. No admin-controlled rider dashboard background image setting was found.

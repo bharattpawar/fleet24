@@ -12,6 +12,7 @@ import { RiderLoginScreen } from './src/screens/RiderLoginScreen';
 import { RiderRegistrationScreen } from './src/screens/RiderRegistrationScreen';
 import { RiderApplicationStatusScreen } from './src/screens/RiderApplicationStatusScreen';
 import { riderGate, type RiderVehicleType } from './src/utils/riderOnboarding';
+import { StartupSplash } from './src/components/motion/StartupSplash';
 
 type Tab = 'home' | 'earnings' | 'account';
 
@@ -148,17 +149,22 @@ const MainNavigator: React.FC = () => {
   );
 };
 
+function AppExperience({ fontsReady }: { fontsReady: boolean }) {
+  const { isLoading } = useRiderAuth();
+  return <View style={styles.container}><MainNavigator /><StartupSplash ready={fontsReady && !isLoading} /></View>;
+}
+
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
     InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
+    StartupRegular: require('./assets/fonts/DMSans-400.ttf'),
+    StartupBold: require('./assets/fonts/DMSans-800.ttf'),
   });
-
-  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <RiderAuthProvider>
-        <MainNavigator />
+        <AppExperience fontsReady={fontsLoaded || Boolean(fontError)} />
       </RiderAuthProvider>
     </SafeAreaProvider>
   );

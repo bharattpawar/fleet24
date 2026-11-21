@@ -21,6 +21,7 @@ import { RestaurantProfileScreen } from './src/screens/RestaurantProfileScreen';
 import { RestaurantRegistrationScreen } from './src/screens/RestaurantRegistrationScreen';
 import { RestaurantApplicationStatusScreen } from './src/screens/RestaurantApplicationStatusScreen';
 import { restaurantGate } from './src/utils/restaurantOnboarding';
+import { StartupSplash } from './src/components/motion/StartupSplash';
 
 type MainTab = 'orders' | 'menu' | 'outlets' | 'profile';
 
@@ -181,17 +182,22 @@ const MainNavigator: React.FC = () => {
   );
 };
 
+function AppExperience({ fontsReady }: { fontsReady: boolean }) {
+  const { isLoading } = useRestaurantAuth();
+  return <View style={styles.container}><MainNavigator /><StartupSplash ready={fontsReady && !isLoading} /></View>;
+}
+
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
     InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
+    StartupRegular: require('./assets/fonts/DMSans-400.ttf'),
+    StartupBold: require('./assets/fonts/DMSans-800.ttf'),
   });
-
-  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <RestaurantAuthProvider>
-        <MainNavigator />
+        <AppExperience fontsReady={fontsLoaded || Boolean(fontError)} />
       </RestaurantAuthProvider>
     </SafeAreaProvider>
   );
