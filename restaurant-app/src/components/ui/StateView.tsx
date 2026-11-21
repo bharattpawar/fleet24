@@ -29,7 +29,7 @@ export function StateView({ title, message, icon = 'file-tray-outline', tone = '
 }) {
   const t = TONES[tone];
   return (
-    <View style={[styles.root, compact && styles.rootCompact]} accessibilityRole={tone === 'error' ? 'alert' : undefined}>
+    <View style={compact ? styles.rootCompact : styles.root} accessibilityRole={tone === 'error' ? 'alert' : undefined}>
       <View style={[styles.card, compact && styles.cardCompact]}>
         <View style={[styles.icon, compact && styles.iconCompact, { backgroundColor: t.bg }]}>
           {loading ? <ActivityIndicator color={t.fg} /> : <Ionicons name={icon} size={compact ? 24 : 32} color={t.fg} />}
@@ -49,12 +49,13 @@ export function StateView({ title, message, icon = 'file-tray-outline', tone = '
 
 const styles = appStyles({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  rootCompact: { flex: 0, paddingVertical: 12 },
+  // No `flex` here: on web, flex: 0 gives a zero-height box and the card spills over its neighbours.
+  rootCompact: { width: '100%', alignItems: 'center', paddingVertical: 4 },
   card: {
     width: '100%', maxWidth: 440, padding: 24, borderRadius: 24, alignItems: 'center',
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, boxShadow: '0px 10px 32px rgba(25,59,44,0.06)',
   },
-  cardCompact: { padding: 18, borderRadius: 20, boxShadow: 'none' },
+  cardCompact: { maxWidth: '100%', padding: 18, borderRadius: 20, boxShadow: 'none' },
   icon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   iconCompact: { width: 52, height: 52, borderRadius: 18, marginBottom: 10 },
   title: { color: colors.textPrimary, fontSize: 20, lineHeight: 26, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' },
