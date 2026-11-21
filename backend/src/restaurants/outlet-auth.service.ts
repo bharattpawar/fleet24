@@ -72,6 +72,38 @@ export class OutletAuthorizationService {
   }
 
   /**
+   * Menu-level access (categories, dishes): admin, the restaurant's owner, or active staff at ANY outlet
+   * of this restaurant. Staff may work at outlets of several restaurants, so every assignment is checked.
+   */
+  async verifyRestaurantAccess(user: AuthenticatedUserPayload, restaurantId: string): Promise<void> {
+    if (user.roles?.includes('admin')) return;
+
+    const owned = await this.db.query.restaurants.findFirst({
+      where: and(eq(schema.restaurants.id, restaurantId), eq(schema.restaurants.ownerId, user.userId)),
+      columns: { id: true },
+    });
+    if (owned) return;
+
+    if (user.roles?.includes('restaurant_staff')) {
+      const [assignment] = await this.db
+        .select({ id: schema.restaurantStaff.id })
+        .from(schema.restaurantStaff)
+        .innerJoin(schema.restaurantOutlets, eq(schema.restaurantOutlets.id, schema.restaurantStaff.outletId))
+        .where(
+          and(
+            eq(schema.restaurantStaff.userId, user.userId),
+            eq(schema.restaurantStaff.isActive, true),
+            eq(schema.restaurantOutlets.restaurantId, restaurantId),
+          ),
+        )
+        .limit(1);
+      if (assignment) return;
+    }
+
+    throw new ForbiddenException('You are not authorized to manage the menu of this restaurant.');
+  }
+
+  /**
    * Verifies if user has authority to manage a restaurant (Admin only).
    */
   async verifyRestaurantAdminAccess(user: AuthenticatedUserPayload) {

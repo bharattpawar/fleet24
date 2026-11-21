@@ -94,22 +94,7 @@ export class MenusService {
       throw new NotFoundException(`Category with ID '${categoryId}' not found.`);
     }
 
-    // Admin can update, or staff if they belong to any outlet under this restaurant
-    if (!user.roles.includes('admin')) {
-      const staffOutlet = await this.db.query.restaurantStaff.findFirst({
-        where: and(
-          eq(schema.restaurantStaff.userId, user.userId),
-          eq(schema.restaurantStaff.isActive, true),
-        ),
-        with: {
-          outlet: true,
-        },
-      });
-
-      if (!staffOutlet || staffOutlet.outlet.restaurantId !== category.restaurantId) {
-        throw new BadRequestException('Unauthorized to modify category for this restaurant.');
-      }
-    }
+    await this.outletAuthService.verifyRestaurantAccess(user, category.restaurantId);
 
     const [updated] = await this.db
       .update(schema.menuCategories)
@@ -382,27 +367,19 @@ export class MenusService {
   ) {
     const item = await this.getMenuItemById(itemId);
 
-    // Verify ownership
-    if (!user.roles.includes('admin')) {
-      const isOwner = await this.db.query.restaurants.findFirst({
+    await this.outletAuthService.verifyRestaurantAccess(user, item.restaurantId);
+
+    // A dish can only move between categories of its own restaurant.
+    if (dto.categoryId && dto.categoryId !== item.categoryId) {
+      const target = await this.db.query.menuCategories.findFirst({
         where: and(
-          eq(schema.restaurants.id, item.restaurantId),
-          eq(schema.restaurants.ownerId, user.userId),
+          eq(schema.menuCategories.id, dto.categoryId),
+          eq(schema.menuCategories.restaurantId, item.restaurantId),
         ),
+        columns: { id: true },
       });
-
-      if (!isOwner) {
-        const staff = await this.db.query.restaurantStaff.findFirst({
-          where: and(
-            eq(schema.restaurantStaff.userId, user.userId),
-            eq(schema.restaurantStaff.isActive, true),
-          ),
-          with: { outlet: true },
-        });
-
-        if (!staff || staff.outlet.restaurantId !== item.restaurantId) {
-          throw new BadRequestException('Unauthorized to modify menu item for this restaurant.');
-        }
+      if (!target) {
+        throw new BadRequestException(`Category '${dto.categoryId}' does not belong to this restaurant.`);
       }
     }
 
@@ -466,8 +443,11 @@ export class MenusService {
     dto: OutletMenuItemOverrideDto,
     user: AuthenticatedUserPayload,
   ) {
-    await this.outletAuthService.verifyOutletAccess(user, outletId);
+    const outlet = await this.outletAuthService.verifyOutletAccess(user, outletId);
     const item = await this.getMenuItemById(itemId);
+    if (item.restaurantId !== outlet.restaurantId) {
+      throw new BadRequestException('This dish is not on the menu of this outlet.');
+    }
 
     // Upsert override
     const existing = await this.db.query.outletMenuItemOverrides.findFirst({
