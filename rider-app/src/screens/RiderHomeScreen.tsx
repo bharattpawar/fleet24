@@ -309,7 +309,10 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
               </TouchableOpacity>
               {!targetPhone && <Text style={styles.connectErrorText}>Add a phone number to connect to the live backend.</Text>}
               {connectionError ? (
-                <Text style={styles.connectErrorText}>⚠️ {connectionError}</Text>
+                <View style={styles.metaItem}>
+                  <Ionicons name="warning-outline" size={15} color={colors.error} />
+                  <Text accessibilityRole="alert" style={styles.connectErrorText}>{connectionError}</Text>
+                </View>
               ) : null}
             </View>
           </View>
