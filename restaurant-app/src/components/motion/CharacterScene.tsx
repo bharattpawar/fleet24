@@ -3,6 +3,7 @@ import { Animated, AppState, Easing, Image, StyleSheet, View } from 'react-nativ
 import metadata from '../../../assets/illustrations/startup/character-cycle.json';
 import { characterFrameTrack } from '../../utils/startupCycle';
 import { startupMotion } from './useStartupMotion';
+import { appStyles } from '../../theme/appStyles';
 
 const POSTER = require('../../../assets/illustrations/startup/character-poster.webp');
 const CYCLE = require('../../../assets/illustrations/startup/character-cycle.webp');
@@ -63,7 +64,7 @@ export function CharacterScene({ size, reduced }: { size: number; reduced: boole
   </View>;
 }
 
-const s = StyleSheet.create({
+const s = appStyles({
   halo: { position: 'absolute', backgroundColor: '#E5EECF' },
   orbit: { position: 'absolute', borderWidth: 1, borderColor: '#DFE9CE' },
   backdropClip: { position: 'absolute', overflow: 'hidden', opacity: 0.75, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },

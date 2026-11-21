@@ -1,22 +1,23 @@
 // Fleet24 Restaurant Design Tokens: "Warm Sage & Kitchen Operations UI"
+/** Palette shared with the customer app (customer-app/src/theme/tokens.ts); status colours are operational. */
 export const colors = {
   // Brand Backgrounds & Surfaces
-  background: '#F7F8F6',       // Warm Ivory / Cream base
+  background: '#F5F8F5',       // Soft green neutral (same as customer app)
   backgroundDark: '#121915',   // Deep Charcoal base
   surface: '#FFFFFF',          // Cards, sheets, modals
   surfaceElevated: '#FFFFFF',  // Floating bottom sheets & dialogs
-  surfaceMuted: '#F0F2EF',     // Muted dividers, subtle containers
-  surfaceGreen: '#EAF3EC',     // Soft Sage for highlights/badges
+  surfaceMuted: '#EEF3EF',     // Muted dividers, subtle containers
+  surfaceGreen: '#EAF2EC',     // Soft Sage for highlights/badges
   surfaceDark: '#193B2C',      // Deep Pine header & high-contrast cards
   surfaceDarkElevated: '#224B39',
   surfaceAmber: '#FFF9E6',     // Warning / Pending highlight
   surfaceWarning: '#FEF3C7',   // Alert banner
 
   // Primary Brand
-  primary: '#064B33',          // Forest Green (Primary action buttons)
+  primary: '#24533F',          // Forest Green (Primary action buttons)
   primaryDark: '#193B2C',      // Deep Pine
   primaryPressed: '#142E23',   // Deepest Pine for active press
-  primaryLight: '#E2EFDF',     // Soft Sage
+  primaryLight: '#EAF2EC',     // Soft Sage
   limeAccent: '#D9F078',       // Fleet24 Brand Lime accent
 
   // Accents & Indicators
@@ -57,9 +58,9 @@ export const colors = {
   nonVegRedLight: '#FEE2E2',
 
   // Typography (WCAG AA compliant contrast)
-  textPrimary: '#202622',      // Dark Forest Charcoal on Light surface (Contrast > 12:1)
-  textSecondary: '#4B5563',    // Slate Neutral Secondary (Contrast > 5.5:1)
-  textMuted: '#6B7280',        // Subtle / Disabled labels
+  textPrimary: '#17211B',      // Dark Forest Charcoal on Light surface (Contrast > 12:1)
+  textSecondary: '#5F6E66',    // Slate Neutral Secondary (Contrast > 5.5:1)
+  textMuted: '#7E8D85',        // Subtle / Disabled labels
   textWhite: '#FFFFFF',        // High contrast on dark surfaces
   textLime: '#D9F078',
   textAmber: '#92400E',
@@ -67,8 +68,8 @@ export const colors = {
   textRed: '#991B1B',
 
   // Dividers & Borders
-  border: '#E3E7E2',
-  borderLight: '#F3F4F6',
+  border: '#E0E9E2',
+  borderLight: '#EDF2EE',
   borderMedium: '#D1D5DB',
   borderDark: '#2C3A31',
 

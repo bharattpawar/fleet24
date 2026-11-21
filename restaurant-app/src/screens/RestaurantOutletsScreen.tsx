@@ -21,6 +21,7 @@ import { colors, spacing, borderRadius, minTouchTarget, shadows } from '../theme
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
 import { OperatingOutlet, OperatingHour } from '../types';
 import { restaurantApi } from '../api/restaurantApi';
+import { appStyles } from '../theme/appStyles';
 
 const DAYS_OF_WEEK = [
   'Sunday',
@@ -780,7 +781,7 @@ export const RestaurantOutletsScreen: React.FC<RestaurantOutletsScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

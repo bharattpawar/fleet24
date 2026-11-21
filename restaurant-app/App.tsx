@@ -22,6 +22,7 @@ import { RestaurantRegistrationScreen } from './src/screens/RestaurantRegistrati
 import { RestaurantApplicationStatusScreen } from './src/screens/RestaurantApplicationStatusScreen';
 import { restaurantGate } from './src/utils/restaurantOnboarding';
 import { StartupSplash } from './src/components/motion/StartupSplash';
+import { appStyles } from './src/theme/appStyles';
 
 type MainTab = 'orders' | 'menu' | 'outlets' | 'profile';
 
@@ -192,6 +193,10 @@ export default function App() {
     InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
     StartupRegular: require('./assets/fonts/DMSans-400.ttf'),
     StartupBold: require('./assets/fonts/DMSans-800.ttf'),
+    // Same typeface family as the customer app (see src/theme/appStyles.ts).
+    HomeRegular: require('./assets/fonts/DMSans-400.ttf'),
+    HomeMedium: require('./assets/fonts/DMSans-600.ttf'),
+    HomeBold: require('./assets/fonts/DMSans-800.ttf'),
   });
 
   return (
@@ -203,7 +208,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.surfaceDark,

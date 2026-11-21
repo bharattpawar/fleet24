@@ -22,6 +22,8 @@ import {
   RestaurantOrder,
   OrderOverviewStats,
 } from '../types';
+import { StateView } from '../components/ui/StateView';
+import { BOARD_COLUMNS, BOARD_MIN_WIDTH, groupForBoard, liveOrderCount } from '../utils/kitchenBoard';
 import { KitchenHeader } from '../components/KitchenHeader';
 import { KitchenOrderCard } from '../components/KitchenOrderCard';
 import {
@@ -30,6 +32,7 @@ import {
   OrderCreatedSocketPayload,
 } from '../api/restaurantSocket';
 import { Socket } from 'socket.io-client';
+import { appStyles } from '../theme/appStyles';
 
 type FilterTab = 'placed' | 'preparing' | 'ready_for_pickup' | 'history';
 
@@ -52,6 +55,8 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
 }) => {
   const { width } = useWindowDimensions();
   const isWide = width >= 1000;
+  // Kitchen display: New / Preparing / Ready side by side on large tablets and screens.
+  const isBoard = width >= BOARD_MIN_WIDTH;
 
   const { activeOutlet, permissions } = useRestaurantAuth();
   const [selectedTab, setSelectedTab] = useState<FilterTab>('placed');
@@ -351,6 +356,33 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
     { key: 'history', label: 'History' },
   ];
 
+  const boardMode = isBoard && selectedTab !== 'history';
+  const boardTone: Record<string, [string, string]> = {
+    placed: [colors.pending, colors.pendingLight],
+    preparing: [colors.preparing, colors.preparingLight],
+    ready_for_pickup: [colors.ready, colors.readyLight],
+  };
+  const boardOrders = groupForBoard(outletOrders);
+  const liveCount = liveOrderCount(outletOrders);
+  const shownTabs: typeof tabs = isBoard
+    ? [{ key: 'placed', label: 'Live board', count: liveCount, tone: colors.surfaceGreen }, tabs[3]]
+    : tabs;
+
+  const renderBoardOrder = (item: RestaurantOrder) => (
+    <KitchenOrderCard
+      order={item}
+      mode="accordion"
+      selected={selection?.outletId === outletId && selection?.orderId === item.id}
+      onPressDetails={() => setSelection({ outletId: item.outletId, orderId: selection?.orderId === item.id ? null : item.id })}
+      actionLoading={actionLoadingId === item.id}
+      actionsDisabled={Boolean(actionLoadingId)}
+      onAccept={permissions.canAcceptOrders ? () => handleUpdateStatus(item.id, 'confirmed') : undefined}
+      onReject={permissions.canAcceptOrders ? () => openRejectModal(item.id) : undefined}
+      onStartPreparing={permissions.canUpdateKitchenStatus ? () => handleUpdateStatus(item.id, 'preparing') : undefined}
+      onMarkReady={permissions.canUpdateKitchenStatus ? () => handleUpdateStatus(item.id, 'ready_for_pickup') : undefined}
+    />
+  );
+
   const renderOrder = (item: RestaurantOrder, detail = false) => (
     <KitchenOrderCard
       order={item}
@@ -371,12 +403,9 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
 
   return (
     <View style={styles.container}>
-      <KitchenHeader kitchen onOutletPress={onNavigateToOutlets} />
-
-      {/* Telemetry & Connection Diagnostic Bar */}
-      <View style={styles.telemetryBar}>
-        <View style={styles.telemetryInner}>
-          <View style={styles.telemetryLeft}>
+      <KitchenHeader kitchen onOutletPress={onNavigateToOutlets}>
+        <View style={styles.telemetryInner} accessibilityLabel={`Kitchen connection ${connectionStatus}`}>
+          <View style={styles.chip}>
             <View
               style={[
                 styles.connectionDot,
@@ -387,45 +416,38 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
                   : styles.dotOffline,
               ]}
             />
-            <Text style={styles.connectionText}>{connectionStatus}</Text>
+            <Text style={styles.chipText}>{connectionStatus}</Text>
             {lastSyncedAt && (
-              <Text style={styles.lastSyncedText}>
+              <Text style={styles.chipMuted}>
                 · {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             )}
           </View>
-
           <View style={styles.telemetryRight}>
             <TouchableOpacity
-              style={styles.syncBtn}
+              style={styles.chipButton}
               onPress={() => fetchOrdersAndOverview(false)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Sync kitchen orders"
             >
-              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-              <Text style={styles.syncText}>Sync</Text>
+              <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.chipText}>Sync</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={styles.soundToggle}
+              style={[styles.chipButton, !soundEnabled && styles.chipButtonOff]}
               onPress={() => setSoundEnabled((prev) => !prev)}
               activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={soundEnabled ? 'Mute alerts' : 'Enable alerts'}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: soundEnabled }}
+              accessibilityLabel="Sound alerts for new orders"
             >
-              <Ionicons
-                name={soundEnabled ? 'volume-high-outline' : 'volume-mute-outline'}
-                size={13}
-                color={soundEnabled ? colors.primary : colors.textMuted}
-              />
-              <Text style={[styles.soundText, { color: soundEnabled ? colors.primary : colors.textMuted }]}>
-                {soundEnabled ? 'Alerts ON' : 'Muted'}
-              </Text>
+              <Ionicons name={soundEnabled ? 'volume-high-outline' : 'volume-mute-outline'} size={16} color="#FFFFFF" />
+              {width >= 480 && <Text style={styles.chipText}>{soundEnabled ? 'Alerts on' : 'Muted'}</Text>}
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KitchenHeader>
 
       {/* New Order Banner */}
       {newOrderBanner && (
@@ -459,11 +481,11 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={tabs}
+          data={shownTabs}
           keyExtractor={(item) => item.key}
           contentContainerStyle={styles.tabsList}
           renderItem={({ item }) => {
-            const isSelected = selectedTab === item.key;
+            const isSelected = boardMode ? item.key !== 'history' : selectedTab === item.key;
             return (
               <TouchableOpacity
                 style={[styles.tabButton, isSelected && styles.tabButtonActive]}
@@ -478,8 +500,8 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
                 <Text style={[styles.tabLabel, isSelected && styles.tabLabelActive]}>
                   {item.label}
                 </Text>
-                {item.count !== undefined && item.count > 0 && (
-                  <View style={[styles.tabBadge, { backgroundColor: item.tone }]}>
+                {item.count !== undefined && (
+                  <View style={[styles.tabBadge, { backgroundColor: isSelected ? colors.limeAccent : item.tone }]}>
                     <Text style={[styles.tabBadgeText]}>
                       {item.count}
                     </Text>
@@ -497,52 +519,52 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
 
       {/* Main Body */}
       {!activeOutlet ? (
-        <View style={styles.centerContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="storefront-outline" size={38} color={colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>No Outlet Selected</Text>
-          <Text style={styles.emptySubtitle}>
-            Please select an authorized kitchen outlet to view its live incoming orders and terminal telemetry.
-          </Text>
-          {onNavigateToOutlets && (
-            <TouchableOpacity
-              style={styles.selectOutletActionBtn}
-              onPress={onNavigateToOutlets}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="storefront" size={16} color={colors.textWhite} />
-              <Text style={styles.selectOutletActionText}>Select Outlet</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <StateView
+          icon="storefront-outline"
+          title="Choose a kitchen"
+          message="Select the outlet you are running to see its live orders."
+          actionLabel={onNavigateToOutlets ? 'Select outlet' : undefined}
+          onAction={onNavigateToOutlets}
+        />
       ) : (loading || (loadedOutletId !== outletId && !fetchError)) ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Fetching kitchen orders for {activeOutlet.name}...</Text>
-        </View>
+        <StateView loading title="Loading orders" message={`Fetching live orders for ${activeOutlet.name}.`} />
       ) : fetchError ? (
-        <View style={styles.centerContainer}>
-          <View style={[styles.emptyIconCircle, { backgroundColor: colors.rejectedLight }]}>
-            <Ionicons name="alert-circle-outline" size={38} color={colors.rejected} />
-          </View>
-          <Text style={styles.emptyTitle}>Unable to Load Orders</Text>
-          <Text style={styles.emptySubtitle}>{fetchError}</Text>
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={() => fetchOrdersAndOverview(false)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="refresh" size={15} color={colors.primary} />
-            <Text style={styles.refreshButtonText}>Retry Sync</Text>
-          </TouchableOpacity>
-        </View>
+        <StateView
+          tone="error"
+          icon="cloud-offline-outline"
+          title="Couldn’t load orders"
+          message={fetchError}
+          actionLabel="Try again"
+          onAction={() => fetchOrdersAndOverview(false)}
+        />
+      ) : boardMode ? (
+        <ScrollView horizontal style={styles.boardScroll} contentContainerStyle={styles.board} showsHorizontalScrollIndicator={false}>
+          {BOARD_COLUMNS.map(column => {
+            const columnOrders = boardOrders[column.key];
+            const [tone, toneLight] = boardTone[column.key];
+            return (
+              <View key={column.key} style={styles.boardColumn} accessibilityLabel={`${column.label}, ${columnOrders.length} orders`}>
+                <View style={[styles.boardHeader, { borderTopColor: tone }]}>
+                  <Text style={styles.boardTitle}>{column.label}</Text>
+                  <View style={[styles.boardCount, { backgroundColor: toneLight }]}>
+                    <Text style={[styles.boardCountText, { color: tone }]}>{columnOrders.length}</Text>
+                  </View>
+                </View>
+                <FlatList
+                  data={columnOrders}
+                  keyExtractor={(item) => item.id}
+                  extraData={selection?.orderId}
+                  contentContainerStyle={styles.boardList}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+                  ListEmptyComponent={<StateView compact icon="checkmark-done-outline" title="Nothing here" message={column.empty} />}
+                  renderItem={({ item }) => renderBoardOrder(item)}
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
       ) : visibleOrders.length === 0 ? (
-        <View style={styles.emptyQueue}>
-          <Ionicons name="receipt-outline" size={24} color={colors.primary} />
-          <Text style={styles.emptyTitle}>Queue is empty</Text>
-          <Text style={styles.emptySubtitle}>{EMPTY_QUEUE[selectedTab]}</Text>
-        </View>
+        <StateView compact icon="receipt-outline" title={selectedTab === 'history' ? 'No past orders yet' : 'Queue is clear'} message={EMPTY_QUEUE[selectedTab]} />
       ) : (
         <View style={[styles.queueLayout, isWide && styles.queueLayoutWide]}>
           <FlatList
@@ -632,92 +654,25 @@ export const RestaurantOrdersScreen: React.FC<{ onNavigateToOutlets?: () => void
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   actionError: { color: colors.textRed, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   emptyQueue: { alignItems: 'center', padding: spacing.xl, gap: spacing.xs },
-  telemetryBar: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E5E3',
-  },
-  telemetryInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  telemetryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  telemetryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-  },
-  connectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-  dotConnected: {
-    backgroundColor: colors.primary,
-  },
-  dotReconnecting: {
-    backgroundColor: colors.pending,
-  },
-  dotOffline: {
-    backgroundColor: colors.rejected,
-  },
-  connectionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  lastSyncedText: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginLeft: 3,
-    fontVariant: ['tabular-nums'],
-  },
-  syncBtn: {
-    minHeight: 44,
-    minWidth: 54,
-    justifyContent: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: borderRadius.xs,
-    backgroundColor: colors.surfaceGreen,
-  },
-  syncText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  soundToggle: {
-    minHeight: 44,
-    minWidth: 54,
-    justifyContent: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  soundText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
+  // Live status chips inside the dark kitchen header
+  telemetryInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  telemetryRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chip: { flexShrink: 1, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  chipButton: { minHeight: 44, minWidth: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)' },
+  chipButtonOff: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  chipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  chipMuted: { color: '#B9CCC1', fontSize: 12, fontVariant: ['tabular-nums'] },
+  connectionDot: { width: 8, height: 8, borderRadius: 4 },
+  dotConnected: { backgroundColor: colors.limeAccent },
+  dotReconnecting: { backgroundColor: '#F5B84A' },
+  dotOffline: { backgroundColor: '#F87171' },
   alertBanner: {
     backgroundColor: colors.surfaceGreen,
     paddingHorizontal: spacing.md,
@@ -760,15 +715,26 @@ const styles = StyleSheet.create({
   alertDismissBtn: {
     padding: spacing.xs,
   },
-  tabBar: { marginHorizontal: 14, borderBottomWidth: 1, borderColor: '#E2E5E3' },
-  tabsList: { gap: 2 },
-  tabButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 4, borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  tabButtonActive: { borderBottomColor: colors.primary },
-  tabLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  tabLabelActive: { color: colors.primary, fontWeight: '800' },
-  tabBadge: { borderRadius: 12, minWidth: 18, alignItems: 'center', paddingHorizontal: 4 },
-  tabBadgeText: { color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
-  queueLayout: { flex: 1, paddingHorizontal: 14, paddingTop: 12 },
+  tabBar: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4, width: '100%', maxWidth: 1600, alignSelf: 'center' },
+  tabsList: { gap: 8 },
+  tabButton: {
+    minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 8, borderRadius: 999,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  tabButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tabLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  tabLabelActive: { color: '#FFFFFF' },
+  tabBadge: { borderRadius: 12, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  tabBadgeText: { color: colors.textPrimary, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  queueLayout: { flex: 1, paddingHorizontal: 14, paddingTop: 12, width: '100%', maxWidth: 1600, alignSelf: 'center' },
+  boardScroll: { flex: 1 },
+  board: { flexGrow: 1, gap: 14, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 16 },
+  boardColumn: { flex: 1, minWidth: 360, backgroundColor: colors.surfaceMuted, borderRadius: 22, overflow: 'hidden' },
+  boardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 4, backgroundColor: colors.surface },
+  boardTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
+  boardCount: { minWidth: 32, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  boardCountText: { fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  boardList: { padding: 10, gap: 10, flexGrow: 1 },
   queueLayoutWide: { flexDirection: 'row', gap: 14, paddingBottom: 16 },
   queuePanel: { flex: 2, borderWidth: 1, borderColor: '#E2E5E3', borderRadius: 12 },
   detailPanel: { flex: 3, borderWidth: 1, borderColor: '#E2E5E3', borderRadius: 12 },

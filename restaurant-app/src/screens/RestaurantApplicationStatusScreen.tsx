@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
+import { appStyles } from '../theme/appStyles';
 
 /** How often the waiting screen checks whether admin has approved the restaurant. */
 export const APPROVAL_POLL_MS = 30_000;
@@ -121,7 +122,7 @@ export const RestaurantApplicationStatusScreen: React.FC<Props> = ({ onEditAppli
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, maxWidth: 560, width: '100%', alignSelf: 'center' },
   iconCircle: {
