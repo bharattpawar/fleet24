@@ -29,7 +29,17 @@ export class ApiError extends Error {
  * Exchanges the refresh token for a new session. Needed right after registering, because the
  * rider role is added on the server and the current access token was issued without it.
  */
-export async function refreshSession(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+/** Single-flight: refresh tokens rotate, so parallel refreshes with one token fail as "revoked". */
+export function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= rotateSession().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function rotateSession(): Promise<boolean> {
   const refreshToken = await authStorage.getRefreshToken();
   if (!refreshToken) return false;
   try {
@@ -84,32 +94,22 @@ export async function apiRequest<T>(
     if (!response.ok) {
       // Automatic token refresh retry on 401 Unauthorized
       if (response.status === 401 && !endpoint.includes('/auth/')) {
-        const refreshToken = await authStorage.getRefreshToken();
-        if (refreshToken) {
+        if (await authStorage.getRefreshToken()) {
           try {
-            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ refreshToken }),
-            });
-            if (refreshRes.ok) {
-              const refreshData = await refreshRes.json();
-              const newTokens = refreshData.data?.tokens || refreshData.tokens;
-              if (newTokens?.accessToken) {
-                await authStorage.setTokens(newTokens.accessToken, newTokens.refreshToken || refreshToken);
-                const retryHeaders = {
-                  ...headers,
-                  Authorization: `Bearer ${newTokens.accessToken}`,
-                };
-                const retryRes = await fetch(url, { ...options, headers: retryHeaders });
-                const retryText = await retryRes.text();
-                const retryData = retryText ? JSON.parse(retryText) : null;
-                if (retryRes.ok) {
-                  if (retryData && typeof retryData === 'object' && 'data' in retryData && 'statusCode' in retryData) {
-                    return retryData.data as T;
-                  }
-                  return retryData as T;
+            if (await refreshSession()) {
+              const newAccessToken = await authStorage.getAccessToken();
+              const retryHeaders = {
+                ...headers,
+                Authorization: `Bearer ${newAccessToken}`,
+              };
+              const retryRes = await fetch(url, { ...options, headers: retryHeaders });
+              const retryText = await retryRes.text();
+              const retryData = retryText ? JSON.parse(retryText) : null;
+              if (retryRes.ok) {
+                if (retryData && typeof retryData === 'object' && 'data' in retryData && 'statusCode' in retryData) {
+                  return retryData.data as T;
                 }
+                return retryData as T;
               }
             }
           } catch (refreshErr) {

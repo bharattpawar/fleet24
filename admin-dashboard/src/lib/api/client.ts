@@ -27,6 +27,28 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+let refreshInFlight: Promise<string> | null = null;
+
+/**
+ * One refresh for every request that hit 401 together. Refresh tokens rotate, so parallel refreshes
+ * with the same token made all but one fail as "revoked" and signed the admin out.
+ */
+export function refreshAdminSession(refreshToken: string): Promise<string> {
+  refreshInFlight ??= axios
+    .post(`${baseURL}/auth/refresh`, { refreshToken })
+    .then((res) => {
+      const tokens = res.data?.data?.tokens || res.data?.tokens;
+      if (!tokens?.accessToken) throw new Error('Refresh returned no access token');
+      localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, tokens.accessToken);
+      if (tokens.refreshToken) localStorage.setItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY, tokens.refreshToken);
+      return tokens.accessToken as string;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
 // Response interceptor: preserve Axios response object format where .data contains unpacked data
 apiClient.interceptors.response.use(
   (response) => {
@@ -46,16 +68,9 @@ apiClient.interceptors.response.use(
       const refreshToken = localStorage.getItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY);
       if (refreshToken) {
         try {
-          const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
-          const newTokens = res.data?.data?.tokens || res.data?.tokens;
-          if (newTokens?.accessToken) {
-            localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, newTokens.accessToken);
-            if (newTokens.refreshToken) {
-              localStorage.setItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY, newTokens.refreshToken);
-            }
-            originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
-            return apiClient(originalRequest);
-          }
+          const accessToken = await refreshAdminSession(refreshToken);
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          return apiClient(originalRequest);
         } catch (refreshErr) {
           // If refresh token is revoked or expired in development, clear it and fall back to fresh dev admin token
           localStorage.removeItem(ADMIN_REFRESH_TOKEN_STORAGE_KEY);
