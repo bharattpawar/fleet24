@@ -76,8 +76,8 @@ export const LiveDispatchScreen: React.FC = () => {
             <h1 className="text-xl font-bold tracking-tight text-[#171A21]">
               Live Dispatch & Delivery Telemetry
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2ED] text-[#205641] text-[10px] tabular-nums border border-[#205641]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#205641] animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2ED] text-[#24533F] text-[10px] tabular-nums border border-[#24533F]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#24533F] animate-pulse" />
               Live Telemetry Polling Active (10s)
             </span>
           </div>
@@ -89,7 +89,7 @@ export const LiveDispatchScreen: React.FC = () => {
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-medium text-[#205641] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#24533F] text-xs font-medium text-[#24533F] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           <span>Sync Dispatch</span>
@@ -108,7 +108,7 @@ export const LiveDispatchScreen: React.FC = () => {
         <h2 className="text-sm font-bold">Available riders</h2>
         <span className="text-sm text-slate-600">{availableRiders.isLoading ? 'Loading…' : availableRiders.isError ? 'Unavailable' : availableRiders.data?.pagination.total ?? 0}</span>
         {availableRiders.data?.data.slice(0, 4).map((rider) => (
-          <span key={rider.id} className="rounded-md bg-[#E8F2ED] px-2 py-1 text-xs text-[#205641]">{rider.fullName || rider.vehicleType}</span>
+          <span key={rider.id} className="rounded-md bg-[#E8F2ED] px-2 py-1 text-xs text-[#24533F]">{rider.fullName || rider.vehicleType}</span>
         ))}
       </section>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -142,7 +142,7 @@ export const LiveDispatchScreen: React.FC = () => {
               </div>
             ) : deliveries.length === 0 ? (
               <div className="p-8 text-center bg-[#FFFFFF] rounded-xl border border-dashed border-[#E3E7EC] space-y-2">
-                <CheckCircle2 className="w-6 h-6 text-[#205641] mx-auto" />
+                <CheckCircle2 className="w-6 h-6 text-[#24533F] mx-auto" />
                 <p className="text-xs text-slate-600 font-semibold">{view === 'unassigned' ? 'No unassigned deliveries on this page' : 'Zero In-Flight Deliveries'}</p>
                 <p className="text-[11px] text-slate-600">
                   {view === 'unassigned' ? 'Orders waiting for a rider appear here.' : 'Active deliveries appear here.'}
@@ -159,7 +159,7 @@ export const LiveDispatchScreen: React.FC = () => {
                     onClick={() => setSelectedDelivery(del)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2.5 ${
                       isSelected
-                        ? 'bg-[#E8F2ED] border-[#205641] shadow-lg'
+                        ? 'bg-[#E8F2ED] border-[#24533F] shadow-lg'
                         : 'bg-[#FFFFFF] border-[#E3E7EC] hover:border-[#E3E7EC]'
                     }`}
                   >
@@ -172,15 +172,15 @@ export const LiveDispatchScreen: React.FC = () => {
 
                     <div className="space-y-1 text-xs">
                       <div className="flex items-center gap-1.5 text-slate-600">
-                        <Store className="w-3.5 h-3.5 text-[#205641] shrink-0" />
+                        <Store className="w-3.5 h-3.5 text-[#24533F] shrink-0" />
                         <span className="font-semibold truncate">{del.restaurant?.name || 'Restaurant'}</span>
                         <span className="text-slate-600 text-[10px]">({del.restaurant?.outletName || 'Outlet'})</span>
                       </div>
 
                       <div className="flex items-center gap-1.5 text-slate-600">
-                        <Bike className="w-3.5 h-3.5 text-[#205641] shrink-0" />
+                        <Bike className="w-3.5 h-3.5 text-[#24533F] shrink-0" />
                         {del.rider ? (
-                          <span className="tabular-nums text-[11px] text-[#205641]">
+                          <span className="tabular-nums text-[11px] text-[#24533F]">
                             {del.rider.fullName || 'Fleet Rider'} ({del.rider.vehicleType})
                           </span>
                         ) : (
@@ -211,7 +211,7 @@ export const LiveDispatchScreen: React.FC = () => {
                             e.stopPropagation();
                             retryDispatchMutation.mutate(del.orderId);
                           }}
-                          className="px-2 py-0.5 rounded bg-[#205641] text-white font-bold hover:bg-[#205641]/80 cursor-pointer"
+                          className="px-2 py-0.5 rounded bg-[#24533F] text-white font-bold hover:bg-[#24533F]/80 cursor-pointer"
                         >
                           Retry
                         </button>
@@ -232,7 +232,7 @@ export const LiveDispatchScreen: React.FC = () => {
               Live Coordinate Map & Dispatch Interventions
             </span>
             {selectedDelivery && (
-              <span className="text-xs tabular-nums text-[#205641]">
+              <span className="text-xs tabular-nums text-[#24533F]">
                 Selected Order: #{selectedDelivery.orderNumber}
               </span>
             )}
@@ -245,7 +245,7 @@ export const LiveDispatchScreen: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-base font-bold text-[#171A21] flex items-center gap-2">
-                      <Navigation className="w-5 h-5 text-[#205641]" />
+                      <Navigation className="w-5 h-5 text-[#24533F]" />
                       <span>Order #{selectedDelivery.orderNumber} In-Flight Status</span>
                     </h3>
                     <p className="text-xs text-slate-600 mt-1">
@@ -256,14 +256,14 @@ export const LiveDispatchScreen: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setManualAssignOrderId(selectedDelivery.orderId)}
-                      className="px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer"
                     >
                       Manual Rider Override
                     </button>
                     <button
                       disabled={retryDispatchMutation.isPending}
                       onClick={() => retryDispatchMutation.mutate(selectedDelivery.orderId)}
-                      className="px-3 py-1.5 rounded-lg bg-[#F5F6F8] text-[#205641] border border-[#205641] text-xs font-semibold hover:bg-[#E8F2ED] transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-[#F5F6F8] text-[#24533F] border border-[#24533F] text-xs font-semibold hover:bg-[#E8F2ED] transition-colors cursor-pointer"
                     >
                       Retry Dispatch
                     </button>
@@ -275,7 +275,7 @@ export const LiveDispatchScreen: React.FC = () => {
                   {/* Outlet Node */}
                   <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-[#171A21]">
-                      <Store className="w-4 h-4 text-[#205641]" />
+                      <Store className="w-4 h-4 text-[#24533F]" />
                       <span>Kitchen Coordinates</span>
                     </div>
                     {selectedDelivery.restaurantLocation ? (
@@ -291,14 +291,14 @@ export const LiveDispatchScreen: React.FC = () => {
                   {/* Rider Live Node */}
                   <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-[#171A21]">
-                      <Bike className="w-4 h-4 text-[#205641]" />
+                      <Bike className="w-4 h-4 text-[#24533F]" />
                       <span>Rider GPS Fix</span>
                     </div>
                     {selectedDelivery.location ? (
                       <div className="text-[11px] tabular-nums text-slate-600 space-y-0.5">
                         <div>Lat: {selectedDelivery.location.latitude.toFixed(6)}</div>
                         <div>Lng: {selectedDelivery.location.longitude.toFixed(6)}</div>
-                        <div className="text-[#205641] text-[10px]">
+                        <div className="text-[#24533F] text-[10px]">
                           Freshness: {selectedDelivery.location.freshness} ({selectedDelivery.location.ageSeconds}s)
                         </div>
                       </div>
@@ -326,8 +326,8 @@ export const LiveDispatchScreen: React.FC = () => {
 
                 {/* Simulated Map Visualizer Canvas */}
                 <div className="h-60 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] flex flex-col items-center justify-center relative p-4 text-center">
-                  <div className="absolute inset-0 bg-[radial-gradient(#205641_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-                  <Radio className="w-8 h-8 text-[#205641] animate-ping mb-3 z-10" />
+                  <div className="absolute inset-0 bg-[radial-gradient(#24533F_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
+                  <Radio className="w-8 h-8 text-[#24533F] animate-ping mb-3 z-10" />
                   <div className="z-10 space-y-1">
                     <p className="text-xs font-bold text-[#171A21]">
                       Live Telemetry Vector Active
@@ -356,8 +356,8 @@ export const LiveDispatchScreen: React.FC = () => {
       {/* Modal: Super Admin Manual Rider Assignment */}
       {manualAssignOrderId && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2 text-[#205641]">
+          <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-[#24533F]">
               <Send className="w-5 h-5" />
               <h3 className="text-sm font-bold">Assign rider</h3>
             </div>
@@ -373,7 +373,7 @@ export const LiveDispatchScreen: React.FC = () => {
                 value={targetRiderId}
                 onChange={(e) => setTargetRiderId(e.target.value)}
                 placeholder="Enter rider UUID..."
-                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
               />
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -391,7 +391,7 @@ export const LiveDispatchScreen: React.FC = () => {
                     riderId: targetRiderId.trim(),
                   })
                 }
-                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
               >
                 {manualAssignMutation.isPending ? 'Assigning...' : 'Confirm Assignment'}
               </button>

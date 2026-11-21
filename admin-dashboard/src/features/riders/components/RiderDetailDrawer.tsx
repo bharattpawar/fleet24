@@ -90,7 +90,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
         {/* Drawer Header */}
         <div className="p-6 border-b border-[#E3E7EC] flex items-center justify-between shrink-0 bg-[#F5F6F8]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#205641] border border-[#205641]/20 flex items-center justify-center text-[#205641] font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#24533F] border border-[#24533F]/20 flex items-center justify-center text-[#24533F] font-bold">
               <Bike className="w-5 h-5" />
             </div>
             <div>
@@ -136,7 +136,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                   <button
                     disabled={verifyMutation.isPending}
                     onClick={() => verifyMutation.mutate({ verificationStatus: 'approved' })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Approve Rider KYC</span>
@@ -156,7 +156,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                 <button
                   disabled={unsuspendMutation.isPending}
                   onClick={() => unsuspendMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Reinstate / Unsuspend</span>
@@ -186,7 +186,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
             onClick={() => setActiveTab('info')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'info'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -196,7 +196,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
             onClick={() => setActiveTab('kyc')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'kyc'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -206,7 +206,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
             onClick={() => setActiveTab('operations')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'operations'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -233,7 +233,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                   {/* Personal Contact */}
                   <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-[#205641]" />
+                      <User className="w-4 h-4 text-[#24533F]" />
                       <h3 className="text-xs font-bold  text-slate-600">
                         Rider Contact & Account
                       </h3>
@@ -263,7 +263,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                   {/* Vehicle Information */}
                   <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                     <div className="flex items-center gap-2">
-                      <Bike className="w-4 h-4 text-[#205641]" />
+                      <Bike className="w-4 h-4 text-[#24533F]" />
                       <h3 className="text-xs font-bold  text-slate-600">
                         Registered Vehicle
                       </h3>
@@ -271,7 +271,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <span className="text-slate-600 text-[11px]">Vehicle Type</span>
-                        <div className="font-bold text-[#205641] mt-0.5">{rider?.vehicleType}</div>
+                        <div className="font-bold text-[#24533F] mt-0.5">{rider?.vehicleType}</div>
                       </div>
                       <div>
                         <span className="text-slate-600 text-[11px]">Vehicle Registration Plate</span>
@@ -299,7 +299,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                 <div className="space-y-4 text-xs">
                   <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[#205641]" />
+                      <FileText className="w-4 h-4 text-[#24533F]" />
                       <h3 className="text-xs font-bold  text-slate-600">
                         License Verification
                       </h3>
@@ -307,7 +307,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                     <div className="flex items-center justify-between p-3 rounded-lg bg-[#F5F6F8] border border-[#E3E7EC]">
                       <div>
                         <div className="font-bold text-[#171A21]">Commercial Driving License</div>
-                        <div className="tabular-nums text-[11px] text-[#205641] mt-0.5">
+                        <div className="tabular-nums text-[11px] text-[#24533F] mt-0.5">
                           {rider?.licenseNumber || 'No License Number Uploaded'}
                         </div>
                       </div>
@@ -325,7 +325,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                       </div>
                       <div className="text-right">
                         <span className="text-slate-600 text-[11px]">Approved By Admin</span>
-                        <div className="tabular-nums text-xs text-[#205641]">
+                        <div className="tabular-nums text-xs text-[#24533F]">
                           {rider.approver?.fullName || rider.approvedBy?.slice(0, 8)}
                         </div>
                       </div>
@@ -338,7 +338,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                 <div className="space-y-4 text-xs">
                   <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-4">
                     <div className="flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-[#205641]" />
+                      <Activity className="w-4 h-4 text-[#24533F]" />
                       <h3 className="text-xs font-bold  text-slate-600">
                         Live Operational Capacity
                       </h3>
@@ -347,7 +347,7 @@ export const RiderDetailDrawer: React.FC<RiderDetailDrawerProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-3 rounded-lg bg-[#F5F6F8] border border-[#E3E7EC] space-y-1">
                         <span className="text-[10px] text-slate-600">Current Active Deliveries</span>
-                        <div className="text-xl font-bold tabular-nums text-[#205641]">
+                        <div className="text-xl font-bold tabular-nums text-[#24533F]">
                           {rider?.currentActiveOrdersCount || 0}
                         </div>
                         <p className="text-[10px] text-slate-600">Simultaneous batch deliveries</p>

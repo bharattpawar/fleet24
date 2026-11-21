@@ -25,6 +25,7 @@ import {
   type RestaurantFormErrors,
   type RestaurantRegistrationForm,
 } from '../utils/restaurantOnboarding';
+import { appStyles } from '../theme/appStyles';
 
 interface Props {
   /** Re-applying after a rejection: go back to the status screen without submitting. */
@@ -339,7 +340,7 @@ const OutletAddressSearch: React.FC<AddressSearchProps> = ({ address, hasPin, er
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { padding: spacing.xl, paddingBottom: spacing.huge, maxWidth: 640, width: '100%', alignSelf: 'center' },

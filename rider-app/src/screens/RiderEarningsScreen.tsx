@@ -19,6 +19,7 @@ import { colors, spacing, borderRadius } from '../theme/tokens';
 import { riderApi, RiderEarningsSummary, RiderEarningRecord } from '../api/riderApi';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { mockRiderData } from '../api/mockData';
+import { appStyles } from '../theme/appStyles';
 
 export const RiderEarningsScreen: React.FC = () => {
   const { isMockSession } = useRiderAuth();
@@ -309,7 +310,7 @@ export const RiderEarningsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safeArea: {
     flex: 1,
     backgroundColor: colors.surfaceDark,
@@ -417,8 +418,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: 'InstrumentSerifItalic',
-    fontSize: 30,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
     color: colors.primary,
   },
   emptyCard: {

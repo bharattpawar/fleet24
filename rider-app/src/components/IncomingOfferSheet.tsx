@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { DeliveryOfferItem } from '../api/riderApi';
 import { addressDetail, addressTitle } from '../utils/address';
+import { appStyles } from '../theme/appStyles';
 
 interface IncomingOfferSheetProps {
   offer: DeliveryOfferItem;
@@ -209,7 +210,7 @@ export const IncomingOfferSheet: React.FC<IncomingOfferSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   overlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',

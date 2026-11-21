@@ -20,12 +20,14 @@ import { RiderHeader } from '../components/RiderHeader';
 import { AvailabilityControl } from '../components/AvailabilityControl';
 import { RiderMap } from '../components/RiderMap';
 import { EarningsCard } from '../components/EarningsCard';
+import { StateView } from '../components/ui/StateView';
 import { IncomingOfferSheet } from '../components/IncomingOfferSheet';
 import { ActiveDeliveryView } from '../components/ActiveDeliveryView';
 import { riderApi, RiderEarningsSummary, RiderLocationUpdate } from '../api/riderApi';
 import { riderLocationService, GpsStatus } from '../services/locationService';
 import { mockRiderData } from '../api/mockData';
 import { addressDetail, addressTitle } from '../utils/address';
+import { appStyles } from '../theme/appStyles';
 
 interface RiderHomeScreenProps {
   onNavigateToTab?: (tab: 'earnings' | 'account') => void;
@@ -307,7 +309,10 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
               </TouchableOpacity>
               {!targetPhone && <Text style={styles.connectErrorText}>Add a phone number to connect to the live backend.</Text>}
               {connectionError ? (
-                <Text style={styles.connectErrorText}>⚠️ {connectionError}</Text>
+                <View style={styles.metaItem}>
+                  <Ionicons name="warning-outline" size={15} color={colors.error} />
+                  <Text accessibilityRole="alert" style={styles.connectErrorText}>{connectionError}</Text>
+                </View>
               ) : null}
             </View>
           </View>
@@ -357,6 +362,8 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
               onPress={handleRefresh}
               disabled={isRefreshing || poolLoading}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Refresh available orders"
             >
               <Ionicons name="refresh" size={14} color={colors.primary} />
               <Text style={styles.poolRefreshText}>Refresh</Text>
@@ -364,20 +371,17 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
           </View>
 
           {!isOnline || poolLoading || availableOrdersError || availableOrders.length === 0 ? (
-            <View style={styles.poolEmptyCard}>
-              {isOnline && poolLoading ? <ActivityIndicator color={colors.primary} /> :
-                <Ionicons name={!isOnline ? 'moon-outline' : availableOrdersError ? 'alert-circle-outline' : 'receipt-outline'} size={24} color={colors.primary} />}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.poolEmptyText}>
-                  {!isOnline ? 'You’re offline' : poolLoading ? 'Checking for orders…' :
-                    availableOrdersError ? 'Couldn’t load orders' : 'Waiting for orders'}
-                </Text>
-                <Text style={styles.poolEmptySub}>
-                  {!isOnline ? 'Go online to receive delivery offers.' : poolLoading ? 'Looking for available deliveries.' :
-                    availableOrdersError ? 'Tap Refresh to try again.' : 'New deliveries will appear here.'}
-                </Text>
-              </View>
-            </View>
+            <StateView
+              compact
+              loading={isOnline && poolLoading}
+              tone={isOnline && availableOrdersError ? 'error' : !isOnline ? 'locked' : 'neutral'}
+              icon={!isOnline ? 'pause-circle-outline' : availableOrdersError ? 'cloud-offline-outline' : 'bicycle-outline'}
+              title={!isOnline ? 'Offers paused' : poolLoading ? 'Checking for orders…' : availableOrdersError ? 'Couldn’t load orders' : 'Waiting for orders'}
+              message={!isOnline ? 'Nearby orders appear here once you go online.' : poolLoading ? 'Looking for available deliveries.' :
+                availableOrdersError ? 'Check your connection and try again.' : 'Stay online — new deliveries near you will show up here.'}
+              actionLabel={isOnline && availableOrdersError ? 'Try again' : undefined}
+              onAction={handleRefresh}
+            />
           ) : (
             availableOrders.map((item) => (
               <View key={item.orderId} style={styles.orderPoolCard}>
@@ -439,15 +443,18 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
 
                 {/* Meta details */}
                 <View style={styles.orderPoolMetaRow}>
-                  <Text style={styles.orderPoolMetaText}>
-                    📦 {item.itemsSummary || `${item.itemsCount} items`}
-                  </Text>
-                  <Text style={styles.orderPoolMetaText}>
-                    📏 {item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : 'Near you'}
-                  </Text>
-                  <Text style={styles.orderPoolMetaText}>
-                    💵 ₹{item.totalPayable}
-                  </Text>
+                  <View style={styles.metaItem}>
+                    <Ionicons name="bag-handle-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.orderPoolMetaText}>{item.itemsSummary || `${item.itemsCount} items`}</Text>
+                  </View>
+                  <View style={styles.metaItem}>
+                    <Ionicons name="navigate-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.orderPoolMetaText}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : 'Near you'}</Text>
+                  </View>
+                  <View style={styles.metaItem}>
+                    <Ionicons name="cash-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.orderPoolMetaText}>₹{item.totalPayable}</Text>
+                  </View>
                 </View>
 
                 {/* Claim / Pick up button */}
@@ -465,7 +472,7 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
                   ) : (
                     <>
                       <Ionicons name="flash" size={16} color="#FFFFFF" />
-                      <Text style={styles.claimBtnText}>⚡ Claim order</Text>
+                      <Text style={styles.claimBtnText}>Claim order</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -515,7 +522,8 @@ export const RiderHomeScreen: React.FC<RiderHomeScreenProps> = ({ onNavigateToTa
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
@@ -614,11 +622,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  poolTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
+  poolTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3, color: colors.textPrimary },
   poolCountBadge: {
     backgroundColor: colors.primary,
     borderRadius: 10,
@@ -630,17 +634,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  poolRefreshBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: borderRadius.xs,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  poolRefreshBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.surfaceGreen },
   poolRefreshText: {
     fontSize: 11,
     fontWeight: '700',

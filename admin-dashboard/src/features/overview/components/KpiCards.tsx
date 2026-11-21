@@ -22,7 +22,7 @@ export function KpiCards({ data, isLoading, isError, onRetry }: {
         <div key={label} className="admin-panel p-4 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold">{label}</p>
-            <span className="rounded-lg bg-[#E8F2ED] text-[#205641] p-2 shrink-0"><Icon size={16} /></span>
+            <span className="rounded-lg bg-[#E8F2ED] text-[#24533F] p-2 shrink-0"><Icon size={16} /></span>
           </div>
           <p className="mt-2 text-xl md:text-2xl font-bold break-words">{isLoading ? '…' : value ?? '—'}</p>
           <p className="mt-1 text-xs text-slate-600">{scope}</p>

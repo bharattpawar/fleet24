@@ -120,7 +120,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm">
           {isLoading && (
             <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-[#205641]" />
+              <Loader2 className="w-6 h-6 animate-spin text-[#24533F]" />
               <p className="text-xs">Loading conflict details & payment evidence...</p>
             </div>
           )}
@@ -196,7 +196,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-500 block">Payment Record Status:</span>
-                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#205641] text-white uppercase">
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#24533F] text-white uppercase">
                       {conflict.payment?.status || 'captured'}
                     </span>
                   </div>
@@ -233,7 +233,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                         conflict.authoritativeStatus === 'refund_completed'
-                          ? 'bg-[#205641] text-white'
+                          ? 'bg-[#24533F] text-white'
                           : conflict.authoritativeStatus === 'refund_pending'
                           ? 'bg-amber-100 text-amber-800 border border-amber-300'
                           : conflict.authoritativeStatus === 'refund_failed'
@@ -345,7 +345,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
                   value={adminNote}
                   onChange={(e) => setAdminNote(e.target.value)}
                   placeholder="e.g., Confirmed duplicate order with customer"
-                  className="w-full text-xs px-2.5 py-1.5 border border-[#E3E7EC] rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#205641]"
+                  className="w-full text-xs px-2.5 py-1.5 border border-[#E3E7EC] rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#24533F]"
                 />
               </div>
 
@@ -353,7 +353,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
                 <button
                   onClick={() => approveMutation.mutate()}
                   disabled={approveMutation.isPending}
-                  className="px-3 py-1.5 rounded-md bg-[#205641] text-white text-xs font-bold hover:bg-[#184433] transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-1.5 rounded-md bg-[#24533F] text-white text-xs font-bold hover:bg-[#184433] transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   {approveMutation.isPending ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -383,7 +383,7 @@ export const PaymentConflictDrawer: React.FC<PaymentConflictDrawerProps> = ({
               {isEligibleForRefund ? (
                 <button
                   onClick={() => setShowConfirm(true)}
-                  className="px-3.5 py-1.5 rounded-md bg-[#205641] text-white text-xs font-bold hover:bg-[#184433] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 rounded-md bg-[#24533F] text-white text-xs font-bold hover:bg-[#184433] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Approve Full Refund</span>

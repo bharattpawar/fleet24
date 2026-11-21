@@ -174,7 +174,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
   if (outlets.length === 0) {
     return (
       <div className="p-8 text-center bg-[#F5F6F8] rounded-2xl border border-dashed border-[#E3E7EC] space-y-2">
-        <UtensilsCrossed className="w-8 h-8 text-[#205641]/40 mx-auto" />
+        <UtensilsCrossed className="w-8 h-8 text-[#24533F]/40 mx-auto" />
         <h3 className="text-sm font-bold text-[#171A21]">No Outlets Configured</h3>
         <p className="text-xs text-slate-600 max-w-sm mx-auto">
           Add an outlet for this restaurant first before configuring menu categories and items.
@@ -204,7 +204,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               setSelectedOutletId(e.target.value);
               setSelectedCategoryId('all');
             }}
-            className="text-xs bg-[#FFFFFF] border border-[#205641] text-[#171A21] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#205641]"
+            className="text-xs bg-[#FFFFFF] border border-[#24533F] text-[#171A21] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#24533F]"
           >
             {outlets.map((o) => (
               <option key={o.id} value={o.id}>
@@ -222,7 +222,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               setCategoryDisplayOrder(categories.length);
               setCategoryModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E8F2ED] text-[#205641] border border-[#205641] text-xs font-semibold hover:bg-[#205641] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E8F2ED] text-[#24533F] border border-[#24533F] text-xs font-semibold hover:bg-[#24533F] transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Category</span>
@@ -237,7 +237,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               setItemModalOpen(true);
             }}
             disabled={categories.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Food Item</span>
@@ -260,7 +260,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               onClick={() => setSelectedCategoryId('all')}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer ${
                 selectedCategoryId === 'all'
-                  ? 'bg-[#205641] text-white font-bold border border-[#205641]/30 shadow-xs'
+                  ? 'bg-[#24533F] text-white font-bold border border-[#24533F]/30 shadow-xs'
                   : 'bg-[#FFFFFF] text-slate-600 hover:text-[#171A21] border border-[#E3E7EC]'
               }`}
             >
@@ -272,7 +272,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   onClick={() => setSelectedCategoryId(c.id)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
                     selectedCategoryId === c.id
-                      ? 'bg-[#205641] text-white font-bold border border-[#205641]/30 shadow-xs'
+                      ? 'bg-[#24533F] text-white font-bold border border-[#24533F]/30 shadow-xs'
                       : 'bg-[#FFFFFF] text-slate-600 hover:text-[#171A21] border border-[#E3E7EC]'
                   }`}
                 >
@@ -285,7 +285,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     setCategoryDisplayOrder(c.displayOrder);
                     setCategoryModalOpen(true);
                   }}
-                  className="p-1 text-slate-600 hover:text-[#205641] cursor-pointer"
+                  className="p-1 text-slate-600 hover:text-[#24533F] cursor-pointer"
                   title="Edit category"
                 >
                   <Edit3 className="w-3 h-3" />
@@ -301,7 +301,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               placeholder="Search dishes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 rounded-lg bg-[#FFFFFF] border border-[#E3E7EC] text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#205641]"
+              className="w-full pl-8 pr-3 py-1 rounded-lg bg-[#FFFFFF] border border-[#E3E7EC] text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#24533F]"
             />
           </div>
         </div>
@@ -331,7 +331,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
               key={item.id}
               className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between space-y-2.5 ${
                 item.isAvailable
-                  ? 'bg-[#FFFFFF] border-[#E3E7EC] hover:border-[#205641]'
+                  ? 'bg-[#FFFFFF] border-[#E3E7EC] hover:border-[#24533F]'
                   : 'bg-[#F5F6F8] border-[#E3E7EC] opacity-60'
               }`}
             >
@@ -358,7 +358,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   )}
                 </div>
 
-                <div className="tabular-nums text-xs font-bold text-[#205641] shrink-0">
+                <div className="tabular-nums text-xs font-bold text-[#24533F] shrink-0">
                   ₹{typeof item.basePrice === 'number' ? item.basePrice.toFixed(2) : item.basePrice}
                 </div>
               </div>
@@ -373,7 +373,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   }
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold cursor-pointer transition-colors ${
                     item.isAvailable
-                      ? 'bg-[#205641] text-white hover:bg-[#205641]/70'
+                      ? 'bg-[#24533F] text-white hover:bg-[#24533F]/70'
                       : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
                   }`}
                 >
@@ -390,7 +390,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
 
                 <button
                   onClick={() => openEditItemModal(item)}
-                  className="inline-flex items-center gap-1 text-slate-600 hover:text-[#205641] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-slate-600 hover:text-[#24533F] transition-colors cursor-pointer"
                 >
                   <Edit3 className="w-3 h-3" />
                   <span>Edit</span>
@@ -404,7 +404,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       {/* Modal: Category Create/Edit */}
       {categoryModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-sm font-bold text-[#171A21]">
               {editingCategoryId ? 'Edit Menu Category' : 'Create Menu Category'}
             </h3>
@@ -418,7 +418,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
                   placeholder="e.g. Starters, Main Course, Biryani"
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
               <div>
@@ -429,7 +429,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   type="number"
                   value={categoryDisplayOrder}
                   onChange={(e) => setCategoryDisplayOrder(parseInt(e.target.value) || 0)}
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
             </div>
@@ -449,7 +449,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     createCategoryMutation.mutate();
                   }
                 }}
-                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
               >
                 {editingCategoryId ? 'Save Changes' : 'Create Category'}
               </button>
@@ -461,7 +461,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
       {/* Modal: Item Create/Edit */}
       {itemModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-60">
-          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+          <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-sm font-bold text-[#171A21]">
               {editingItemId ? 'Edit Food Item' : 'Add Food Item to Menu'}
             </h3>
@@ -475,7 +475,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   placeholder="e.g. Paneer Butter Masala"
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
 
@@ -487,7 +487,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   <select
                     value={itemCategoryId}
                     onChange={(e) => setItemCategoryId(e.target.value)}
-                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -507,7 +507,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     value={itemPrice}
                     onChange={(e) => setItemPrice(e.target.value)}
                     placeholder="250.00"
-                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+                    className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
                   />
                 </div>
               </div>
@@ -521,7 +521,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemDescription}
                   onChange={(e) => setItemDescription(e.target.value)}
                   placeholder="Dish ingredients, portion size, spice level..."
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
 
@@ -534,7 +534,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                   value={itemImageUrl}
                   onChange={(e) => setItemImageUrl(e.target.value)}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
 
@@ -544,7 +544,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     type="checkbox"
                     checked={itemIsVeg}
                     onChange={(e) => setItemIsVeg(e.target.checked)}
-                    className="rounded text-[#205641] focus:ring-[#205641]"
+                    className="rounded text-[#24533F] focus:ring-[#24533F]"
                   />
                   <span>Vegetarian (Green mark)</span>
                 </label>
@@ -554,7 +554,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     type="checkbox"
                     checked={itemIsAvailable}
                     onChange={(e) => setItemIsAvailable(e.target.checked)}
-                    className="rounded text-[#205641] focus:ring-[#205641]"
+                    className="rounded text-[#24533F] focus:ring-[#24533F]"
                   />
                   <span>Available in Kitchen</span>
                 </label>
@@ -583,7 +583,7 @@ export const MenuManagementTab: React.FC<MenuManagementTabProps> = ({
                     createItemMutation.mutate();
                   }
                 }}
-                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
               >
                 {editingItemId ? 'Update Dish' : 'Add Dish'}
               </button>

@@ -35,7 +35,7 @@ export function RevenueAnalyticsSection({ data, isLoading, isError, onRetry }: {
               {series.map((entry, index) => (
                 <div key={entry.date} className="min-w-0 flex-1 text-center" title={`${entry.date}: ${money(entry.capturedAmount)}`}>
                   <div className="flex h-36 items-end justify-center border-b border-[#E3E7EC]">
-                    <div className="w-full max-w-8 rounded-t bg-[#205641]" style={{ height: `${100 * entry.capturedAmount / max}%` }} />
+                    <div className="w-full max-w-8 rounded-t bg-[#24533F]" style={{ height: `${100 * entry.capturedAmount / max}%` }} />
                   </div>
                   <span className="mt-2 block whitespace-nowrap text-[10px] text-slate-600">
                     {(series.length <= 10 || index % 4 === 0) && entry.date.slice(5)}

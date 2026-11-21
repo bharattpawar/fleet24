@@ -4,6 +4,7 @@ import metadata from '../../../assets/illustrations/startup/character-cycle.json
 import { startupTiming as timing } from '../../utils/startupCycle';
 import { CharacterScene } from './CharacterScene';
 import { startupMotion as motion, useStartupReducedMotion } from './useStartupMotion';
+import { appStyles } from '../../theme/appStyles';
 
 const copy = metadata.role === 'rider' ? {
   label: 'Fleet24 Rider', role: 'RIDER PARTNER', eyebrow: 'EVERY DELIVERY, A LITTLE JOY',
@@ -60,7 +61,7 @@ export function StartupSplash({ ready }: { ready: boolean }) {
   </Animated.View>;
 }
 
-const s = StyleSheet.create({
+const s = appStyles({
   root: { backgroundColor: '#F3F7EE', alignItems: 'center', justifyContent: 'center', zIndex: 100, elevation: 100, overflow: 'hidden' },
   glow: { position: 'absolute', alignSelf: 'center', backgroundColor: '#E9F0DC' },
   content: { width: '100%', alignItems: 'center', paddingBottom: 24 },

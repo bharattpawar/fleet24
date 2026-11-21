@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { RiderLocationUpdate } from '../api/riderApi';
 import { GpsStatus } from '../services/locationService';
+import { appStyles } from '../theme/appStyles';
 
 interface RiderMapProps {
   riderLocation?: RiderLocationUpdate | null;
@@ -263,7 +264,7 @@ export const RiderMap: React.FC<RiderMapProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     width: '100%',
     backgroundColor: '#EBE9DF',

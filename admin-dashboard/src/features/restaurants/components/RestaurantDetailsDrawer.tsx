@@ -103,7 +103,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
         {/* Drawer Header */}
         <div className="p-6 border-b border-[#E3E7EC] flex items-center justify-between shrink-0 bg-[#F5F6F8]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#205641] border border-[#205641]/20 flex items-center justify-center text-[#205641] font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#24533F] border border-[#24533F]/20 flex items-center justify-center text-[#24533F] font-bold">
               <Store className="w-5 h-5" />
             </div>
             <div>
@@ -118,7 +118,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                   <span
                     className={`text-[10px] tabular-nums font-bold px-2 py-0.5 rounded ${
                       isApproved
-                        ? 'bg-[#205641] text-white'
+                        ? 'bg-[#24533F] text-white'
                         : isSuspended
                         ? 'bg-[#9A431F]/20 text-[#9A431F] border border-[#9A431F]/30'
                         : isPending
@@ -160,7 +160,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                     onClick={() =>
                       verifyRestaurantMutation.mutate({ verificationStatus: 'approved' })
                     }
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Approve Application</span>
@@ -180,7 +180,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                 <button
                   disabled={unsuspendMutation.isPending}
                   onClick={() => unsuspendMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Reinstate / Unsuspend</span>
@@ -211,7 +211,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
             onClick={() => setActiveTab('info')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'info'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -221,7 +221,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
             onClick={() => setActiveTab('outlets')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'outlets'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -231,7 +231,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
             onClick={() => setActiveTab('menu')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'menu'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -241,7 +241,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
             onClick={() => setActiveTab('documents')}
             className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'documents'
-                ? 'border-[#205641] text-[#205641]'
+                ? 'border-[#24533F] text-[#24533F]'
                 : 'border-transparent text-slate-600 hover:text-[#171A21]'
             }`}
           >
@@ -273,7 +273,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                       </h3>
                       <button
                         onClick={() => setEditModalOpen(true)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#E8F2ED] border border-[#205641] text-[11px] font-semibold text-[#205641] hover:bg-[#205641] transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#E8F2ED] border border-[#24533F] text-[11px] font-semibold text-[#24533F] hover:bg-[#24533F] transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3 h-3" />
                         <span>Edit Profile</span>
@@ -286,7 +286,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                       </div>
                       <div>
                         <span className="text-slate-600 text-[11px]">Unique Slug</span>
-                        <div className="tabular-nums text-[#205641] text-sm mt-0.5">/{restaurant?.slug}</div>
+                        <div className="tabular-nums text-[#24533F] text-sm mt-0.5">/{restaurant?.slug}</div>
                       </div>
                       <div className="col-span-2">
                         <span className="text-slate-600 text-[11px]">Description</span>
@@ -300,7 +300,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                   {/* Registered Owner Identity */}
                   <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-[#205641]" />
+                      <User className="w-4 h-4 text-[#24533F]" />
                       <h3 className="text-xs font-bold  text-slate-600">
                         Primary Account Owner
                       </h3>
@@ -360,7 +360,7 @@ export const RestaurantDetailsDrawer: React.FC<RestaurantDetailsDrawerProps> = (
                     </div>
                     <button
                       onClick={() => setAddOutletModalOpen(true)}
-                      className="px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer flex items-center gap-1.5"
                     >
                       <Store className="w-3.5 h-3.5" />
                       <span>Add Outlet</span>

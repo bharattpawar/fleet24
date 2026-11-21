@@ -87,7 +87,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
         {/* Drawer Header */}
         <div className="p-6 border-b border-[#E3E7EC] flex items-center justify-between shrink-0 bg-[#F5F6F8]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#205641] border border-[#205641]/20 flex items-center justify-center text-[#205641] font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#24533F] border border-[#24533F]/20 flex items-center justify-center text-[#24533F] font-bold">
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
@@ -119,7 +119,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
           </div>
         )}
 
-        {order && <Link className="mx-6 my-2 self-start text-sm text-[#205641] underline" to={`/finance/ledger?orderId=${orderId}`}>View ledger entries</Link>}
+        {order && <Link className="mx-6 my-2 self-start text-sm text-[#24533F] underline" to={`/finance/ledger?orderId=${orderId}`}>View ledger entries</Link>}
         {/* Action Controls Bar */}
         {!isLoading && order && (
           <div className="px-6 py-3 bg-[#F5F6F8] border-b border-[#E3E7EC] flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -128,7 +128,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                 <button
                   disabled={retryDispatchMutation.isPending}
                   onClick={() => retryDispatchMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{retryDispatchMutation.isPending ? 'Retrying...' : 'Retry Dispatch Matching'}</span>
@@ -148,7 +148,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
             <div className="text-right">
               <span className="text-[10px] text-slate-600">Order total</span>
-              <div className="tabular-nums text-sm font-bold text-[#205641]">
+              <div className="tabular-nums text-sm font-bold text-[#24533F]">
                 {formatCurrency(order.totalPayable)}
               </div>
             </div>
@@ -174,14 +174,14 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                 {/* Outlet */}
                 <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                   <div className="flex items-center gap-2">
-                    <Store className="w-4 h-4 text-[#205641]" />
+                    <Store className="w-4 h-4 text-[#24533F]" />
                     <span className="font-bold text-[#171A21]  text-[11px]">
                       Kitchen Outlet
                     </span>
                   </div>
                   <div>
                     <div className="font-bold text-[#171A21]">{order.restaurant.name}</div>
-                    <div className="text-[#205641] text-[11px] font-medium">{order.restaurant.outletName}</div>
+                    <div className="text-[#24533F] text-[11px] font-medium">{order.restaurant.outletName}</div>
                     <div className="text-slate-600 text-[11px] mt-1">{order.restaurant.address}</div>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                 {/* Customer */}
                 <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-2">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#205641]" />
+                    <User className="w-4 h-4 text-[#24533F]" />
                     <span className="font-bold text-[#171A21]  text-[11px]">
                       Customer Destination
                     </span>
@@ -215,7 +215,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-semibold text-[#171A21]">{item.name}</span>
-                        <span className="text-[#205641] tabular-nums ml-2">× {item.quantity}</span>
+                        <span className="text-[#24533F] tabular-nums ml-2">× {item.quantity}</span>
                       </div>
                       <div className="tabular-nums text-slate-600">
                         {formatCurrency(item.totalPrice)}
@@ -241,7 +241,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                   </div>
                   <div className="flex justify-between text-[#171A21] font-bold pt-2 border-t border-[#E3E7EC] text-xs">
                     <span>Total Charged</span>
-                    <span className="tabular-nums text-[#205641]">{formatCurrency(order.totalPayable)}</span>
+                    <span className="tabular-nums text-[#24533F]">{formatCurrency(order.totalPayable)}</span>
                   </div>
                 </div>
               </div>
@@ -250,7 +250,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <IndianRupee className="w-4 h-4 text-[#205641]" />
+                    <IndianRupee className="w-4 h-4 text-[#24533F]" />
                     <span className="font-bold  text-[11px] text-[#171A21]">
                       Payment & Settlement Ledger
                     </span>
@@ -263,7 +263,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     <dl className="grid grid-cols-2 gap-2">
                       <dt>{['captured', 'refunded', 'partially_refunded'].includes(order.payment.status) ? 'Captured amount' : 'Payment amount'}</dt>
                       <dd>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: order.payment.currency }).format(order.payment.amount)}</dd>
-                      <dt>Payment record</dt><dd><Link className="text-[#205641] underline" to={`/finance/payments?record=${order.payment.id}`}>Open payment</Link></dd>
+                      <dt>Payment record</dt><dd><Link className="text-[#24533F] underline" to={`/finance/payments?record=${order.payment.id}`}>Open payment</Link></dd>
                       <dt>Provider</dt><dd>{order.payment.provider}</dd>
                       <dt>Currency</dt><dd>{order.payment.currency}</dd>
                       <dt>Paid at (IST)</dt><dd>{order.payment.paidAt ? formatIst(order.payment.paidAt) : '—'}</dd>
@@ -277,7 +277,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                           <div key={refund.id} className="mt-2 rounded-lg border border-[#E3E7EC] p-2">
                             <p className="font-semibold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: order.payment!.currency }).format(refund.amount)} · {refund.status}</p>
                             <p>{refund.reason}</p>
-                            <Link className="text-[#205641] underline" to={`/finance/refunds?record=${refund.id}`}>Open refund</Link>
+                            <Link className="text-[#24533F] underline" to={`/finance/refunds?record=${refund.id}`}>Open refund</Link>
                             <p>Created {formatIst(refund.createdAt)} IST</p>
                             {refund.providerRefundId && <p className="break-all">Provider reference {refund.providerRefundId}</p>}
                             {refund.isManualReviewRequired && <p className="font-semibold text-amber-800">Manual review required</p>}
@@ -295,7 +295,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               {order.timeline && order.timeline.length > 0 && (
                 <div className="p-4 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-3">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#205641]" />
+                    <Clock className="w-4 h-4 text-[#24533F]" />
                     <span className="font-bold  text-[11px] text-[#171A21]">
                       Lifecycle State Timeline
                     </span>
@@ -304,7 +304,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     {order.timeline.map((evt) => (
                       <div key={evt.id} className="relative space-y-0.5">
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold text-[#205641]">{evt.eventType.replaceAll('_', ' ')}</span>
+                          <span className="font-bold text-[#24533F]">{evt.eventType.replaceAll('_', ' ')}</span>
                           <span className="tabular-nums text-slate-600">
                             {new Date(evt.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
                           </span>

@@ -57,8 +57,8 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-60">
-      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
-        <div className="flex items-center gap-2 text-[#205641]">
+      <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center gap-2 text-[#24533F]">
           <Settings className="w-5 h-5" />
           <h3 className="text-sm font-bold text-[#171A21]">Outlet & Delivery Configuration</h3>
         </div>
@@ -86,7 +86,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -99,7 +99,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
             />
           </div>
 
@@ -112,7 +112,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
               required
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -127,7 +127,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={latitude}
                 onChange={(e) => setLatitude(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
               />
             </div>
 
@@ -141,7 +141,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={longitude}
                 onChange={(e) => setLongitude(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
               />
             </div>
 
@@ -157,20 +157,20 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
                 required
                 value={deliveryRadiusKm}
                 onChange={(e) => setDeliveryRadiusKm(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+                className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
               />
             </div>
           </div>
 
-          <fieldset className="space-y-2 rounded-xl border border-[#205641]/30 p-3">
-            <legend className="px-1 text-[11px] font-bold text-[#205641]">Home offer (customer app card)</legend>
+          <fieldset className="space-y-2 rounded-xl border border-[#24533F]/30 p-3">
+            <legend className="px-1 text-[11px] font-bold text-[#24533F]">Home offer (customer app card)</legend>
             <p className="text-[11px] text-slate-600">Shown over the food photo on Home. Leave blank for no offer; the Offers tab only lists outlets with a discount line.</p>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-[11px] font-semibold text-slate-600 block">Discount line
-                <input type="text" maxLength={30} placeholder="50% OFF" value={offerTitle} onChange={(e) => setOfferTitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
+                <input type="text" maxLength={30} placeholder="50% OFF" value={offerTitle} onChange={(e) => setOfferTitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] mt-1" />
               </label>
               <label className="text-[11px] font-semibold text-slate-600 block">Sub-line
-                <input type="text" maxLength={30} placeholder="UPTO ₹100" value={offerSubtitle} onChange={(e) => setOfferSubtitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] mt-1" />
+                <input type="text" maxLength={30} placeholder="UPTO ₹100" value={offerSubtitle} onChange={(e) => setOfferSubtitle(e.target.value)} className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] mt-1" />
               </label>
             </div>
             <ImageField
@@ -193,7 +193,7 @@ export const OutletDeliverySettingsModal: React.FC<OutletDeliverySettingsModalPr
             <button
               type="submit"
               disabled={updateMutation.isPending || !name.trim() || !phone.trim() || !address.trim()}
-              className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
             </button>

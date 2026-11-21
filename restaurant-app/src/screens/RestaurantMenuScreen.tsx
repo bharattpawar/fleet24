@@ -24,6 +24,7 @@ import { restaurantApi } from '../api/restaurantApi';
 import { MenuCategory, MenuItem } from '../types';
 import { KitchenHeader } from '../components/KitchenHeader';
 import { discountedPrice, dishDiscountBadge, readDishDiscount, type DishDiscountType } from '../utils/dishDiscount';
+import { appStyles } from '../theme/appStyles';
 
 export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }> = ({
   onNavigateToOutlets,
@@ -277,7 +278,7 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
 
   return (
     <View style={styles.container}>
-      <KitchenHeader onOutletPress={onNavigateToOutlets} />
+      <KitchenHeader kitchen onOutletPress={onNavigateToOutlets} />
 
       {/* Control Header */}
       <View style={styles.controlHeaderWrapper}>
@@ -752,7 +753,7 @@ export const RestaurantMenuScreen: React.FC<{ onNavigateToOutlets?: () => void }
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

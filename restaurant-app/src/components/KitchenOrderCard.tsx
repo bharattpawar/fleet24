@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/tokens';
 import { KitchenOrderStatus, RestaurantOrder } from '../types';
+import { appStyles } from '../theme/appStyles';
 
 interface KitchenOrderCardProps {
   order: RestaurantOrder;
@@ -85,14 +86,23 @@ export function KitchenOrderCard({
           onPress={onPressDetails}
           style={[styles.ticket, mode === 'queue' && styles.queueTicket, mode === 'queue' && selected && styles.selectedTicket]}
         >
-          <Ionicons name="receipt-outline" size={19} color={colors.textPrimary} />
+          <View style={[styles.ticketIcon, { backgroundColor: badgeBackground }]}><Ionicons name="receipt-outline" size={18} color={badgeColor} /></View>
           <View style={styles.grow}>
             <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
             {mode === 'queue' && firstItem ? (
               <Text style={styles.meta} numberOfLines={1}>
                 {firstItem.quantity}× {firstItem.itemName || firstItem.name || 'Item'}{order.items.length > 1 ? ' +' + (order.items.length - 1) + ' more' : ''}
               </Text>
-            ) : <Text style={styles.meta}>{age}</Text>}
+            ) : (
+              <>
+                <Text style={styles.meta}>{age} · {itemCount} {itemCount === 1 ? 'item' : 'items'}{order.totalPayable != null ? ` · ₹${Number(order.totalPayable).toFixed(0)}` : ''}</Text>
+                {!selected && firstItem ? (
+                  <Text style={styles.preview} numberOfLines={1}>
+                    {firstItem.quantity}× {firstItem.itemName || firstItem.name || 'Item'}{order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}
+                  </Text>
+                ) : null}
+              </>
+            )}
           </View>
           <View style={styles.ticketStatus}>
             {mode === 'queue' && <Text style={styles.meta}>{age}</Text>}
@@ -162,7 +172,9 @@ export function KitchenOrderCard({
 
 const lineColor = '#E2E5E3';
 
-const styles = StyleSheet.create({
+const styles = appStyles({
+  ticketIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  preview: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', marginTop: 3 },
   card: { borderWidth: 1, borderColor: lineColor, borderRadius: 16, marginBottom: 12, backgroundColor: '#FFFFFF' },
   ticket: { minHeight: 76, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
   queueTicket: { marginHorizontal: 8, borderBottomWidth: 1, borderBottomColor: lineColor, borderLeftWidth: 3, borderLeftColor: 'transparent' },

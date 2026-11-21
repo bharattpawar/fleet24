@@ -1,7 +1,7 @@
 import { useAdminAuth } from '@/features/auth/AdminAuthContext';
 import { ChevronDown, LogOut, Menu } from 'lucide-react';
 
-export function Header({ title, onOpenNavigation }: { title: string; onOpenNavigation: () => void }) {
+export function Header({ title, description, onOpenNavigation }: { title: string; description?: string; onOpenNavigation: () => void }) {
   const { user, logout } = useAdminAuth();
 
   return (
@@ -10,7 +10,10 @@ export function Header({ title, onOpenNavigation }: { title: string; onOpenNavig
         <button className="admin-nav-toggle" type="button" onClick={onOpenNavigation} aria-label="Open navigation" aria-haspopup="dialog">
           <Menu size={21} />
         </button>
-        <h1>{title}</h1>
+        <div className="admin-title">
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </div>
       </div>
       <details className="admin-account" onKeyDown={(event) => {
         if (event.key === 'Escape') {

@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, minTouchTarget, shadows } from '../theme/tokens';
 import { useRestaurantAuth } from '../context/RestaurantAuthContext';
+import { appStyles } from '../theme/appStyles';
 
 interface RestaurantProfileScreenProps {
   onNavigateToOutlets?: () => void;
@@ -129,7 +130,7 @@ export const RestaurantProfileScreen: React.FC<RestaurantProfileScreenProps> = (
         {/* 2. Currently Operating Outlet (Pure White Card with Crisp Charcoal Text) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>CURRENTLY OPERATING OUTLET</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">CURRENT OUTLET</Text>
             <View
               style={[
                 styles.activePill,
@@ -201,7 +202,7 @@ export const RestaurantProfileScreen: React.FC<RestaurantProfileScreenProps> = (
 
         {/* 3. Switch Operating Kitchen Action */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AUTHORIZED OUTLETS</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">YOUR OUTLETS</Text>
           <TouchableOpacity
             style={styles.actionCard}
             onPress={onNavigateToOutlets}
@@ -226,7 +227,7 @@ export const RestaurantProfileScreen: React.FC<RestaurantProfileScreenProps> = (
 
         {/* 4. Operational Capabilities & Permissions Matrix */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>OPERATIONAL CAPABILITIES</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">WHAT YOU CAN DO</Text>
           <View style={styles.surfaceCard}>
             <View style={styles.permRow}>
               <View style={styles.permLabelCol}>
@@ -292,7 +293,7 @@ export const RestaurantProfileScreen: React.FC<RestaurantProfileScreenProps> = (
 
         {/* 5. Terminal Environment Diagnostics */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TERMINAL STATUS & SECURITY</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">DEVICE & SECURITY</Text>
           <View style={styles.surfaceCard}>
             <View style={styles.diagRow}>
               <Text style={styles.diagLabel}>Session Authentication</Text>
@@ -325,7 +326,7 @@ export const RestaurantProfileScreen: React.FC<RestaurantProfileScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -422,10 +423,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
+  // Small caps label, as in the customer app's section eyebrows (was 30px and wrapped on phones).
   sectionTitle: {
-    fontWeight: '700',
-    fontSize: 30,
-    color: colors.primary,
+    flexShrink: 1,
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 1.1,
+    color: colors.textSecondary,
   },
   activePill: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { VEHICLE_OPTIONS } from '../utils/riderOnboarding';
+import { appStyles } from '../theme/appStyles';
 
 /** How often the waiting screen checks whether admin has approved the rider. */
 export const APPROVAL_POLL_MS = 30_000;
@@ -112,7 +113,7 @@ const Row: React.FC<{ label: string; value?: string | null; last?: boolean }> = 
   </View>
 );
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, alignItems: 'stretch' },
   iconCircle: {

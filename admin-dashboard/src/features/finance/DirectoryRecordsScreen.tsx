@@ -11,7 +11,7 @@ const entryTypes = ['order_payment', 'rider_delivery_earning', 'rider_incentive'
 const label = (value: string) => value.replaceAll('_', ' ');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const istStart = (date: string) => new Date(`${date}T00:00:00+05:30`);
-const linkStyle = 'text-[#205641] underline break-all';
+const linkStyle = 'text-[#24533F] underline break-all';
 
 function DirectoryTable({ headings, children }: { headings: string[]; children: ReactNode }) {
   return <div className="overflow-x-auto"><table className="w-full text-left">
