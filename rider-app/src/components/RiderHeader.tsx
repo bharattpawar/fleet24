@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/tokens';
+import { appStyles } from '../theme/appStyles';
 
 interface RiderHeaderProps {
   serviceArea: string;
@@ -24,7 +25,7 @@ export function RiderHeader({ serviceArea, profileImageUrl, onProfilePress }: Ri
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
   title: { fontSize: 24, fontWeight: '900', color: colors.primary, letterSpacing: -0.7 },
   rider: { fontSize: 17, fontWeight: '700' },

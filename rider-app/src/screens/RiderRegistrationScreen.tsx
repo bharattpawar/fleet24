@@ -22,6 +22,7 @@ import {
   type RiderFormErrors,
   type RiderRegistrationForm,
 } from '../utils/riderOnboarding';
+import { appStyles } from '../theme/appStyles';
 
 interface Props {
   /** Pre-filled details when re-applying after a rejection. */
@@ -183,7 +184,7 @@ export const RiderRegistrationScreen: React.FC<Props> = ({ initial, onCancel, on
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { padding: spacing.xl, paddingBottom: spacing.xxxl },

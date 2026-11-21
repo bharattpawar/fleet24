@@ -13,6 +13,7 @@ import { RiderRegistrationScreen } from './src/screens/RiderRegistrationScreen';
 import { RiderApplicationStatusScreen } from './src/screens/RiderApplicationStatusScreen';
 import { riderGate, type RiderVehicleType } from './src/utils/riderOnboarding';
 import { StartupSplash } from './src/components/motion/StartupSplash';
+import { appStyles } from './src/theme/appStyles';
 
 type Tab = 'home' | 'earnings' | 'account';
 
@@ -159,6 +160,10 @@ export default function App() {
     InstrumentSerifItalic: require('./assets/fonts/InstrumentSerif-Italic.ttf'),
     StartupRegular: require('./assets/fonts/DMSans-400.ttf'),
     StartupBold: require('./assets/fonts/DMSans-800.ttf'),
+    // Same typeface family as the customer app (see src/theme/appStyles.ts).
+    HomeRegular: require('./assets/fonts/DMSans-400.ttf'),
+    HomeMedium: require('./assets/fonts/DMSans-600.ttf'),
+    HomeBold: require('./assets/fonts/DMSans-800.ttf'),
   });
 
   return (
@@ -170,7 +175,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

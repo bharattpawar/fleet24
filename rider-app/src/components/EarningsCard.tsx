@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius } from '../theme/tokens';
 import { RiderEarningsSummary } from '../api/riderApi';
+import { appStyles } from '../theme/appStyles';
 
 interface EarningsCardProps {
   summary: RiderEarningsSummary | null;
@@ -61,13 +62,12 @@ export const EarningsCard: React.FC<EarningsCardProps> = ({ summary, onViewDetai
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
+    // The home scroll view already pads the sides; a margin here inset this card more than its neighbours.
     marginBottom: spacing.sm,
-    borderRadius: borderRadius.lg,
+    borderRadius: 24,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,

@@ -19,6 +19,7 @@ import { nextDeliveryStep } from '../utils/deliveryStage';
 import { riderApi } from '../api/riderApi';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { addressDetail, addressTitle, directionsUrl, toCoordinate } from '../utils/address';
+import { appStyles } from '../theme/appStyles';
 
 interface ActiveDeliveryViewProps {
   delivery: ActiveDeliveryDetails;
@@ -350,7 +351,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

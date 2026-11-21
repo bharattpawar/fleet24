@@ -1,19 +1,21 @@
 // Fleet24 Rider Design Tokens: "Premium Map-First Logistics UI"
+/** Palette shared with the customer app (customer-app/src/theme/tokens.ts); status colours are operational. */
 export const colors = {
   // Brand Backgrounds
-  background: '#FAF5EF',       // Warm Ivory / Cream
+  background: '#F5F8F5',       // Soft green neutral (same as customer app)
   backgroundDark: '#121915',   // Deep Charcoal for map/overlay backdrop
-  surface: '#FFFCFA',          // Cards, sheets, modals
+  surface: '#FFFFFF',          // Cards, sheets, modals
   surfaceElevated: '#FFFFFF',  // Floating bottom sheets
-  surfaceMuted: '#EFEFE8',     // Muted dividers / badges
-  surfaceGreen: '#E2EFDF',     // Soft Sage for highlights/badges
+  surfaceMuted: '#EEF3EF',     // Muted dividers / badges
+  surfaceGreen: '#EAF2EC',     // Soft Sage for highlights/badges
   surfaceDark: '#193B2C',      // Deep Pine header & high-contrast cards
 
   // Primary Brand
-  primary: '#064B33',          // Forest Green (Primary action buttons)
+  primary: '#24533F',          // Forest Green (Primary action buttons)
   primaryDark: '#193B2C',      // Deep Pine (Headers & pressed states)
   primaryPressed: '#142E23',   // Deepest Pine for active press
-  primaryLight: '#E2EFDF',     // Soft Sage
+  primaryLight: '#EAF2EC',     // Soft Sage
+  limeAccent: '#D9F078',       // Fleet24 brand lime (same as customer app)
 
   // Accents & Indicators
   accent: '#D99058',           // Warm Terracotta (attention, timers, pickup)
@@ -36,15 +38,15 @@ export const colors = {
   errorLight: '#FDF2F1',
 
   // Typography
-  textPrimary: '#202923',      // Dark Charcoal
-  textSecondary: '#667067',    // Refined Muted Gray
-  textMuted: '#9BA39D',        // Light Secondary
+  textPrimary: '#17211B',      // Dark Charcoal
+  textSecondary: '#5F6E66',    // Refined Muted Gray
+  textMuted: '#7E8D85',        // Light Secondary
   textWhite: '#FFFFFF',        // High contrast on dark surfaces
   textOnline: '#1F6131',
 
   // Dividers & Borders
-  border: '#DDD7CF',
-  borderLight: '#F0EFE8',
+  border: '#E0E9E2',
+  borderLight: '#EDF2EE',
   borderDark: '#2C3A31',
 
   // Shadows

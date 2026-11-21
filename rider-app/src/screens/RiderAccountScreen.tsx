@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme/tokens';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { riderApi } from '../api/riderApi';
+import { appStyles } from '../theme/appStyles';
 
 export const RiderAccountScreen: React.FC = () => {
   const { profile, isMockSession, refreshProfile, logout } = useRiderAuth();
@@ -255,7 +256,7 @@ export const RiderAccountScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   safeArea: {
     flex: 1,
     backgroundColor: colors.surfaceDark,
