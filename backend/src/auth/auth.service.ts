@@ -362,8 +362,10 @@ export class AuthService {
 
     const roles = user.roles.map((r) => r.role);
 
-    // Issue new session
-    return this.createSession(user.id, user.phone, roles, userAgent, ipAddress);
+    // Issue new session. Same `tokens` shape as OTP/Google login, which every app reads;
+    // the flat fields stay for older clients.
+    const tokens = await this.createSession(user.id, user.phone, roles, userAgent, ipAddress);
+    return { tokens, ...tokens };
   }
 
   /**

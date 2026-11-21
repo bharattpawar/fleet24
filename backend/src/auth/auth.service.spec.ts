@@ -280,6 +280,9 @@ describe('AuthService (Unit Tests)', () => {
 
       expect(res.accessToken).toBe('mock_access_jwt_token');
       expect(mockDb.update).toHaveBeenCalled(); // Revoked old session
+      // Apps read data.tokens (same as login); a flat-only response silently broke refresh.
+      expect(res.tokens.accessToken).toBe('mock_access_jwt_token');
+      expect(res.tokens.refreshToken).toMatch(/^session-id-2\./);
     });
   });
 
