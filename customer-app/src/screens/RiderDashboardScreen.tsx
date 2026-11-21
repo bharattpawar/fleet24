@@ -1,8 +1,9 @@
+import { appStyles } from '../theme/appStyles';
+import { ScreenHeader } from '../components/ScreenHeader';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   Switch,
   TouchableOpacity,
@@ -184,21 +185,7 @@ export const RiderDashboardScreen: React.FC<RiderDashboardScreenProps> = ({
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* 1. Header with Mode Switch */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Fleet24 Rider Ops</Text>
-          <Text style={styles.headerSubtitle}>{profile?.fullName || 'Partner'}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.customerModeBtn}
-          onPress={onBackToCustomerMode}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-          <Text style={styles.customerModeBtnText}>Customer App</Text>
-        </TouchableOpacity>
-      </View>
+      <View style={styles.pageHeader}><ScreenHeader title="Rider operations" subtitle={profile?.fullName || 'Your deliveries, all in one place'} icon="bicycle-outline" action={<TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to customer app" style={styles.customerModeBtn} onPress={onBackToCustomerMode}><Ionicons name="swap-horizontal" size={18} color={colors.primary} /></TouchableOpacity>} /></View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -319,7 +306,8 @@ export const RiderDashboardScreen: React.FC<RiderDashboardScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
+  pageHeader: { padding: 16, paddingBottom: 0 },
   container: {
     flex: 1,
     backgroundColor: colors.background,

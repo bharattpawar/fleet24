@@ -56,7 +56,7 @@ describe('ImageField', () => {
   it('asks before replacing an existing image and keeps it when cancelled', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<Harness initial="asset:biryani" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Built-in illustration' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Built-in image' }));
     fireEvent.click(screen.getByRole('option', { name: /Pizza/ }));
     expect(screen.getByTestId('value')).toHaveTextContent('asset:biryani');
   });

@@ -1,8 +1,8 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -155,7 +155,7 @@ export const DeliveryOfferCard: React.FC<DeliveryOfferCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   card: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,

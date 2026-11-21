@@ -1,5 +1,6 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { colors, borderRadius, spacing } from '../theme/tokens';
 
 interface QuantityStepperProps {
@@ -40,7 +41,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flexDirection: 'row',
     alignItems: 'center',

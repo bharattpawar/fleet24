@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
@@ -149,7 +150,7 @@ function RiderMarker({ coordinate, isStale }: { coordinate: MapPoint; isStale: b
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   wrap: {
     height: TRACKING_MAP_HEIGHT,
     borderRadius: 18,

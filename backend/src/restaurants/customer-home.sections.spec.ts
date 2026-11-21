@@ -9,6 +9,23 @@ const catalog: HomeCatalog = {
 const img = 'https://ik.imagekit.io/fleet24/banner.jpg';
 
 describe('validateHomeSections', () => {
+  it('persists launch previews as separate actions from live food and favourites', () => {
+    const [section] = validateHomeSections([{ kind: 'shortcuts', title: 'Services', targets: [], shortcuts: [
+      { title: 'Instant', image: 'asset:shortcut-instant', action: 'instant' },
+      { title: 'Dineout', image: 'asset:shortcut-dineout', action: 'dineout' },
+      { title: 'Scenes', image: 'asset:shortcut-scenes', action: 'scenes' },
+    ] }], catalog);
+    expect(section.shortcuts?.map(shortcut => shortcut.action)).toEqual(['instant', 'dineout', 'scenes']);
+  });
+
+  it('persists the two reference discount and delivery filter choices', () => {
+    const [section] = validateHomeSections([{kind: 'rail', title: '', targets: [], tabs: [
+      {label: 'MIN Rs. 100 OFF', filter: 'offers100'},
+      {label: '10 MINS DELIVERY', filter: 'fast10'},
+    ]}], catalog);
+    expect(section.tabs?.map(tab => tab.filter)).toEqual(['offers100', 'fast10']);
+  });
+
   it('accepts every section kind and trims text', () => {
     const out = validateHomeSections([
       { kind: 'search_hints', title: 'Search', hints: [' biryani ', 'pizza'], targets: [] },
@@ -56,7 +73,7 @@ describe('validateHomeSections', () => {
       { kind: 'search_hints', title: 'b', hints: ['y'], targets: [] },
     ]],
     ['banner pointing at an unknown built-in illustration', [{ kind: 'banner', title: 'x', cta: 'Go', image: 'asset:not-real', targets: [{ type: 'outlet', id: 'o-1' }] }]],
-    ['shortcut with an action the app does not have', [{ kind: 'shortcuts', title: 's', shortcuts: [{ title: 'Dineout', image: 'asset:shortcut-food', action: 'dineout' }], targets: [] }]],
+    ['shortcut with an action the app does not have', [{ kind: 'shortcuts', title: 's', shortcuts: [{ title: 'Unknown', image: 'asset:shortcut-food', action: 'unknown-service' }], targets: [] }]],
     ['seven shortcuts', [{ kind: 'shortcuts', title: 's', shortcuts: Array.from({ length: 7 }, () => ({ title: 'Food', image: 'asset:shortcut-food', action: 'food' })), targets: [] }]],
     ['row pointing at a missing outlet', [{ kind: 'row', title: 'x', targets: [{ type: 'outlet', id: 'gone' }] }]],
     ['category section pointing at a dish', [{ kind: 'category', title: 'x', image: img, targets: [{ type: 'dish', id: 'd-1' }] }]],

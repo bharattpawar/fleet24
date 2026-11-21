@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
@@ -62,6 +63,6 @@ export function MapPinView({ latitude, longitude, recenterKey, onMoveStart, onMo
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   wrap: { overflow: 'hidden', backgroundColor: '#E3EADF' },
 });

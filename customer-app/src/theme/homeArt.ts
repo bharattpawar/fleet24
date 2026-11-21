@@ -1,5 +1,5 @@
 /**
- * Built-in Home illustrations (original artwork drawn in tools/home-art, rendered to WebP).
+ * Built-in Home food photographs and promotional artwork, rendered to WebP.
  * Admin content refers to them as `asset:<key>`; they are also the fallback whenever an
  * uploaded photo is missing or fails to load. Keep keys in sync with backend/src/restaurants/home-art.ts.
  */
@@ -26,6 +26,13 @@ export const HOME_ART = {
   'shortcut-fast': require('../../assets/home/shortcut-fast.webp'),
   'shortcut-favourites': require('../../assets/home/shortcut-favourites.webp'),
   'shortcut-food': require('../../assets/home/shortcut-food.webp'),
+  'shortcut-instant': require('../../assets/home/shortcut-instant.webp'),
+  'shortcut-dineout': require('../../assets/home/shortcut-dineout.webp'),
+  'shortcut-scenes': require('../../assets/home/shortcut-scenes.webp'),
+  'tile-biryani': require('../../assets/home/tile-biryani.webp'),
+  'tile-main-course': require('../../assets/home/tile-main-course.webp'),
+  'tile-rolls': require('../../assets/home/tile-rolls.webp'),
+  'tile-beverages': require('../../assets/home/tile-beverages.webp'),
   'shortcut-offers': require('../../assets/home/shortcut-offers.webp'),
   'shortcut-orders': require('../../assets/home/shortcut-orders.webp'),
   'shortcut-veg': require('../../assets/home/shortcut-veg.webp'),

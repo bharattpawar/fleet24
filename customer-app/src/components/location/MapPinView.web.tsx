@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { MovingPin } from './MovingPin';
@@ -75,7 +76,7 @@ export function MapPinView({ latitude, longitude, recenterKey, onMoveStart, onMo
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   wrap: { overflow: 'hidden', backgroundColor: '#E3EADF' },
   fallback: { alignItems: 'center', justifyContent: 'center', padding: 20, gap: 6 },
   fallbackTitle: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },

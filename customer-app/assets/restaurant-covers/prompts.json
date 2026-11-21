@@ -1,0 +1,42 @@
+{
+  "tool": "image_gen.imagegen",
+  "transparent_background": false,
+  "promptTemplate": "Premium editorial food photograph for a restaurant delivery app. Subject: {subject}. Landscape 4:3 composition with the main dish centered and fully visible within the middle 75 percent, so it also crops well as a square card. Modern warm restaurant tabletop, appetizing realistic food, natural window lighting, rich vibrant but natural colors, subtle depth of field, very little empty table, clean styling. Food fills the frame. No text, brand, logo, watermark, hands, illustration or collage.",
+  "assets": [
+    {
+      "key": "cover-biryani",
+      "subject": "Indian dum biryani with saffron rice, caramelized onions and herbs in a beautiful brass handi, with two small seekh kebabs and mint raita at the edge",
+      "savedTo": "cover-biryani.webp"
+    },
+    {
+      "key": "cover-kulcha",
+      "subject": "an authentic Amritsari stuffed kulcha with a melting butter pat and a bowl of chole, sliced onion and mint chutney, absolutely no samosas",
+      "savedTo": "cover-kulcha.webp"
+    },
+    {
+      "key": "cover-rolls",
+      "subject": "two golden flaky Kolkata kathi rolls, one cut open to show paneer and vegetables, with fresh green chutney",
+      "savedTo": "cover-rolls.webp"
+    },
+    {
+      "key": "cover-chai",
+      "subject": "two small glasses of rich Indian chai beside toasted bun maska and a small plate of crisp savory snacks",
+      "savedTo": "cover-chai.webp"
+    },
+    {
+      "key": "cover-pizza",
+      "subject": "a freshly baked wood-fired margherita pizza, blistered crust, bubbling mozzarella, tomatoes and basil, sliced and ready to eat",
+      "savedTo": "cover-pizza.webp"
+    },
+    {
+      "key": "cover-dosa",
+      "subject": "a crisp golden masala dosa with two soft idlis, coconut chutney and a bowl of sambar on a dark ceramic plate",
+      "savedTo": "cover-dosa.webp"
+    },
+    {
+      "key": "cover-kitchen",
+      "subject": "a welcoming Indian kitchen spread of paneer curry, dal tadka, freshly baked naan and basmati rice in attractive ceramic serving bowls",
+      "savedTo": "cover-kitchen.webp"
+    }
+  ]
+}

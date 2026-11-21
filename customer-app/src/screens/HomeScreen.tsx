@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { appStyles } from '../theme/appStyles';
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cuisineCategories, normalizeCategory } from '../utils/homeCategories';
 import { useDeliveryLocation, useServiceAreas } from '../context/DeliveryLocationContext';
@@ -10,18 +11,20 @@ import { useAuth } from '../context/AuthContext';
 import { ExploreFiltersSheet } from '../components/ExploreFiltersSheet';
 import { CartSummaryBar } from '../components/CartSummaryBar';
 import { AddressSelectionModal, Address } from '../components/AddressSelectionModal';
+import { LaunchingSoonModal } from '../components/LaunchingSoonModal';
 import { BannerCarousel, LocationRow, PromoTiles, SearchRow, ShortcutRow } from '../components/home/HomeHeader';
 import {
   CardFacts, CuisineCircles, CuratedRow, DealRail, OfferFilterPills, RestaurantListItem, SearchResults,
 } from '../components/home/HomeSections';
 import {
   DEFAULT_RAIL_TABS, DEFAULT_SHORTCUTS, FeedAction, FeedSection, FeedShortcut, VegFacts,
-  cuisineLine, railOutlets, searchHints, vegOutlets,
+  cuisineLine, railOutlets, searchHints, vegOutlets, comingSoonFeature, ComingSoonFeature,
 } from '../utils/homeFeed';
 import { useFavorites } from '../hooks/useFavorites';
 import { useHomeSearch } from '../hooks/useHomeSearch';
 import { fallbackArt } from '../utils/imageRef';
 import { home, headerGradient } from '../theme/homeTheme';
+import { restaurantColumns } from '../theme/homeLayout';
 
 interface HomeScreenProps {
   onSelectOutlet: (outlet: OutletSummary, dishId?: string) => void;
@@ -29,6 +32,8 @@ interface HomeScreenProps {
   onRequireAuth?: () => void;
   onOpenProfile?: () => void;
   onOpenOrders?: () => void;
+  onOpenFood?: () => void;
+  navigationRequest?: { action: FeedShortcut["action"]; sequence: number };
   /** Veg mode lives in the app so restaurant menus follow it too. */
   vegMode?: boolean;
   onToggleVeg?: () => void;
@@ -43,6 +48,8 @@ interface HomeFeed {
 }
 
 const RAIL_EMPTY: Record<string, string> = {
+  offers100: 'No matching discounts right now.',
+  fast10: 'Choose a delivery address to check 10-minute availability.',
   offers: 'No restaurant offers near you right now.',
   fast: 'No kitchens are open near you right now.',
   all: 'No kitchens near you yet.',
@@ -54,9 +61,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onRequireAuth,
   onOpenProfile,
   onOpenOrders,
+  onOpenFood,
+  navigationRequest,
   vegMode = false,
   onToggleVeg,
 }) => {
+  const { width } = useWindowDimensions();
+  const columns = restaurantColumns(width);
+  const gridCardWidth = Math.floor((width - home.gutter * 2 - (columns - 1) * 16) / columns);
   const serviceAreas = useServiceAreas();
   const { user, isAuthenticated } = useAuth();
   const { addresses, location, selectedAddress, selectAddress, addAddress, updateAddress } = useDeliveryLocation();
@@ -76,6 +88,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [railTab, setRailTab] = useState(0);
   const [selectedShortcut, setSelectedShortcut] = useState(0);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [launchingFeature, setLaunchingFeature] = useState<ComingSoonFeature | null>(null);
 
   const list = useRef<FlatList<OutletSummary>>(null);
   const railY = useRef(0);
@@ -152,6 +165,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const openCount = listOutlets.filter(o => o.isAcceptingOrders).length;
   const favourites = baseOutlets.filter(o => favoriteIds.has(o.id));
 
+  const curatedIds = new Set(sections.filter(section => section.kind === 'row').flatMap(section => section.cards.map(card => card.outlet.id)));
+  const fallbackRail = [...baseOutlets].sort((a, b) => Number(curatedIds.has(b.id)) - Number(curatedIds.has(a.id)));
+  const filteredRail = railOutlets(baseOutlets, railTabs[activeRailTab].filter);
+
   const facts: CardFacts = {
     cuisine: id => cuisineLine(id, cuisinesByOutlet, categoriesByOutlet),
     isFavorite: id => favoriteIds.has(id),
@@ -187,8 +204,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const handleShortcut = (shortcut: FeedShortcut, index: number) => {
+    const upcoming = comingSoonFeature(shortcut);
+    if (upcoming) { setLaunchingFeature(upcoming); return; }
     switch (shortcut.action) {
       case 'food':
+        onOpenFood?.();
         setSelectedShortcut(index);
         clearFilters();
         setSearchQuery('');
@@ -197,7 +217,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       case 'offers':
       case 'fast': {
         setSelectedShortcut(index);
-        const tab = railTabs.findIndex(t => t.filter === shortcut.action);
+        const tab = railTabs.findIndex(t => t.filter === shortcut.action || (shortcut.action === 'offers' && t.filter === 'offers100') || (shortcut.action === 'fast' && t.filter === 'fast10'));
         if (tab >= 0) setRailTab(tab);
         scrollTo(railY.current);
         break;
@@ -220,6 +240,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         break;
     }
   };
+
+  const navigateFromBar = useEffectEvent(() => {
+    if (navigationRequest) handleShortcut({ title: '', image: '', action: navigationRequest.action }, 0);
+  });
+  useEffect(() => {
+    if (navigationRequest) void Promise.resolve().then(() => navigateFromBar());
+  }, [navigationRequest]);
 
   const openAddressPicker = () => {
     // Saved addresses need an account; signed-out users browse a service area.
@@ -293,8 +320,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={styles.railBlock} onLayout={e => { railY.current = e.nativeEvent.layout.y; }}>
             {railSection?.title ? <Text style={styles.blockTitle}>{railSection.title}</Text> : null}
             <OfferFilterPills tabs={railTabs} active={activeRailTab} onChange={setRailTab} />
+            {!railOutlets(baseOutlets, railTabs[activeRailTab].filter).length && <Text style={styles.railNotice}>{RAIL_EMPTY[railTabs[activeRailTab].filter]} Explore kitchens near you.</Text>}
             <DealRail
-              outlets={railOutlets(baseOutlets, railTabs[activeRailTab].filter)}
+              outlets={filteredRail.length ? filteredRail : fallbackRail.slice(0, 10)}
               facts={facts}
               onSelectOutlet={outlet => onSelectOutlet(outlet)}
               emptyText={RAIL_EMPTY[railTabs[activeRailTab].filter]}
@@ -336,9 +364,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           })}
 
           <View style={styles.listHeader} onLayout={e => { listY.current = e.nativeEvent.layout.y; }}>
-            <View style={styles.rule} />
-            <Text style={styles.listTitle}>ALL RESTAURANTS</Text>
-            <View style={styles.rule} />
+            <Text style={styles.listTitle}>All restaurants</Text>
           </View>
           <View style={styles.chips}>
             <TouchableOpacity style={[styles.chip, openOnly && styles.chipOn]} onPress={() => setFiltersVisible(true)} accessibilityRole="button" accessibilityLabel={openOnly ? 'Filters, 1 active' : 'Filters'}>
@@ -394,10 +420,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
       ) : (
         <FlatList
+          key={columns}
           ref={list}
+          numColumns={columns}
+          columnWrapperStyle={columns > 1 ? styles.restaurantGridRow : undefined}
+          showsVerticalScrollIndicator={false}
           data={searching ? [] : listOutlets}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => <RestaurantListItem outlet={item} facts={facts} onPress={() => onSelectOutlet(item)} />}
+          renderItem={({ item }) => <RestaurantListItem outlet={item} width={columns > 1 ? gridCardWidth : undefined} facts={facts} onPress={() => onSelectOutlet(item)} />}
           ListHeaderComponent={renderHeader()}
           ListEmptyComponent={searching ? undefined : emptyList}
           keyboardShouldPersistTaps="handled"
@@ -426,56 +456,59 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onUpdateAddress={async (id, changes) => { clearFilters(); return updateAddress(id, changes); }}
         onClose={() => setIsAddressModalVisible(false)}
       />
+      <LaunchingSoonModal feature={launchingFeature} onClose={() => setLaunchingFeature(null)} onExploreFood={() => { setLaunchingFeature(null); handleShortcut(DEFAULT_SHORTCUTS[0], 0); }} />
     </View>
   );
 };
 
 const G = home.gutter;
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: { flex: 1, backgroundColor: home.page },
   listContent: { paddingBottom: 96, backgroundColor: home.page },
+  restaurantGridRow: { paddingHorizontal: home.gutter, gap: 16, marginTop: 18, marginBottom: 8 },
   navy: {
     backgroundColor: home.headerMid,
     backgroundImage: headerGradient,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    paddingBottom: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingBottom: 10,
     overflow: 'hidden',
   },
-  bannerGap: { marginTop: 4 },
-  railBlock: { marginTop: 16 },
+  bannerGap: { marginTop: 6 },
+  railNotice: { color: home.muted, fontSize: 10, marginHorizontal: G, marginTop: 8, marginBottom: -10 },
+  railBlock: { marginTop: 24 },
   block: { marginTop: 22 },
-  blockTitle: { color: home.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.3, marginHorizontal: G, marginBottom: 12 },
+  blockTitle: { color: home.ink, fontSize: 17, fontFamily: 'HomeBold', fontWeight: '800', letterSpacing: -0.3, marginHorizontal: G, marginBottom: 12 },
   inlineError: { color: '#9A2A16', fontSize: 13, marginHorizontal: G, marginTop: 8 },
 
   outOfArea: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: G, marginTop: 16, padding: 14, borderRadius: 16, backgroundColor: '#FDF3EC' },
-  outOfAreaTitle: { fontSize: 15, fontWeight: '800', color: '#8C3A1C' },
+  outOfAreaTitle: { fontSize: 15, fontFamily: 'HomeBold', fontWeight: '800', color: '#8C3A1C' },
   outOfAreaText: { fontSize: 13, color: '#5C4033', marginTop: 2 },
   outOfAreaBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
-  outOfAreaBtnText: { fontSize: 14, fontWeight: '800', color: '#8C3A1C' },
+  outOfAreaBtnText: { fontSize: 14, fontFamily: 'HomeBold', fontWeight: '800', color: '#8C3A1C' },
 
   vegNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: G, marginTop: 14, padding: 10, borderRadius: 12, backgroundColor: '#EAF7EF' },
   vegMark: { width: 14, height: 14, borderWidth: 1.5, borderColor: home.veg, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
   vegDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: home.veg },
-  vegNoteText: { flex: 1, color: '#16472A', fontSize: 13, fontWeight: '600' },
-  link: { color: home.accent, fontSize: 13, fontWeight: '800', padding: 4 },
+  vegNoteText: { flex: 1, color: '#16472A', fontSize: 13, fontFamily: 'HomeMedium', fontWeight: '600' },
+  link: { color: home.accent, fontSize: 13, fontFamily: 'HomeBold', fontWeight: '800', padding: 4 },
 
   listHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: G, marginTop: 28 },
   rule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#C9CAD0' },
-  listTitle: { color: home.muted, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  listTitle: { color: home.ink, fontSize: 23, lineHeight: 30, fontFamily: 'HomeBold', fontWeight: '800', letterSpacing: -0.6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginHorizontal: G, marginTop: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: home.hairline, backgroundColor: '#FFFFFF' },
   chipOn: { borderColor: home.accent, backgroundColor: home.accentSoft },
-  chipText: { color: home.ink, fontSize: 13, fontWeight: '700' },
+  chipText: { color: home.ink, fontSize: 13, fontFamily: 'HomeBold', fontWeight: '700' },
   chipTextOn: { color: home.accent },
-  listCount: { color: home.muted, fontSize: 12, marginHorizontal: G, marginTop: 10, marginBottom: 2 },
+  listCount: { color: '#7D8799', fontSize: 12, lineHeight: 18, fontFamily: 'HomeRegular', marginHorizontal: G, marginTop: 10, marginBottom: 12 },
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 14, color: home.muted },
   empty: { paddingVertical: 32, alignItems: 'center', paddingHorizontal: G, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: home.ink },
+  emptyTitle: { fontSize: 16, fontFamily: 'HomeBold', fontWeight: '800', color: home.ink },
   emptySubtitle: { fontSize: 13, color: home.muted, textAlign: 'center' },
   retry: { backgroundColor: home.accent, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: 4 },
-  retryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  retryText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'HomeBold', fontWeight: '800' },
 });

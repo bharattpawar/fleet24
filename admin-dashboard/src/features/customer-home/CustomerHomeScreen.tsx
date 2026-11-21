@@ -7,8 +7,8 @@ import { starterLayout } from './starterLayout';
 
 type TargetType = 'category' | 'restaurant' | 'outlet' | 'dish';
 type Kind = 'shortcuts' | 'search_hints' | 'banner' | 'tiles' | 'rail' | 'category' | 'row';
-type RailFilter = 'all' | 'offers' | 'fast';
-type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile';
+type RailFilter = 'all' | 'offers' | 'fast' | 'offers100' | 'fast10';
+type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile' | 'instant' | 'dineout' | 'scenes';
 type Shortcut = { title: string; image: string; alt?: string; badge?: string; action: ShortcutAction };
 type Target = { type: TargetType; id: string; title?: string; subtitle?: string; image?: string; alt?: string };
 type Section = {
@@ -38,7 +38,7 @@ const KIND_LABEL: Record<Kind, string> = {
   row: 'Curated row',
 };
 const KIND_HELP: Record<Kind, string> = {
-  shortcuts: 'Up to 6 picture cards under the location. Each opens a real part of the app; the first one is shown as selected.',
+  shortcuts: 'Up to 6 picture cards under the location. Choose an app destination or a launching-soon preview for each card.',
   search_hints: 'Rotating texts in the search bar, e.g. “biryani”. One per Home.',
   banner: 'Big campaign card at the top: small line, headline, offer line, photo and button.',
   tiles: 'Row of small offer cards. Each tile has its own photo, title and sub-line.',
@@ -47,6 +47,9 @@ const KIND_HELP: Record<Kind, string> = {
   row: 'Hand-picked outlets or dishes in a horizontal row.',
 };
 const SHORTCUT_ACTIONS: { value: ShortcutAction; label: string }[] = [
+  { value: 'instant', label: 'Instant — launching soon' },
+  { value: 'dineout', label: 'Dineout — launching soon' },
+  { value: 'scenes', label: 'Scenes — launching soon' },
   { value: 'food', label: 'Food home (top of page)' },
   { value: 'offers', label: 'Restaurants with offers' },
   { value: 'fast', label: 'Fastest delivery' },
@@ -56,6 +59,8 @@ const SHORTCUT_ACTIONS: { value: ShortcutAction; label: string }[] = [
   { value: 'profile', label: 'Profile' },
 ];
 const RAIL_FILTERS: { value: RailFilter; label: string }[] = [
+  { value: 'offers100', label: 'Fixed discount of at least Rs. 100' },
+  { value: 'fast10', label: 'Delivery within 10 minutes' },
   { value: 'all', label: 'All nearby' },
   { value: 'offers', label: 'With offers' },
   { value: 'fast', label: 'Fastest delivery' },

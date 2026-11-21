@@ -1,7 +1,7 @@
 import type { OutletSummary } from '../components/RestaurantCard';
 
 /** Section shapes returned by GET /public/customer-home. Everything here is edited by admin. */
-export type RailFilter = 'all' | 'offers' | 'fast';
+export type RailFilter = 'all' | 'offers' | 'fast' | 'offers100' | 'fast10';
 
 export interface FeedDish {
   id: string;
@@ -29,7 +29,8 @@ export interface FeedTarget {
   cards?: FeedCard[];
 }
 
-export type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile';
+export type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile' | 'instant' | 'dineout' | 'scenes';
+export type ComingSoonFeature = 'instant' | 'dineout' | 'scenes';
 
 export interface FeedShortcut {
   title: string;
@@ -37,6 +38,16 @@ export interface FeedShortcut {
   alt?: string;
   badge?: string;
   action: ShortcutAction;
+}
+
+/** Older published Home content used food/fast/favourites for these service labels. */
+export function comingSoonFeature(shortcut: Pick<FeedShortcut, 'title' | 'action'>): ComingSoonFeature | null {
+  if (shortcut.action === 'instant' || shortcut.action === 'dineout' || shortcut.action === 'scenes') return shortcut.action;
+  const title = shortcut.title.toLowerCase().replace(/[^a-z]/g, '');
+  if (title === 'instant' || title === 'instamart') return 'instant';
+  if (title === 'dineout') return 'dineout';
+  if (title === 'scenes') return 'scenes';
+  return null;
 }
 
 export interface VegFacts {
@@ -81,6 +92,16 @@ export function railOutlets(outlets: OutletSummary[], filter: RailFilter, limit 
   const distance = (o: OutletSummary) => o.distanceKm ?? Number.POSITIVE_INFINITY;
   let list: OutletSummary[];
   switch (filter) {
+    case 'offers100':
+      list = outlets.filter(o => {
+        const fixed = o.offerTitle?.match(/(?:₹|Rs\.?)[ ]*(\d+(?:\.\d+)?)[ ]*OFF/i);
+        return fixed && Number(fixed[1]) >= 100;
+      }).sort((a, b) => open(a) - open(b) || distance(a) - distance(b));
+      break;
+    case 'fast10':
+      list = outlets.filter(o => o.isAcceptingOrders && o.deliveryEta && o.deliveryEta.maxMinutes <= 10)
+        .sort((a, b) => eta(a) - eta(b));
+      break;
     case 'offers':
       list = outlets.filter(o => o.offerTitle?.trim()).sort((a, b) => open(a) - open(b) || distance(a) - distance(b));
       break;
@@ -114,15 +135,15 @@ export function targetAction(target: FeedTarget | undefined, cards: FeedCard[], 
 /** Shown until admin publishes a shortcut row: only destinations the app really has. */
 export const DEFAULT_SHORTCUTS: FeedShortcut[] = [
   { title: 'FOOD', image: 'asset:shortcut-food', action: 'food', alt: 'Burger' },
-  { title: 'OFFERS', image: 'asset:shortcut-offers', action: 'offers', alt: 'Discount tag' },
-  { title: 'FAST', image: 'asset:shortcut-fast', action: 'fast', alt: 'Lightning bolt' },
-  { title: 'REORDER', image: 'asset:shortcut-orders', action: 'orders', alt: 'Shopping bag' },
+  { title: 'INSTANT', image: 'asset:shortcut-instant', action: 'instant', alt: 'Fresh groceries in a bag' },
+  { title: 'DINEOUT', image: 'asset:shortcut-dineout', action: 'dineout', alt: 'Restaurant serving cloche' },
+  { title: 'SCENES', image: 'asset:shortcut-scenes', action: 'scenes', alt: 'Live stage microphone' },
 ];
 
 /** Shown until admin publishes a restaurant toggle. */
 export const DEFAULT_RAIL_TABS: { label: string; filter: RailFilter }[] = [
-  { label: 'OFFERS FOR YOU', filter: 'offers' },
-  { label: 'FASTEST DELIVERY', filter: 'fast' },
+  { label: 'MIN Rs. 100 OFF', filter: 'offers100' },
+  { label: '10 MINS DELIVERY', filter: 'fast10' },
 ];
 
 /** Restaurants allowed in veg mode: those that can sell at least one veg dish. */

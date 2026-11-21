@@ -5,7 +5,7 @@ import { HOME_ART, HomeArtKey } from '../theme/homeArt';
 /**
  * Turns an admin image reference into something <Image> can show.
  *   media:<id>   uploaded by admin → served by the API (immutable URL, safe to cache)
- *   asset:<key>  built-in illustration bundled with the app
+ *   asset:<key>  built-in image bundled with the app
  *   http(s)://…  any other image URL
  * Returns null when there is nothing usable.
  */
@@ -39,7 +39,7 @@ const DISH_HINTS: Array<[RegExp, HomeArtKey]> = [
   [/main|curry|gravy|north indian|dal/i, 'main-course'],
 ];
 
-/** A fitting built-in illustration for a restaurant/dish/category name, used only as a fallback. */
+/** A fitting built-in image for a restaurant/dish/category name, used only as a fallback. */
 export function fallbackArt(...names: Array<string | null | undefined>): HomeArtKey {
   for (const name of names) {
     if (!name) continue;

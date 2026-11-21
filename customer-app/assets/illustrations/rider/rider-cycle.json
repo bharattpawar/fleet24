@@ -1,0 +1,9 @@
+{
+  "frames": 48,
+  "columns": 8,
+  "rows": 6,
+  "cellPixels": 480,
+  "durationMs": 1500,
+  "renderer": "Three.js 0.187.0; original articulated Fleet24 meshes",
+  "atlasBytes": 1046496
+}

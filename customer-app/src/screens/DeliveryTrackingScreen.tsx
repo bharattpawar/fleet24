@@ -1,8 +1,9 @@
+import { appStyles } from '../theme/appStyles';
+import { ScreenHeader } from '../components/ScreenHeader';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
@@ -379,13 +380,8 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* 1. Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBackBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>Tracking Order #{orderNumber}</Text>
+      <View style={styles.pageHeader}>
+        <ScreenHeader title={`Order #${orderNumber}`} subtitle={isFinished ? 'Your delivery is complete' : isCancelled ? 'This delivery was cancelled' : 'From the kitchen to your doorstep'} onBack={onBack}>
           <View style={styles.wsStatusRow}>
             <View
               style={[
@@ -400,14 +396,10 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
               ]}
             />
             <Text style={styles.wsStatusText}>
-              {isWsConnected
-                ? 'Live WebSocket Connected'
-                : isReconnecting
-                ? 'Reconnecting Live...'
-                : 'Offline Fallback'}
+              {isWsConnected ? 'Live delivery updates' : isReconnecting ? 'Reconnecting to live updates…' : 'Checking for delivery updates'}
             </Text>
           </View>
-        </View>
+        </ScreenHeader>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -517,7 +509,8 @@ export const DeliveryTrackingScreen: React.FC<DeliveryTrackingScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
+  pageHeader: { padding: 16, paddingBottom: 0 },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -580,7 +573,7 @@ const styles = StyleSheet.create({
   wsStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 12,
     gap: 5,
   },
   wsStatusDot: {
@@ -590,7 +583,7 @@ const styles = StyleSheet.create({
   },
   wsStatusText: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: '#D9E8DF',
     fontWeight: '500',
   },
   scrollContent: {

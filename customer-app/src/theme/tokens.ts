@@ -1,9 +1,9 @@
 // Fleet24 Design Tokens: "Premium Clean Fleet24 Brand System"
 export const colors = {
-  background: '#F7F6F0',      // Warm Ivory / Cream background
+  background: '#F5F8F5',      // Soft green neutral background
   surface: '#FFFFFF',         // Cards, sheets, inputs
   surfaceElevated: '#FFFFFF', // Elevated cards
-  surfaceMuted: '#EFEFE8',    // Very soft neutral container
+  surfaceMuted: '#EEF3EF',    // Very soft neutral container
   surfaceGreen: '#EAF2EC',    // Soft pale forest green pill/badge background
   surfaceLime: '#F3FCD0',     // Soft lime tint for highlights
   primary: '#24533F',         // Signature Forest Green
@@ -15,10 +15,10 @@ export const colors = {
   accentLight: '#FDF3EC',     // Soft terracotta tint
   charcoal: '#17211B',        // Signature Charcoal
   textPrimary: '#17211B',     // Signature Charcoal text
-  textSecondary: '#6B7280',   // Refined slate secondary text
-  textMuted: '#9CA3AF',       // Light secondary
-  border: '#E8E6DD',          // Subtle divider/outline
-  borderLight: '#F2F1EA',
+  textSecondary: '#65736B',   // Muted green neutral text
+  textMuted: '#8B9A91',       // Light secondary
+  border: '#E0E9E2',          // Subtle divider/outline
+  borderLight: '#EDF2EE',
   foodAccent: '#E98755',      // Warm terracotta / food badge
   success: '#24533F',         // Forest green success
   warning: '#E98755',         // Terracotta / amber pending
@@ -101,11 +101,11 @@ export const borderRadius = {
 };
 
 export const exploreColors = {
-  background: '#FAF5EF',
-  surface: '#FFFCFA',
-  green: '#064B33',
-  ink: '#102019',
-  secondary: '#535D67',
-  border: '#DDD7CF',
-  tint: '#E2EFDF',
+  background: colors.background,
+  surface: colors.surface,
+  green: colors.primary,
+  ink: colors.textPrimary,
+  secondary: colors.textSecondary,
+  border: colors.border,
+  tint: colors.surfaceGreen,
 };

@@ -1,5 +1,6 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../theme/tokens';
 
@@ -93,7 +94,7 @@ export const ConfirmDeliveryCard: React.FC<ConfirmDeliveryCardProps> = ({ onConf
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   card: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,

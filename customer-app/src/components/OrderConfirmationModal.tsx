@@ -1,9 +1,9 @@
+import { appStyles } from '../theme/appStyles';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -194,7 +194,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

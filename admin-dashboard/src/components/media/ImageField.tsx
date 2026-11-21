@@ -81,7 +81,7 @@ export function ImageField({ label, value, onChange, alt, onAltChange, aspect, o
         <div className="flex flex-wrap gap-2">
           <input ref={input} id={`${id}-file`} type="file" accept={IMAGE_RULES.types.join(',')} className="sr-only" onChange={e => void handleFile(e.target.files?.[0])} />
           <label htmlFor={`${id}-file`} className="admin-control cursor-pointer">{value ? 'Replace image' : 'Upload image'}</label>
-          <button type="button" className="admin-control" onClick={() => setMode(mode === 'art' ? 'idle' : 'art')}>Built-in illustration</button>
+          <button type="button" className="admin-control" onClick={() => setMode(mode === 'art' ? 'idle' : 'art')}>Built-in image</button>
           <button type="button" className="admin-control" onClick={() => setMode(mode === 'url' ? 'idle' : 'url')}>Image URL</button>
           {value && optional && (
             <button type="button" className="admin-control" onClick={() => { if (window.confirm('Remove this image?')) onChange(''); }}>Remove</button>
@@ -98,7 +98,7 @@ export function ImageField({ label, value, onChange, alt, onAltChange, aspect, o
       {warning && <p className="text-sm text-amber-800">{warning}</p>}
       {info && <p role="status" className="text-xs text-slate-600">{info}</p>}
       {mode === 'art' && (
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" role="listbox" aria-label="Built-in illustrations">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" role="listbox" aria-label="Built-in images">
           {HOME_ART.map(art => (
             <button
               key={art.key}

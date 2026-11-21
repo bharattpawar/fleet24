@@ -1,3 +1,4 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -303,6 +304,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           onPress={onBack}
           style={styles.navIconButton}
           accessibilityRole="button"
+          accessibilityLabel="Back to restaurants"
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -317,6 +319,7 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           onPress={onViewCart}
           style={styles.navIconButton}
           accessibilityRole="button"
+          accessibilityLabel="View cart"
           activeOpacity={0.7}
         >
           <Ionicons name="cart-outline" size={20} color={colors.textPrimary} />
@@ -342,6 +345,8 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
             <MenuItemCard
+              outletId={outlet.id}
+              restaurantName={outlet.restaurantName}
               item={item}
               isOutletOpen={outlet.isAcceptingOrders}
               quantityInCart={getQuantityForMenu(item.id)}
@@ -369,13 +374,13 @@ export const RestaurantDetailScreen: React.FC<RestaurantDetailScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   vegNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#EAF7EF' },
   vegNoticeText: { flex: 1, color: '#16472A', fontSize: 13, fontWeight: '600' },
-  vegNoticeAction: { color: '#F36C35', fontSize: 13, fontWeight: '800' },
+  vegNoticeAction: { color: colors.primary, fontSize: 13, fontWeight: '800' },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   navBar: {
     flexDirection: 'row',
@@ -526,13 +531,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   heroInfoContent: {
-    padding: 16,
+    padding: 20,
+    backgroundColor: colors.primary,
   },
   restaurantName: {
     fontSize: 25,
     lineHeight: 30,
     fontWeight: '800',
-    color: colors.charcoal,
+    color: '#FFFFFF',
     letterSpacing: -0.4,
   },
   locationRow: {
@@ -544,7 +550,7 @@ const styles = StyleSheet.create({
   outletAddress: {
     fontSize: 12,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: '#D9E8DF',
     flex: 1,
   },
   metaPillsRow: {

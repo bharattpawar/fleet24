@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -142,7 +143,7 @@ export function TrackingMap({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   wrap: {
     height: TRACKING_MAP_HEIGHT,
     borderRadius: 18,

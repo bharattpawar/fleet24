@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 import { apiRequest } from '../api/client';
 
@@ -6,6 +7,8 @@ import { apiRequest } from '../api/client';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -50,7 +53,7 @@ class RiderNotificationService {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('fleet24-offers', {
           name: 'Delivery Offers',
-          importance: Notifications.AndroidImportance.MAX,
+          importance: AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#28543F',
         });

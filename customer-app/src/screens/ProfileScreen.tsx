@@ -1,9 +1,11 @@
+import { appStyles } from '../theme/appStyles';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenEmptyState } from '../components/ScreenEmptyState';
 import { useDeliveryLocation } from '../context/DeliveryLocationContext';
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   TextInput,
   Alert,
@@ -32,6 +34,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { user, isAuthenticated, logout, refreshProfile } = useAuth();
   const activeUser = USE_MOCK_DATA ? MOCK_USER_PROFILE : user;
   const isUserAuthenticated = USE_MOCK_DATA ? true : isAuthenticated;
+  const savedAddresses = USE_MOCK_DATA ? MOCK_ADDRESSES : addresses;
 
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState(activeUser?.fullName || '');
@@ -39,21 +42,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   if (!isUserAuthenticated || !activeUser) {
     return (
-      <View style={[styles.centerContainer, { paddingTop: insets.top + 40 }]}>
-        <View style={styles.emptyIconCircle}>
-          <Ionicons name="person-circle-outline" size={48} color={colors.primary} />
-        </View>
-        <Text style={styles.title}>Fleet24 Account</Text>
-        <Text style={styles.sub}>
-          Log in with your mobile number to manage your profile, saved addresses, and active orders.
-        </Text>
-        <Button
-          title="Sign In / Register"
-          onPress={onRequireAuth}
-          size="lg"
-          style={{ marginTop: spacing.xl, paddingHorizontal: spacing.xxl }}
-        />
-      </View>
+      <ScreenEmptyState icon="person-outline" title="Your Fleet24 account" subtitle="Your favourite kitchens, saved addresses and order history—all in one place." action="Sign In / Register" onPress={onRequireAuth} />
     );
   }
 
@@ -104,10 +93,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.screenHeading}>My Profile</Text>
-        <Text style={styles.headerSub}>Personal info, delivery preferences & addresses</Text>
-      </View>
+      <ScreenHeader title="My profile" subtitle="Your details, preferences and saved places" icon="person-outline" />
 
       {/* User Hero Card */}
       <View style={styles.userCard}>
@@ -196,28 +182,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
           <Text style={styles.addressSectionTitle}>Saved Addresses</Text>
           <View style={styles.addressCountBadge}>
-            <Text style={styles.addressCountBadgeText}>{MOCK_ADDRESSES.length}</Text>
+            <Text style={styles.addressCountBadgeText}>{savedAddresses.length}</Text>
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        {MOCK_ADDRESSES.map((addr, index) => (
+        {!savedAddresses.length && <Text style={styles.addressLine2}>Save a delivery address from the location picker on Home.</Text>}
+        {savedAddresses.map((addr, index) => (
           <View
             key={addr.id}
             style={[
               styles.addressItem,
-              index < MOCK_ADDRESSES.length - 1 && styles.addressItemBorder,
+              index < savedAddresses.length - 1 && styles.addressItemBorder,
             ]}
           >
             <View style={styles.addressIconCol}>
-              <Ionicons name={getAddressIcon(addr.label)} size={20} color={colors.primary} />
+              <Ionicons name={getAddressIcon(addr.label || 'Home')} size={20} color={colors.primary} />
             </View>
 
             <View style={styles.addressDetailCol}>
               <View style={styles.addressBadgeRow}>
                 <View style={styles.addressLabelBadge}>
-                  <Text style={styles.addressLabelText}>{addr.label}</Text>
+                  <Text style={styles.addressLabelText}>{addr.label || 'Saved address'}</Text>
                 </View>
                 {addr.isDefault && (
                   <View style={styles.defaultBadge}>
@@ -309,7 +296,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,

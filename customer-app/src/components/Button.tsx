@@ -1,9 +1,9 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
 import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
-  StyleSheet,
   ViewStyle,
   TextStyle,
 } from 'react-native';
@@ -78,6 +78,9 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading }}
       activeOpacity={0.8}
       onPress={onPress}
       disabled={disabled || loading}
@@ -101,9 +104,10 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   button: {
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.md,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

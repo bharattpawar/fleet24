@@ -21,9 +21,9 @@ export function starterLayout(catalog: Catalog) {
       targets: [],
       shortcuts: [
         { title: 'FOOD', image: 'asset:shortcut-food', action: 'food', alt: 'Burger' },
-        { title: 'OFFERS', image: 'asset:shortcut-offers', action: 'offers', alt: 'Discount tag' },
-        { title: 'FAST', image: 'asset:shortcut-fast', action: 'fast', badge: 'QUICK', alt: 'Lightning bolt' },
-        { title: 'REORDER', image: 'asset:shortcut-orders', action: 'orders', alt: 'Shopping bag with a tick' },
+        { title: 'INSTANT', image: 'asset:shortcut-instant', action: 'instant', alt: 'Fresh groceries in a bag' },
+        { title: 'DINEOUT', image: 'asset:shortcut-dineout', action: 'dineout', alt: 'Restaurant serving cloche' },
+        { title: 'SCENES', image: 'asset:shortcut-scenes', action: 'scenes', alt: 'Live stage microphone' },
       ],
     },
     {
@@ -37,7 +37,7 @@ export function starterLayout(catalog: Catalog) {
     sections.push({
       kind: 'banner',
       title: 'Foodie Weekend',
-      subtitle: 'Edit this offer line before publishing',
+      subtitle: 'Fresh picks from your local kitchens',
       cta: 'ORDER NOW',
       image: 'asset:brownies',
       imageLeft: 'asset:biryani',
@@ -47,17 +47,16 @@ export function starterLayout(catalog: Catalog) {
   }
   const tileTargets = [...categories.slice(0, 2).map(c => ({ type: 'category' as const, id: c.id, name: c.name })),
     ...outlets.slice(0, 2).map(o => ({ type: 'outlet' as const, id: o.id, name: o.name }))].slice(0, 4);
-  const tileArt = ['asset:promo-feast', 'asset:promo-flash', 'asset:promo-percent', 'asset:promo-bolt'];
   if (tileTargets.length) {
     sections.push({
       kind: 'tiles',
       title: '',
-      targets: tileTargets.map((target, i) => ({
+      targets: tileTargets.map(target => ({
         type: target.type,
         id: target.id,
         title: target.name.slice(0, 40),
         subtitle: 'Edit offer text',
-        image: tileArt[i % tileArt.length],
+        image: `asset:${artFor(target.name)}`,
       })),
     });
   }
@@ -66,8 +65,8 @@ export function starterLayout(catalog: Catalog) {
     title: '',
     targets: [],
     tabs: [
-      { label: 'OFFERS FOR YOU', filter: 'offers' },
-      { label: 'FASTEST DELIVERY', filter: 'fast' },
+      { label: 'MIN Rs. 100 OFF', filter: 'offers100' },
+      { label: '10 MINS DELIVERY', filter: 'fast10' },
     ],
   });
   for (const category of categories.slice(0, 8)) {

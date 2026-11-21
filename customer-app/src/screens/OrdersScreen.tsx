@@ -1,9 +1,11 @@
+import { appStyles } from '../theme/appStyles';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenEmptyState } from '../components/ScreenEmptyState';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
@@ -248,18 +250,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
 
   if (!isAuthenticated && !USE_MOCK_DATA) {
     return (
-      <View style={[styles.centerContainer, { paddingTop: insets.top + 40 }]}>
-        <View style={styles.emptyIconCircle}>
-          <Ionicons name="receipt-outline" size={42} color={colors.primary} />
-        </View>
-        <Text style={styles.emptyTitle}>Sign in to view your orders</Text>
-        <Text style={styles.emptySub}>
-          Track your active food deliveries and review past orders easily.
-        </Text>
-        <TouchableOpacity style={styles.loginBtn} activeOpacity={0.85} onPress={onRequireAuth}>
-          <Text style={styles.loginBtnText}>Log In / Sign Up</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenEmptyState icon="receipt-outline" title="Sign in to view your orders" subtitle="Follow your food from the kitchen to your door, or order your favourites again." action="Log In / Sign Up" onPress={onRequireAuth} />
     );
   }
 
@@ -369,16 +360,9 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   };
 
   const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.headerTitleRow}>
-        <Text style={styles.screenHeading}>My Orders</Text>
-        <View style={styles.orderCountBadge}>
-          <Text style={styles.orderCountBadgeText}>{orders.length}</Text>
-        </View>
-      </View>
-      <Text style={styles.headerSub}>Active deliveries & culinary history</Text>
-      {paymentNotice && <Text accessibilityRole="alert" style={styles.headerSub}>{paymentNotice}</Text>}
-    </View>
+    <ScreenHeader title="My orders" subtitle={`${orders.length} orders · Your latest deliveries and favourite meals`} icon="receipt-outline">
+      {paymentNotice && <Text accessibilityRole="alert" style={styles.paymentHeaderNotice}>{paymentNotice}</Text>}
+    </ScreenHeader>
   );
 
   return (
@@ -415,13 +399,15 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
                     <Ionicons name="restaurant-outline" size={18} color={colors.primary} />
                   </View>
                   <View style={styles.headerTextCol}>
-                    <Text style={styles.restName} numberOfLines={1}>
+                    <Text style={styles.restName} numberOfLines={2}>
                       {item.restaurantName}
                     </Text>
                     <Text style={styles.outletName} numberOfLines={1}>
                       {item.outletName}
                     </Text>
                   </View>
+                </View>
+                <View style={styles.orderStatusRow}>
                   {renderStatusBadge(
                     item.status,
                     item.paymentStatus,
@@ -614,7 +600,9 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
+  paymentHeaderNotice: { color: '#FFFFFF', fontSize: 12, lineHeight: 18, marginTop: 12 },
+  orderStatusRow: { alignItems: 'flex-start', marginTop: 12 },
   container: {
     flex: 1,
     backgroundColor: colors.background,

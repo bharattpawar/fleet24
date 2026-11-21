@@ -108,6 +108,14 @@ describe('Home content', () => {
 });
 
 describe('HomeImage fallbacks', () => {
+  it('loads an updated admin image after a previous image failed', () => {
+    let r!: TestRenderer.ReactTestRenderer;
+    act(() => { r = TestRenderer.create(<HomeImage source="https://broken.test/old.jpg" fallback="biryani" />); });
+    act(() => { r.root.findByType('Image' as any).props.onError(); });
+    act(() => { r.update(<HomeImage source="https://images.test/new.jpg" fallback="biryani" />); });
+    expect(r.root.findByType('Image' as any).props.source).toEqual({ uri: 'https://images.test/new.jpg' });
+  });
+
   it('falls back from a broken upload to the built-in illustration, then to a placeholder', () => {
     let r!: TestRenderer.ReactTestRenderer;
     act(() => { r = TestRenderer.create(<HomeImage source="https://broken.test/x.jpg" fallback="biryani" alt="Biryani" />); });

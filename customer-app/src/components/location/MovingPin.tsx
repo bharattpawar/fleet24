@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ export function MovingPin({ lift }: { lift: Animated.Value }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   layer: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   // The pin tip sits on the exact map centre: icon is 44 tall, so lift it by half.
   pin: { position: 'absolute', marginTop: -44 },

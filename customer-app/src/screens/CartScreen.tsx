@@ -1,9 +1,11 @@
+import { appStyles } from '../theme/appStyles';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenEmptyState } from '../components/ScreenEmptyState';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -208,27 +210,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   if (!cart || cart.items.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: Math.max(insets.top, 14) }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={onBack} style={styles.navIconButton}>
-            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.topTitle}>Your Cart</Text>
-          <View style={{ width: 38 }} />
-        </View>
-
-        <View style={styles.emptyContent}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="cart-outline" size={44} color={colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptySubtitle}>
-            Browse our favourite neighbourhood kitchens in {serviceAreas} and add delicious artisanal food!
-          </Text>
-          <TouchableOpacity style={styles.exploreBtn} activeOpacity={0.85} onPress={onBack}>
-            <Text style={styles.exploreBtnText}>Browse Restaurants</Text>
-            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <View style={styles.pageHeader}><ScreenHeader title="Your cart" subtitle="A good meal starts here" onBack={onBack} /></View>
+        <ScreenEmptyState icon="cart-outline" title="Your cart is empty" subtitle={`Find your next favourite meal from neighbourhood kitchens in ${serviceAreas}.`} action="Browse Restaurants" onPress={onBack} />
         {checkoutFeedback}
       </View>
     );
@@ -515,14 +498,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   return (
     <View style={styles.container}>
       {/* Top Bar */}
-      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 14) }]}>
-        <TouchableOpacity onPress={onBack} style={styles.navIconButton}>
-          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Cart ({cart.itemCount})</Text>
-        <TouchableOpacity onPress={clearCart} style={styles.clearBtn} activeOpacity={0.7}>
-          <Text style={styles.clearText}>Clear</Text>
-        </TouchableOpacity>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 14) }]}>
+        <ScreenHeader title={`Your cart (${cart.itemCount})`} subtitle="Your favourites, ready for checkout" onBack={onBack} action={<TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear cart" onPress={clearCart} style={styles.clearBtn}><Text style={styles.clearHeaderText}>Clear</Text></TouchableOpacity>} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -791,13 +768,15 @@ export const CartScreen: React.FC<CartScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   confirmLocationHint: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: '700',
     color: '#8C3A1C',
   },
+  pageHeader: { paddingHorizontal: 16, paddingTop: 12 },
+  clearHeaderText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   container: {
     flex: 1,
     backgroundColor: colors.background,

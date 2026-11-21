@@ -1,8 +1,8 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -177,7 +177,7 @@ export const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   closeBtn: {
     width: 44,
     height: 44,

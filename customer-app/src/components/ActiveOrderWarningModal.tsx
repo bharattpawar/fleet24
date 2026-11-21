@@ -1,8 +1,8 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -133,7 +133,7 @@ export const ActiveOrderWarningModal: React.FC<ActiveOrderWarningModalProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(17, 24, 39, 0.45)',

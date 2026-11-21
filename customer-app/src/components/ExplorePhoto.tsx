@@ -1,3 +1,4 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ export function ExplorePhoto({ uri }: { uri: string | null }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   placeholder: {
     ...StyleSheet.absoluteFill,
     backgroundColor: exploreColors.tint,

@@ -1,4 +1,4 @@
-/** Built-in illustrations (public/home-art). Keep in sync with backend/src/restaurants/home-art.ts. */
+/** Built-in food photographs and promotional artwork (public/home-art). Keep in sync with backend/src/restaurants/home-art.ts. */
 export const HOME_ART = [
   { key: 'biryani', label: 'Biryani' },
   { key: 'thali', label: 'Thali' },
@@ -23,6 +23,13 @@ export const HOME_ART = [
   { key: 'promo-feast', label: 'Feast flame' },
   { key: 'promo-flash', label: 'Flash timer' },
   { key: 'shortcut-food', label: 'Food (burger)' },
+  { key: 'shortcut-instant', label: 'Instant groceries' },
+  { key: 'shortcut-dineout', label: 'Dineout cloche' },
+  { key: 'shortcut-scenes', label: 'Scenes microphone' },
+  { key: 'tile-biryani', label: 'Biryani tile photo' },
+  { key: 'tile-main-course', label: 'Main course tile photo' },
+  { key: 'tile-rolls', label: 'Kathi rolls tile photo' },
+  { key: 'tile-beverages', label: 'Beverages tile photo' },
   { key: 'shortcut-offers', label: 'Offers tag' },
   { key: 'shortcut-fast', label: 'Fast (bolt)' },
   { key: 'shortcut-orders', label: 'Orders bag' },

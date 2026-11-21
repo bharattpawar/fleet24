@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -8,7 +9,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -435,7 +435,7 @@ function Field(props: { label: string; value: string; onChangeText: (t: string) 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },

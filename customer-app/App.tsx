@@ -1,3 +1,4 @@
+import { useFonts } from 'expo-font';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -35,8 +36,11 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthProvider } from './src/context/AuthContext';
-import { CartProvider } from './src/context/CartContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { EatListProvider } from './src/context/EatListContext';
+import { EatListScreen } from './src/screens/EatListScreen';
+import { StartupSplash } from './src/components/motion/StartupSplash';
+import { CartProvider, useCart } from './src/context/CartContext';
 import { DeliveryLocationProvider } from './src/context/DeliveryLocationContext';
 import { colors } from './src/theme/tokens';
 import { home } from './src/theme/homeTheme';
@@ -52,21 +56,26 @@ import { AuthModalScreen } from './src/screens/AuthModalScreen';
 import { DeliveryTrackingScreen } from './src/screens/DeliveryTrackingScreen';
 import { RiderDashboardScreen } from './src/screens/RiderDashboardScreen';
 
-type Tab = 'home' | 'orders' | 'profile';
+type Tab = 'home' | 'eatlist' | 'orders' | 'profile';
 
 const tabs: {
-  id: Tab;
+  id: 'home' | 'eatlist' | 'orders' | 'cart';
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   activeIcon: keyof typeof Ionicons.glyphMap;
 }[] = [
   { id: 'home', label: 'Food', icon: 'fast-food-outline', activeIcon: 'fast-food' },
+  { id: 'eatlist', label: 'Eat List', icon: 'bookmark-outline', activeIcon: 'bookmark' },
   { id: 'orders', label: 'Reorder', icon: 'receipt-outline', activeIcon: 'receipt' },
-  { id: 'profile', label: 'Account', icon: 'person-circle-outline', activeIcon: 'person-circle' },
+  { id: 'cart', label: 'Cart', icon: 'cart-outline', activeIcon: 'cart' },
 ];
 
-function MainApp() {
+function MainApp({ fontsReady }: { fontsReady: boolean }) {
+  const { isLoading: isAuthLoading, user } = useAuth();
+  const { cart } = useCart();
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [navigationRequest, setNavigationRequest] = useState<{action: 'favourites' | 'food'; sequence: number}>();
+  const [selectedNav, setSelectedNav] = useState('home');
   const [featuredDishId, setFeaturedDishId] = useState<string>();
   const [selectedOutlet, setSelectedOutlet] = useState<OutletSummary | null>(null);
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
@@ -85,6 +94,7 @@ function MainApp() {
     setIsRiderMode(false);
     setIsCartVisible(false);
     setActiveTab(tab);
+    setSelectedNav(tab);
   };
 
   // Render current primary view
@@ -103,6 +113,7 @@ function MainApp() {
           onViewOrders={() => {
             setTrackingOrderId(null);
             setActiveTab('orders');
+            setSelectedNav('orders');
           }}
           orderId={trackingOrderId}
           onBack={() => setTrackingOrderId(null)}
@@ -119,11 +130,13 @@ function MainApp() {
             setIsCartVisible(false);
             setSelectedOutlet(null);
             setActiveTab('orders');
+            setSelectedNav('orders');
           }}
           onTrackOrder={(orderId) => {
             setIsCartVisible(false);
             setSelectedOutlet(null);
             setActiveTab('orders');
+            setSelectedNav('orders');
             setTrackingOrderId(orderId);
           }}
         />
@@ -149,16 +162,21 @@ function MainApp() {
       case 'home': {
         return (
           <HomeScreen
+            navigationRequest={navigationRequest}
             onSelectOutlet={(outlet, dishId) => { setFeaturedDishId(dishId); setSelectedOutlet(outlet); }}
             onViewCart={() => setIsCartVisible(true)}
             onRequireAuth={() => setIsAuthModalVisible(true)}
             onOpenProfile={() => handleTabChange('profile')}
             onOpenOrders={() => handleTabChange('orders')}
+            onOpenFood={() => setSelectedNav('home')}
             vegMode={vegMode}
             onToggleVeg={() => setVegMode(v => !v)}
           />
         );
       }
+      case 'eatlist':
+        return <EatListScreen key={user?.id || 'guest'} onRequireAuth={() => setIsAuthModalVisible(true)} onExploreFood={() => handleTabChange('home')}
+          onSelectOutlet={(outlet, dishId) => { setFeaturedDishId(dishId); setSelectedOutlet(outlet); }} />;
       case 'orders':
         return (
           <OrdersScreen
@@ -178,32 +196,47 @@ function MainApp() {
   };
 
   const onHome = activeTab === 'home' && !selectedOutlet && !isCartVisible && !trackingOrderId && !isRiderMode;
-  const showNav = !isCartVisible && !selectedOutlet;
+  const showNav = !selectedOutlet || isCartVisible;
 
   return (
+    <EatListProvider authVisible={isAuthModalVisible} onRequireAuth={() => setIsAuthModalVisible(true)} onOpenList={() => handleTabChange('eatlist')}>
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, onHome && styles.homeTop]}>
       <StatusBar style={onHome ? 'light' : 'dark'} />
 
       {/* Screen Body */}
       <View style={[styles.body, !showNav && { paddingBottom: insets.bottom }]}>{renderContent()}</View>
 
-      {/* Bottom navigation: fixed, white, orange for the current tab */}
+      {/* The four customer destinations; checkout stays above the navigation. */}
       {showNav && (
-        <View style={[styles.bottomNavBar, { paddingBottom: Math.max(insets.bottom, 6) }]} accessibilityRole="tablist">
+        <View style={[styles.bottomNavBar, { paddingBottom: Math.max(insets.bottom, 6) }]} accessibilityRole="tablist" accessibilityLabel="Main navigation">
           {tabs.map(({ id, label, icon, activeIcon }) => {
-            const selected = activeTab === id;
+            const selected = isCartVisible ? id === 'cart' : selectedNav === id;
             return (
               <TouchableOpacity
                 key={id}
                 style={styles.navTab}
-                onPress={() => handleTabChange(id)}
+                onPress={() => {
+                  if (id === 'cart') {
+                    if (isCartVisible) return;
+                    setIsRiderMode(false); setTrackingOrderId(null); setSelectedOutlet(null); setIsCartVisible(true);
+                    return;
+                  }
+                  if (id === 'home') {
+                    handleTabChange('home');
+                    setNavigationRequest({ action: 'food', sequence: Date.now() });
+                    setSelectedNav(id);
+                  } else handleTabChange(id);
+                }}
                 accessibilityRole="tab"
                 accessibilityLabel={label}
                 accessibilityState={{ selected }}
+                aria-selected={selected}
                 activeOpacity={0.7}
               >
-                <View style={[styles.navIndicator, selected && styles.navIndicatorActive]} />
-                <Ionicons name={selected ? activeIcon : icon} size={24} color={selected ? home.accent : '#6B6E78'} />
+                <View style={[styles.navIcon, selected && styles.navIconActive]}>
+                  <Ionicons name={selected ? activeIcon : icon} size={23} color={selected ? home.accent : colors.textSecondary} />
+                  {id === 'cart' && Boolean(cart?.itemCount) && <View style={styles.cartCount}><Text style={styles.cartCountText}>{Math.min(cart!.itemCount, 99)}</Text></View>}
+                </View>
                 <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{label}</Text>
               </TouchableOpacity>
             );
@@ -223,17 +256,24 @@ function MainApp() {
           onSuccess={() => setIsAuthModalVisible(false)}
         />
       </Modal>
+      <StartupSplash ready={fontsReady && !isAuthLoading} />
     </SafeAreaView>
+    </EatListProvider>
   );
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    HomeRegular: require('./assets/fonts/DMSans-400.ttf'),
+    HomeMedium: require('./assets/fonts/DMSans-600.ttf'),
+    HomeBold: require('./assets/fonts/DMSans-800.ttf'),
+  });
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ backgroundColor: '#FFFFFF' }}>
       <AuthProvider>
         <CartProvider>
           <DeliveryLocationProvider>
-            <MainApp />
+            <MainApp fontsReady={fontsLoaded || Boolean(fontError)} />
           </DeliveryLocationProvider>
         </CartProvider>
       </AuthProvider>
@@ -245,29 +285,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    width: '100%',
   },
   body: {
     flex: 1,
   },
-  homeTop: { backgroundColor: home.headerTop },
+  homeTop: { backgroundColor: home.headerTop, paddingTop: Platform.OS === 'web' ? 8 : 0 },
   bottomNavBar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#D9DAE0',
-    boxShadow: '0px -2px 10px rgba(16, 25, 79, 0.06)',
+    borderTopColor: colors.border,
+    boxShadow: '0px -2px 10px rgba(25, 59, 44, 0.06)',
   },
   navTab: {
     flex: 1,
-    minHeight: 58,
-    paddingTop: 0,
-    paddingBottom: 4,
-    gap: 2,
+    minHeight: 64,
+    paddingTop: 7,
+    paddingBottom: 5,
+    gap: 3,
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  navLabel: { fontSize: 11, fontWeight: '600', color: '#6B6E78' },
-  navLabelActive: { color: home.accent, fontWeight: '800' },
+  navIcon: { minWidth: 52, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  navIconActive: { backgroundColor: colors.surfaceGreen },
+  cartCount: { position: 'absolute', right: 1, top: -2, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: colors.primary, borderWidth: 1, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  cartCountText: { color: '#FFFFFF', fontSize: 9, lineHeight: 12, fontFamily: 'HomeBold' },
+  navLabel: { fontSize: 11, fontFamily: 'HomeMedium', fontWeight: '600', color: colors.textSecondary },
+  navLabelActive: { color: home.accent, fontFamily: 'HomeBold', fontWeight: '800' },
   navIndicator: { width: 34, height: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, marginBottom: 6 },
   navIndicatorActive: { backgroundColor: home.accent },
 });

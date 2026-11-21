@@ -17,9 +17,9 @@ import { isImageRef } from './home-art';
 
 export type TargetType = 'category' | 'restaurant' | 'outlet' | 'dish';
 export type HomeSectionKind = 'banner' | 'tiles' | 'category' | 'row' | 'rail' | 'search_hints' | 'shortcuts';
-export type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile';
-export const SHORTCUT_ACTIONS: ShortcutAction[] = ['food', 'offers', 'fast', 'veg', 'favourites', 'orders', 'profile'];
-export type RailFilter = 'all' | 'offers' | 'fast';
+export type ShortcutAction = 'food' | 'offers' | 'fast' | 'veg' | 'favourites' | 'orders' | 'profile' | 'instant' | 'dineout' | 'scenes';
+export const SHORTCUT_ACTIONS: ShortcutAction[] = ['food', 'offers', 'fast', 'veg', 'favourites', 'orders', 'profile', 'instant', 'dineout', 'scenes'];
+export type RailFilter = 'all' | 'offers' | 'fast' | 'offers100' | 'fast10';
 
 export interface HomeTarget {
   type: TargetType;
@@ -67,7 +67,7 @@ export interface HomeSection {
 export type HomeCatalog = Record<TargetType, Array<{ id: string; name: string }>>;
 
 export const HOME_SECTION_KINDS: HomeSectionKind[] = ['banner', 'tiles', 'category', 'row', 'rail', 'search_hints', 'shortcuts'];
-const RAIL_FILTERS: RailFilter[] = ['all', 'offers', 'fast'];
+const RAIL_FILTERS: RailFilter[] = ['all', 'offers', 'fast', 'offers100', 'fast10'];
 const TARGET_TYPES: TargetType[] = ['category', 'restaurant', 'outlet', 'dish'];
 
 export class HomeSectionError extends Error {}

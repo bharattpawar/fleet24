@@ -1,3 +1,6 @@
+import { appStyles } from '../theme/appStyles';
+import { BrandArt, Wordmark } from '../components/brand/BrandArt';
+import { signInWithGoogleNative } from '../auth/googleSignIn';
 import { isDevAuthBypassEnabled } from '../utils/devAuth';
 import Constants from 'expo-constants';
 import { useServiceAreas } from '../context/DeliveryLocationContext';
@@ -5,7 +8,6 @@ import React, { useState, useEffect, useEffectEvent } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -31,6 +33,7 @@ const googleClientId: string | undefined = Platform.select({
   ios: googleConfig?.googleIosClientId,
   android: googleConfig?.googleAndroidClientId,
 })?.trim();
+const isExpoGo = Platform.OS !== 'web' && Constants.appOwnership === 'expo';
 
 const GOOGLE_DISCOVERY: AuthSession.DiscoveryDocument = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -42,7 +45,7 @@ const DEFAULT_REDIRECT_URI =
   Platform.OS === 'web'
     ? (typeof globalThis !== 'undefined' && 'location' in globalThis && (globalThis as any).location?.origin) ||
       'http://localhost:8081'
-    : 'https://auth.expo.io/@bharattpawar/fleet24';
+    : '';
 
 interface AuthModalScreenProps {
   onClose: () => void;
@@ -75,12 +78,12 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
     }),
   );
 
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+  const [, response, promptAsync] = AuthSession.useAuthRequest(
     authConfig,
-    googleClientId ? GOOGLE_DISCOVERY : null,
+    Platform.OS === 'web' && googleClientId ? GOOGLE_DISCOVERY : null,
   );
 
-  const handleGoogleToken = useEffectEvent(async (idToken: string) => {
+  const completeGoogleSignIn = async (idToken: string) => {
     try {
       setIsGoogleLoading(true);
       setErrorMessage(null);
@@ -98,7 +101,9 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
     } finally {
       setIsGoogleLoading(false);
     }
-  });
+  };
+
+  const handleGoogleToken = useEffectEvent(completeGoogleSignIn);
 
   // Handle incoming OAuth response
   useEffect(() => {
@@ -138,25 +143,13 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
       setIsGoogleLoading(true);
       setErrorMessage(null);
 
-      // On native Expo Go, route through the AuthSession proxy start endpoint
-      // so auth.expo.io sets the `ru` session cookie needed to route back to Expo Go.
-      if (Platform.OS !== 'web' && request) {
-        const rawAuthUrl = await request.makeAuthUrlAsync(GOOGLE_DISCOVERY);
-        const returnUrl = AuthSession.getDefaultReturnUrl();
-        const startUrl = `https://auth.expo.io/@bharattpawar/fleet24/start?${new URLSearchParams({
-          authUrl: rawAuthUrl,
-          returnUrl,
-        }).toString()}`;
-
-        const res = await promptAsync({ url: startUrl });
-        if (res.type !== 'success') {
-          setIsGoogleLoading(false);
-        }
+      if (Platform.OS !== 'web') {
+        const idToken = await signInWithGoogleNative();
+        if (idToken) await completeGoogleSignIn(idToken);
+        else setIsGoogleLoading(false);
       } else {
         const res = await promptAsync();
-        if (res.type !== 'success') {
-          setIsGoogleLoading(false);
-        }
+        if (res.type !== 'success') setIsGoogleLoading(false);
       }
     } catch (err: unknown) {
       setIsGoogleLoading(false);
@@ -260,20 +253,21 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close sign in" onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
       <View style={styles.content}>
         <View style={styles.brandRow}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>FLEET24</Text>
+          <View style={{ flex: 1 }}>
+            <Wordmark size={32} tone="onGreen" />
+            <View style={styles.regionBadge}>
+              <Ionicons name="location-sharp" size={11} color={colors.primary} />
+              <Text style={styles.regionText}>{serviceAreas}</Text>
+            </View>
           </View>
-          <View style={styles.regionBadge}>
-            <Ionicons name="location-sharp" size={11} color={colors.primary} />
-            <Text style={styles.regionText}>{serviceAreas}</Text>
-          </View>
+          <BrandArt size={82} tone="onGreen" />
         </View>
 
         {errorMessage ? (
@@ -311,7 +305,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
             </TouchableOpacity>
             )}
 
-            {googleClientId && (
+            {googleClientId && !isExpoGo && (
               <>
                 {/* Google Sign-In Primary / One-Tap Button */}
                 <TouchableOpacity
@@ -340,6 +334,16 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
                 </View>
 
               </>
+            )}
+
+            {googleClientId && isExpoGo && (
+              <View style={styles.googleNotice}>
+                <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.googleNoticeTitle}>Google sign-in needs the Fleet24 app</Text>
+                  <Text style={styles.googleNoticeText}>Open the installed Fleet24 development app for Google sign-in. In Expo Go, use phone sign-in below.</Text>
+                </View>
+              </View>
             )}
 
             {/* Phone Input */}
@@ -483,7 +487,7 @@ export const AuthModalScreen: React.FC<AuthModalScreenProps> = ({ onClose, onSuc
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -507,12 +511,18 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: 24,
+    padding: 20,
   },
   logoBadge: {
     backgroundColor: colors.primary,
@@ -527,6 +537,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   regionBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
@@ -569,6 +581,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  googleNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: colors.surfaceGreen, padding: 14, borderRadius: 16, marginBottom: 20 },
+  googleNoticeTitle: { fontSize: 12, lineHeight: 18, fontWeight: '700', color: colors.primaryDark },
+  googleNoticeText: { fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginTop: 4 },
   googleIconContainer: {
     marginRight: 10,
   },

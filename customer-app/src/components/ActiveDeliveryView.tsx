@@ -1,8 +1,8 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -281,7 +281,7 @@ export const ActiveDeliveryView: React.FC<ActiveDeliveryViewProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     padding: spacing.md,
   },

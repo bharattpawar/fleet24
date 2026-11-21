@@ -1,7 +1,9 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { exploreColors as c } from '../theme/tokens';
-import { ExplorePhoto } from './ExplorePhoto';
+import { HomeImage } from './home/HomeImage';
+import { fallbackArt } from '../utils/imageRef';
 import { DeliveryEta, formatEta } from '../utils/deliveryEta';
 
 export interface OutletSummary {
@@ -36,7 +38,7 @@ export function RestaurantCard({ outlet, onPress, editorial, compact }: { outlet
       style={[styles.card, compact && styles.compactCard]}
     >
       <View style={[styles.photo, compact && styles.compactPhoto]}>
-        <ExplorePhoto key={outlet.coverImageUrl || outlet.logoUrl} uri={outlet.coverImageUrl || outlet.logoUrl} />
+        <HomeImage source={outlet.coverImageUrl || outlet.logoUrl} fallback={fallbackArt(outlet.restaurantName)} alt={`${outlet.restaurantName} food`} />
         {outlet.offerTitle ? (
           <View style={styles.offerShade}>
             <Text style={[styles.offerTitle, compact && styles.compactOfferTitle]} numberOfLines={1}>{outlet.offerTitle}</Text>
@@ -68,7 +70,7 @@ export function RestaurantCard({ outlet, onPress, editorial, compact }: { outlet
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   compactCard: { borderRadius: 0, marginBottom: 0, boxShadow: 'none' },
   compactPhoto: { aspectRatio: 0.88, borderRadius: 18 },
   compactContent: { paddingHorizontal: 1, paddingTop: 8, paddingBottom: 0 },
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
   },
   details: { flex: 1 },
   name: { color: c.ink, fontSize: 21, lineHeight: 25, fontWeight: '800', letterSpacing: -0.6 },
-  editorialName: { fontFamily: 'BaskervvilleRegular' },
+  editorialName: { fontFamily: 'HomeBold' },
   meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 3, marginTop: 6, marginBottom: 5 },
   detail: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   caption: { color: '#777B80', fontSize: 13, lineHeight: 18 },

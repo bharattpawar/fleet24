@@ -28,7 +28,7 @@ describe('CustomerHomeScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add offer tiles' }));
     fireEvent.change(screen.getAllByLabelText(/^Title/)[0], { target: { value: 'Offers for you' } });
     fireEvent.change(screen.getByLabelText(/Tile title/), { target: { value: 'Flat 50% OFF' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Built-in illustration' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Built-in image' }));
     fireEvent.click(screen.getByRole('option', { name: /Lightning/ }));
     fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'o-1' } });
 

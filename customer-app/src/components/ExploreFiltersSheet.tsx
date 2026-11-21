@@ -1,3 +1,4 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,7 +54,7 @@ export function ExploreFiltersSheet({ openOnly, onClose, onApply }: ExploreFilte
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16, 32, 25, 0.42)' },
   sheet: {
     alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: c.background,

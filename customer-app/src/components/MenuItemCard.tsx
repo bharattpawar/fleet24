@@ -1,10 +1,12 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { colors } from '../theme/tokens';
 import { ExplorePhoto } from './ExplorePhoto';
 import { VegBadge } from './VegBadge';
 import { QuantityStepper } from './QuantityStepper';
 import { Ionicons } from '@expo/vector-icons';
+import { SaveDishButton } from './eat-list/SaveDishButton';
 
 export interface MenuItemData {
   id: string;
@@ -30,6 +32,8 @@ export function menuItemPrices(item: Pick<MenuItemData, 'basePrice' | 'effective
 }
 
 interface MenuItemCardProps {
+  outletId?: string;
+  restaurantName?: string;
   item: MenuItemData;
   quantityInCart: number;
   onAdd: () => void;
@@ -39,6 +43,8 @@ interface MenuItemCardProps {
 }
 
 export const MenuItemCard: React.FC<MenuItemCardProps> = ({
+  outletId,
+  restaurantName,
   item,
   quantityInCart,
   onAdd,
@@ -92,6 +98,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             </Text>
           </View>
         )}
+        {outletId && <View style={{ alignSelf: 'flex-start', marginTop: 12 }}><SaveDishButton target={{ outletId, menuItemId: item.id, name: item.name, restaurantName: restaurantName || '', imageUrl: item.imageUrl }} /></View>}
       </View>
 
       {/* Right Photo & Action Column */}
@@ -132,8 +139,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  card: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: '#ECEDEB', alignItems: 'flex-start' },
+const styles = appStyles({
+  card: { flexDirection: 'row', backgroundColor: colors.surface, padding: 16, marginBottom: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'flex-start', boxShadow: '0px 4px 16px rgba(25,59,44,0.04)' },
   disabledCard: { opacity: 0.65 },
   infoCol: { flex: 1, minWidth: 0, paddingRight: 18 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },

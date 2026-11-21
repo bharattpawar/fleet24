@@ -15,3 +15,4 @@ export * from './financial-settings';
 export * from './customer-home';
 export * from './service-zones';
 export * from './media';
+export * from './eat-list';

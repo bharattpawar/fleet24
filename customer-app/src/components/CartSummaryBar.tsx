@@ -1,5 +1,6 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { colors, borderRadius, spacing } from '../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../context/CartContext';
@@ -45,7 +46,7 @@ export const CartSummaryBar: React.FC<CartSummaryBarProps> = ({ onPress, bottomO
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   outerContainer: {
     position: 'absolute',
     left: spacing.lg,

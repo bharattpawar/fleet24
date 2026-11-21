@@ -1,3 +1,4 @@
+import { appStyles } from '../../theme/appStyles';
 import React, { useState } from 'react';
 import { Image, ImageStyle, StyleProp, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,17 +8,23 @@ import { home } from '../../theme/homeTheme';
 
 /**
  * Image with a fixed fallback order so the app never shows a broken image:
- * 1. the admin's image (uploaded media, built-in illustration or URL)
- * 2. the built-in illustration `fallback`
+ * 1. the admin's image (uploaded media, built-in food photograph or URL)
+ * 2. the built-in food photograph `fallback`
  * 3. a neutral placeholder
  */
-export function HomeImage({ source, fallback, alt, style, fit = 'cover' }: {
+export function HomeImage(props: HomeImageProps) {
+  return <HomeImageContent key={`${props.source ?? ''}:${props.fallback ?? ''}`} {...props} />;
+}
+
+interface HomeImageProps {
   source?: string | null;
   fallback?: HomeArtKey;
   alt?: string;
   style?: StyleProp<ImageStyle>;
   fit?: 'cover' | 'contain';
-}) {
+}
+
+function HomeImageContent({ source, fallback, alt, style, fit = 'cover' }: HomeImageProps) {
   const primary = resolveImage(source);
   const [stage, setStage] = useState<0 | 1 | 2>(primary ? 0 : fallback ? 1 : 2);
   const src = stage === 0 ? primary : stage === 1 && fallback ? HOME_ART[fallback] : null;
@@ -42,7 +49,7 @@ export function HomeImage({ source, fallback, alt, style, fit = 'cover' }: {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   // Explicit size: on web a bundled image otherwise takes its natural 512px size.
   fill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   placeholder: { ...StyleSheet.absoluteFill, backgroundColor: home.pill, alignItems: 'center', justifyContent: 'center' },

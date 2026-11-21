@@ -17,6 +17,7 @@ import { RoutingModule } from './routing/routing.module';
 import { GeoModule } from './geo/geo.module';
 import { ServiceZonesModule } from './service-zones/service-zones.module';
 import { PromotionsModule } from './promotions/promotions.module';
+import { EatListModule } from './eat-list/eat-list.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PromotionsModule } from './promotions/promotions.module';
     GeoModule,
     ServiceZonesModule,
     PromotionsModule,
+    EatListModule,
   ],
 })
 export class AppModule {}

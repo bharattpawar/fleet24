@@ -1,8 +1,8 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -159,7 +159,7 @@ export const PaymentConflictModal: React.FC<PaymentConflictModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   container: {
     flex: 1,
     backgroundColor: '#FAF9F5',

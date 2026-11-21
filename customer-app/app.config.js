@@ -5,6 +5,14 @@ module.exports = ({ config }) => {
     process.env.GOOGLE_MAPS_ANDROID_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
   return {
     ...config,
+    plugins: [
+      ...(config.plugins || []),
+      ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ? [
+        ['@react-native-google-signin/google-signin', {
+          iosUrlScheme: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.split('.').reverse().join('.'),
+        }],
+      ] : []),
+    ],
     extra: {
       ...config.extra,
       googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,

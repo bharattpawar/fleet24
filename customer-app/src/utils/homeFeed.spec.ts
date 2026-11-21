@@ -1,4 +1,4 @@
-import { railOutlets, searchHints, targetAction, outletPhoto, DEFAULT_SEARCH_HINT, FeedSection, vegOutlets, cuisineLine } from './homeFeed';
+import { railOutlets, searchHints, targetAction, outletPhoto, DEFAULT_SEARCH_HINT, FeedSection, vegOutlets, cuisineLine, comingSoonFeature, FeedShortcut } from './homeFeed';
 import type { OutletSummary } from '../components/RestaurantCard';
 
 const outlet = (id: string, extra: Partial<OutletSummary> = {}): OutletSummary => ({
@@ -7,6 +7,22 @@ const outlet = (id: string, extra: Partial<OutletSummary> = {}): OutletSummary =
 });
 
 describe('home feed helpers', () => {
+  it.each([
+    ['INSTANT', 'fast', 'instant'],
+    ['Dine Out', 'food', 'dineout'],
+    ['Scenes', 'favourites', 'scenes'],
+    ['New essentials', 'instant', 'instant'],
+    ['New tables', 'dineout', 'dineout'],
+    ['New plans', 'scenes', 'scenes'],
+  ])('keeps the %s service in its launch preview', (title, action, expected) => {
+    expect(comingSoonFeature({ title, action: action as FeedShortcut['action'] })).toBe(expected);
+  });
+
+  it('keeps Food and the Eat List navigation available', () => {
+    expect(comingSoonFeature({ title: 'Food', action: 'food' })).toBeNull();
+    expect(comingSoonFeature({ title: '', action: 'favourites' })).toBeNull();
+  });
+
   it('uses admin search hints, else a neutral default', () => {
     const hints: FeedSection = { kind: 'search_hints', title: '', hints: ['biryani', ' ', 'pizza'], targets: [], cards: [] };
     expect(searchHints([hints])).toEqual(['biryani', 'pizza']);
@@ -23,6 +39,16 @@ describe('home feed helpers', () => {
     expect(railOutlets(list, 'offers').map(o => o.id)).toEqual(['far-offer', 'closed-offer']);
     expect(railOutlets(list, 'fast').map(o => o.id)).toEqual(['near', 'far-offer', 'no-eta']);
     expect(railOutlets(list, 'all').map(o => o.id)).toEqual(['near', 'no-eta', 'far-offer', 'closed-offer']);
+  });
+
+  it('checks the stated discount and delivery thresholds without inventing an offer or ETA', () => {
+    const list = [
+      outlet('fixed', { offerTitle: '₹165 OFF', deliveryEta: { minMinutes: 8, maxMinutes: 10 } }),
+      outlet('percent', { offerTitle: '65% OFF', offerSubtitle: 'UPTO ₹125', deliveryEta: { minMinutes: 10, maxMinutes: 15 } }),
+      outlet('missing'),
+    ];
+    expect(railOutlets(list, 'offers100').map(o => o.id)).toEqual(['fixed']);
+    expect(railOutlets(list, 'fast10').map(o => o.id)).toEqual(['fixed']);
   });
 
   it('prefers the admin cover photo over the logo', () => {

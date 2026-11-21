@@ -1,5 +1,6 @@
+import { appStyles } from '../theme/appStyles';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { colors, borderRadius } from '../theme/tokens';
 
 interface VegBadgeProps {
@@ -35,7 +36,7 @@ export const VegBadge: React.FC<VegBadgeProps> = ({ isVeg, size = 16 }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   outer: {
     borderWidth: 1.5,
     borderRadius: borderRadius.sm - 2,

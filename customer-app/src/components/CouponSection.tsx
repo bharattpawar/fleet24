@@ -1,5 +1,6 @@
+import { appStyles } from '../theme/appStyles';
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { borderRadius, colors, spacing } from '../theme/tokens';
 import type { CartPromo } from '../context/CartContext';
@@ -100,7 +101,7 @@ export const CouponSection: React.FC<Props> = ({ promo, canUseCoupons, onApply, 
   );
 };
 
-const styles = StyleSheet.create({
+const styles = appStyles({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
