@@ -155,7 +155,7 @@ export function DisbursementsScreen({ mode }: { mode: 'settlements' | 'payouts' 
                 <td className="capitalize">{row.status}</td><td>{ist(row.requestedAt)}</td>
                 <td><TransferReference value={row.providerTransferId} /></td>
               </>}
-              <td><button className="text-[#205641] underline" onClick={() => setSelected(row)}>View details</button></td>
+              <td><button className="text-[#24533F] underline" onClick={() => setSelected(row)}>View details</button></td>
             </tr>)}</tbody>
           </table></div>}
         <Pagination page={page} totalPages={query.data.pagination.totalPages} onChange={setPage} />

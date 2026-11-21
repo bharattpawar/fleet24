@@ -17,7 +17,7 @@ export const RiderStatusBadge: React.FC<RiderStatusBadgeProps> = ({ type, status
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
         <CheckCircle2 className="w-3 h-3" /> ACTIVE
       </span>
     );
@@ -27,7 +27,7 @@ export const RiderStatusBadge: React.FC<RiderStatusBadgeProps> = ({ type, status
     switch (status) {
       case 'approved':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
             <CheckCircle2 className="w-3 h-3" /> APPROVED
           </span>
         );
@@ -50,8 +50,8 @@ export const RiderStatusBadge: React.FC<RiderStatusBadgeProps> = ({ type, status
   switch (status) {
     case 'available':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#E8F2ED] text-[#205641] border border-[#205641]">
-          <Radio className="w-2.5 h-2.5 animate-pulse text-[#205641]" /> AVAILABLE
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#E8F2ED] text-[#24533F] border border-[#24533F]">
+          <Radio className="w-2.5 h-2.5 animate-pulse text-[#24533F]" /> AVAILABLE
         </span>
       );
     case 'busy':

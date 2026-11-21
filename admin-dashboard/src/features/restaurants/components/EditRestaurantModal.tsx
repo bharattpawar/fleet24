@@ -49,8 +49,8 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-60">
-      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-        <div className="flex items-center gap-2 text-[#205641]">
+      <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center gap-2 text-[#24533F]">
           <Edit3 className="w-5 h-5" />
           <h3 className="text-sm font-bold text-[#171A21]">Edit Restaurant Profile</h3>
         </div>
@@ -78,7 +78,7 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -90,7 +90,7 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
               type="url"
               value={logoUrl}
               onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -103,7 +103,7 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
               value={ownerId}
               placeholder="e.g. 00000000-0000-0000-0000-000000000001"
               onChange={(e) => setOwnerId(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641] tabular-nums"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F] tabular-nums"
             />
           </div>
 
@@ -115,7 +115,7 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -130,7 +130,7 @@ export const EditRestaurantModal: React.FC<EditRestaurantModalProps> = ({
             <button
               type="submit"
               disabled={updateMutation.isPending || !name.trim()}
-              className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Profile'}
             </button>

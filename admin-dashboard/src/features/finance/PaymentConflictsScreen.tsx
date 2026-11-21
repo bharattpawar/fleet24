@@ -85,7 +85,7 @@ export const PaymentConflictsScreen: React.FC = () => {
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-semibold text-[#205641] hover:bg-[#d8e8df] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#24533F] text-xs font-semibold text-[#24533F] hover:bg-[#d8e8df] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           <span>Refresh Queue</span>
@@ -143,7 +143,7 @@ export const PaymentConflictsScreen: React.FC = () => {
               }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                 filterStatus === tab.value
-                  ? 'bg-[#205641] text-white shadow-xs'
+                  ? 'bg-[#24533F] text-white shadow-xs'
                   : 'text-slate-600 hover:text-[#171A21] hover:bg-slate-100'
               }`}
             >
@@ -163,7 +163,7 @@ export const PaymentConflictsScreen: React.FC = () => {
               setSearchTerm(e.target.value);
               setPage(1);
             }}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-[#E3E7EC] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#205641] text-slate-800 placeholder-slate-400 shadow-xs"
+            className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-[#E3E7EC] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#24533F] text-slate-800 placeholder-slate-400 shadow-xs"
           />
         </div>
       </div>
@@ -187,7 +187,7 @@ export const PaymentConflictsScreen: React.FC = () => {
               {isLoading && (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-500">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-[#205641]" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-[#24533F]" />
                     <span>Loading payment conflicts from backend...</span>
                   </td>
                 </tr>
@@ -226,7 +226,7 @@ export const PaymentConflictsScreen: React.FC = () => {
                       onClick={() => setSelectedOrderId(row.orderId)}
                     >
                       <td className="py-3 px-4">
-                        <div className="font-mono font-bold text-slate-900 group-hover:text-[#205641] transition-colors">
+                        <div className="font-mono font-bold text-slate-900 group-hover:text-[#24533F] transition-colors">
                           #{row.orderNumber}
                         </div>
                         <div className="text-[11px] text-slate-400">
@@ -266,7 +266,7 @@ export const PaymentConflictsScreen: React.FC = () => {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                             row.authoritativeStatus === 'refund_completed'
-                              ? 'bg-[#205641] text-white'
+                              ? 'bg-[#24533F] text-white'
                               : row.authoritativeStatus === 'refund_pending'
                               ? 'bg-amber-100 text-amber-800 border border-amber-300'
                               : row.authoritativeStatus === 'refund_failed'
@@ -284,7 +284,7 @@ export const PaymentConflictsScreen: React.FC = () => {
                             e.stopPropagation();
                             setSelectedOrderId(row.orderId);
                           }}
-                          className="px-2.5 py-1 rounded bg-slate-100 text-slate-700 hover:bg-[#E8F2ED] hover:text-[#205641] font-semibold text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          className="px-2.5 py-1 rounded bg-slate-100 text-slate-700 hover:bg-[#E8F2ED] hover:text-[#24533F] font-semibold text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
                         >
                           <span>Review</span>
                           <ChevronRight className="w-3 h-3" />

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* DM Sans: the customer app's typeface, shared by every Fleet24 app. */
+@font-face { font-family: "DM Sans"; src: url("/fonts/DMSans-400.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "DM Sans"; src: url("/fonts/DMSans-600.ttf") format("truetype"); font-weight: 500 650; font-display: swap; }
+@font-face { font-family: "DM Sans"; src: url("/fonts/DMSans-800.ttf") format("truetype"); font-weight: 700 900; font-display: swap; }
+
 @font-face {
   font-family: "Instrument Serif";
   src: url("/fonts/InstrumentSerif-Italic.ttf") format("truetype");
@@ -8,8 +13,8 @@
 }
 
 @theme {
-  --color-ivory: #FAF5EF;
-  --color-forest: #064B33;
+  --color-ivory: #F5F8F5;
+  --color-forest: #24533F;
   --color-lime: #D9F078;
   --color-charcoal: #17211B;
   --color-terracotta: #E98755;
@@ -18,32 +23,43 @@
 body {
   background-color: var(--color-ivory);
   color: var(--color-charcoal);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   margin: 0;
   padding: 0;
 }
 
 :root {
-  --admin-canvas: #FAF5EF;
-  --admin-surface: #FFFCFA;
-  --admin-ink: #102019;
-  --admin-muted: #505B69;
-  --admin-border: #DDD7CF;
-  --admin-green: #064B33;
-  --admin-selected: #E2EFDF;
+  /* Same palette as customer-app/src/theme/tokens.ts */
+  --admin-canvas: #F5F8F5;
+  --admin-surface: #FFFFFF;
+  --admin-ink: #17211B;
+  --admin-muted: #5F6E66;
+  --admin-border: #E0E9E2;
+  --admin-green: #24533F;
+  --admin-green-dark: #193B2C;
+  --admin-lime: #D9F078;
+  --admin-selected: #EAF2EC;
 }
 .admin-shell { display: flex; height: 100dvh; overflow: hidden; background: var(--admin-canvas); color: var(--admin-ink); font-variant-numeric: tabular-nums; }
-.admin-desktop-nav { width: 224px; flex: none; background: var(--admin-surface); border-right: 1px solid var(--admin-border); }
-.admin-sidebar { padding: 20px 12px; }
-.admin-wordmark { display: block; margin: 0 12px 26px; color: var(--admin-green); font-size: 25px; font-weight: 800; letter-spacing: -.8px; }
-.admin-nav-group + .admin-nav-group { margin-top: 24px; }
-.admin-nav-group p { margin: 0 12px 6px; color: var(--admin-muted); font-size: 12px; font-weight: 600; }
-.admin-nav-group a { display: flex; gap: 10px; align-items: center; min-height: 42px; padding: 0 12px; margin-bottom: 3px; border-radius: 999px; font-size: 14px; font-weight: 550; }
+.admin-desktop-nav { width: 232px; flex: none; background: var(--admin-surface); border-right: 1px solid var(--admin-border); overflow-y: auto; }
+.admin-sidebar { padding: 16px 12px 24px; }
+.admin-brand { display: flex; align-items: center; gap: 10px; margin: 0 4px 20px; padding: 10px; border-radius: 16px; background: var(--admin-green-dark); color: white; }
+.admin-brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: var(--admin-lime); color: var(--admin-green-dark); font-weight: 900; font-size: 17px; }
+.admin-wordmark { display: block; font-size: 18px; line-height: 1.1; font-weight: 800; letter-spacing: -.4px; }
+.admin-brand-sub { display: block; font-size: 11px; color: #CFE0D6; font-weight: 600; }
+.admin-nav-group + .admin-nav-group { margin-top: 16px; }
+.admin-nav-group p { margin: 0 12px 4px; color: var(--admin-muted); font-size: 11px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; }
+.admin-nav-group a { position: relative; display: flex; gap: 10px; align-items: center; min-height: 36px; padding: 0 12px; margin-bottom: 2px; border-radius: 10px; font-size: 14px; font-weight: 550; color: var(--admin-ink); }
+.admin-nav-group a svg { color: var(--admin-muted); flex: none; }
 .admin-nav-group a:hover { background: var(--admin-canvas); }
-.admin-nav-group a[aria-current="page"] { background: var(--admin-selected); color: var(--admin-green); font-weight: 700; }
+.admin-nav-group a[aria-current="page"] { background: var(--admin-selected); color: var(--admin-green); font-weight: 750; }
+.admin-nav-group a[aria-current="page"] svg { color: var(--admin-green); }
+.admin-nav-group a[aria-current="page"]::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--admin-green); }
 .admin-workspace { display: flex; flex: 1; min-width: 0; flex-direction: column; }
 .admin-topbar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 0 24px; background: var(--admin-surface); border-bottom: 1px solid var(--admin-border); flex: none; position: relative; z-index: 20; }
-.admin-topbar h1 { font: italic 32px/1.1 "Instrument Serif", Georgia, serif; color: var(--admin-green); }
+.admin-title { min-width: 0; }
+.admin-topbar h1 { font-size: 22px; line-height: 1.2; font-weight: 800; letter-spacing: -.4px; color: var(--admin-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-title p { margin: 1px 0 0; font-size: 13px; color: var(--admin-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .admin-content { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 20px 24px 32px; }
 .admin-account { position: relative; }
 .admin-account summary { display: flex; list-style: none; align-items: center; gap: 7px; border-radius: 8px; padding: 4px; cursor: pointer; }
@@ -65,7 +81,7 @@ body {
 .admin-content .overflow-x-auto { max-width: 100%; }
 .admin-content [role="dialog"] { max-height: 90dvh; overflow-y: auto; }
 .admin-content button:disabled { cursor: not-allowed; }
-.admin-content .admin-panel { background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 12px; }
+.admin-content .admin-panel { background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 16px; box-shadow: 0 1px 2px rgba(25, 59, 44, .04); }
 @media (max-width: 1023px) {
   .admin-desktop-nav { display: none; }
   .admin-nav-toggle { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; cursor: pointer; }
@@ -73,10 +89,23 @@ body {
 @media (max-width: 640px) {
   .admin-content, .admin-topbar { padding-inline: 14px; }
 }
-.admin-control, .admin-primary { border: 1px solid var(--admin-border); border-radius: 8px; min-height: 36px; padding: 6px 10px; background: var(--admin-surface); font-size: 13px; }
+.admin-control, .admin-primary { border: 1px solid var(--admin-border); border-radius: 10px; min-height: 36px; padding: 6px 10px; background: var(--admin-surface); font-size: 13px; }
 .admin-primary { display: inline-flex; align-items: center; gap: 7px; background: var(--admin-green); border-color: var(--admin-green); color: white; font-weight: 650; cursor: pointer; }
 
 .admin-content .admin-panel > h2 {
-  font: italic 26px/1.15 "Instrument Serif", Georgia, serif;
-  color: var(--admin-green);
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -.3px;
+  color: var(--admin-ink);
+}
+.admin-control:hover:not(:disabled) { border-color: #C9D8CE; background: var(--admin-canvas); }
+.admin-primary:hover:not(:disabled) { background: var(--admin-green-dark); }
+.admin-control:disabled, .admin-primary:disabled { opacity: .55; }
+@media (max-width: 640px) {
+  .admin-title p { display: none; }
+  .admin-topbar h1 { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell *, .admin-shell *::before, .admin-shell *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }

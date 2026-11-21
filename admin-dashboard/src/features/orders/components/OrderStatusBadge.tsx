@@ -11,7 +11,7 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({ type, status
     switch (status) {
       case 'captured':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
             PAID
           </span>
         );
@@ -46,7 +46,7 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({ type, status
     switch (status) {
       case 'completed':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
             DELIVERED
           </span>
         );
@@ -61,7 +61,7 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({ type, status
       case 'picked_up':
       case 'arrived_customer':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641]/20 text-[#205641] border border-[#205641]/40">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F]/20 text-[#24533F] border border-[#24533F]/40">
             IN TRANSIT
           </span>
         );
@@ -84,13 +84,13 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({ type, status
   switch (status) {
     case 'delivered':
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold bg-[#205641] text-white">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold bg-[#24533F] text-white">
           DELIVERED
         </span>
       );
     case 'out_for_delivery':
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold bg-[#205641]/20 text-[#205641] border border-[#205641]/30">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold bg-[#24533F]/20 text-[#24533F] border border-[#24533F]/30">
           OUT FOR DELIVERY
         </span>
       );

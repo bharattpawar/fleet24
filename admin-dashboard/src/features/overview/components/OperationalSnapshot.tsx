@@ -24,7 +24,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
           </h2>
           <button
             onClick={onRetry}
-            className="text-xs font-semibold text-[#205641] hover:underline cursor-pointer"
+            className="text-xs font-semibold text-[#24533F] hover:underline cursor-pointer"
           >
             Retry
           </button>
@@ -58,12 +58,12 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
         <div className="p-5 rounded-xl bg-[#FFFFFF] border border-[#E3E7EC] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-[#205641]" />
+              <ShoppingBag className="w-4 h-4 text-[#24533F]" />
               <span className="text-xs font-bold  text-[#171A21]">
                 Orders Pipeline
               </span>
             </div>
-            <span className="text-xs tabular-nums font-bold text-[#205641]">
+            <span className="text-xs tabular-nums font-bold text-[#24533F]">
               {isLoading ? '...' : orders?.totalOrders || 0}
             </span>
           </div>
@@ -83,7 +83,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
             </div>
             <div className="flex items-center justify-between py-1 border-b border-[#E3E7EC]">
               <span className="text-slate-600">Successfully Delivered</span>
-              <span className="tabular-nums text-[#205641] font-semibold">
+              <span className="tabular-nums text-[#24533F] font-semibold">
                 {isLoading ? '...' : orders?.completedOrders || 0}
               </span>
             </div>
@@ -106,12 +106,12 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
         <div className="p-5 rounded-xl bg-[#FFFFFF] border border-[#E3E7EC] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Bike className="w-4 h-4 text-[#205641]" />
+              <Bike className="w-4 h-4 text-[#24533F]" />
               <span className="text-xs font-bold  text-[#171A21]">
                 Fleet Status
               </span>
             </div>
-            <span className="text-xs tabular-nums font-bold text-[#205641]">
+            <span className="text-xs tabular-nums font-bold text-[#24533F]">
               {isLoading ? '...' : riders?.totalRiders || 0} registered
             </span>
           </div>
@@ -119,7 +119,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between py-1 border-b border-[#E3E7EC]">
               <span className="text-slate-600">Available for Dispatch</span>
-              <span className="tabular-nums text-[#205641] font-semibold">
+              <span className="tabular-nums text-[#24533F] font-semibold">
                 {isLoading ? '...' : riders?.availableRiders || 0}
               </span>
             </div>
@@ -154,12 +154,12 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
         <div className="p-5 rounded-xl bg-[#FFFFFF] border border-[#E3E7EC] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Store className="w-4 h-4 text-[#205641]" />
+              <Store className="w-4 h-4 text-[#24533F]" />
               <span className="text-xs font-bold  text-[#171A21]">
                 Restaurant Outlets
               </span>
             </div>
-            <span className="text-xs tabular-nums font-bold text-[#205641]">
+            <span className="text-xs tabular-nums font-bold text-[#24533F]">
               {isLoading ? '...' : restaurants?.totalRestaurants || 0} brands
             </span>
           </div>
@@ -167,7 +167,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between py-1 border-b border-[#E3E7EC]">
               <span className="text-slate-600">Active Brands</span>
-              <span className="tabular-nums text-[#205641] font-semibold">
+              <span className="tabular-nums text-[#24533F] font-semibold">
                 {isLoading ? '...' : restaurants?.activeRestaurants || 0}
               </span>
             </div>
@@ -179,7 +179,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
             </div>
             <div className="flex items-center justify-between py-1 border-b border-[#E3E7EC]">
               <span className="text-slate-600">Currently Accepting Orders</span>
-              <span className="tabular-nums text-[#205641] font-semibold">
+              <span className="tabular-nums text-[#24533F] font-semibold">
                 {isLoading ? '...' : restaurants?.acceptingOrdersOutlets || 0}
               </span>
             </div>
@@ -191,7 +191,7 @@ export const OperationalSnapshot: React.FC<OperationalSnapshotProps> = ({
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-slate-600">Active Live Deliveries</span>
-              <span className="tabular-nums text-[#205641] font-semibold">
+              <span className="tabular-nums text-[#24533F] font-semibold">
                 {isLoading ? '...' : deliveries?.activeDeliveries || 0}
               </span>
             </div>

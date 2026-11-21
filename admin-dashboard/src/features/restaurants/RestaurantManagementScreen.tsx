@@ -48,7 +48,7 @@ export const RestaurantManagementScreen: React.FC = () => {
     switch (status) {
       case 'approved':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
             <CheckCircle2 className="w-3 h-3" /> APPROVED
           </span>
         );
@@ -97,7 +97,7 @@ export const RestaurantManagementScreen: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Restaurant</span>
@@ -106,7 +106,7 @@ export const RestaurantManagementScreen: React.FC = () => {
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-medium text-[#205641] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#24533F] text-xs font-medium text-[#24533F] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             <span>Refresh Directory</span>
@@ -127,7 +127,7 @@ export const RestaurantManagementScreen: React.FC = () => {
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                 selectedStatus === tab.value
-                  ? 'bg-[#205641] text-white shadow-sm font-semibold'
+                  ? 'bg-[#24533F] text-white shadow-sm font-semibold'
                   : 'text-slate-600 hover:text-[#171A21] hover:bg-slate-100'
               }`}
             >
@@ -147,7 +147,7 @@ export const RestaurantManagementScreen: React.FC = () => {
               setPage(1);
             }}
             placeholder="Search restaurant or slug..."
-            className="w-full bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#205641]"
+            className="w-full bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#24533F]"
           />
         </div>
       </div>
@@ -166,7 +166,7 @@ export const RestaurantManagementScreen: React.FC = () => {
           )}
           <button
             onClick={() => refetch()}
-            className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer"
           >
             Retry Query
           </button>
@@ -213,10 +213,10 @@ export const RestaurantManagementScreen: React.FC = () => {
                       className="hover:bg-slate-50 transition-colors cursor-pointer group"
                     >
                       <td className="px-5 py-3.5 space-y-0.5">
-                        <div className="font-bold text-[#171A21] group-hover:text-[#205641] transition-colors flex items-center gap-1.5">
+                        <div className="font-bold text-[#171A21] group-hover:text-[#24533F] transition-colors flex items-center gap-1.5">
                           <span>{r.name}</span>
                         </div>
-                        <div className="text-[11px] tabular-nums text-[#205641]/70">/{r.slug}</div>
+                        <div className="text-[11px] tabular-nums text-[#24533F]/70">/{r.slug}</div>
                       </td>
 
                       <td className="px-5 py-3.5 space-y-0.5">
@@ -230,14 +230,14 @@ export const RestaurantManagementScreen: React.FC = () => {
 
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F5F6F8] border border-[#E3E7EC] tabular-nums text-[11px] text-[#171A21]">
-                          <MapPin className="w-3 h-3 text-[#205641]" />
+                          <MapPin className="w-3 h-3 text-[#24533F]" />
                           {r.outletCount}
                         </span>
                       </td>
 
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F5F6F8] border border-[#E3E7EC] tabular-nums text-[11px] text-[#171A21]">
-                          <FileText className="w-3 h-3 text-[#205641]" />
+                          <FileText className="w-3 h-3 text-[#24533F]" />
                           {r.documentCount}
                         </span>
                       </td>
@@ -254,7 +254,7 @@ export const RestaurantManagementScreen: React.FC = () => {
                             e.stopPropagation();
                             setSelectedRestaurantId(r.id);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#205641] text-[11px] font-semibold text-[#205641] border border-[#205641] transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#24533F] text-[11px] font-semibold text-[#24533F] border border-[#24533F] transition-colors cursor-pointer"
                         >
                           <span>Manage</span>
                           <ChevronRight className="w-3 h-3" />

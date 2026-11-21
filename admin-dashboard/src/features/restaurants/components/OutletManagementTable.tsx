@@ -105,7 +105,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                 <tr key={outlet.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 space-y-0.5">
                     <div className="font-bold text-[#171A21] flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#205641]" />
+                      <MapPin className="w-3.5 h-3.5 text-[#24533F]" />
                       <span>{outlet.name}</span>
                     </div>
                     <div className="text-[11px] text-slate-600 max-w-xs truncate">
@@ -126,7 +126,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
 
                   <td className="px-4 py-3">
                     {outlet.isActive ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
                         <CheckCircle2 className="w-3 h-3" /> ACTIVE
                       </span>
                     ) : (
@@ -138,8 +138,8 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
 
                   <td className="px-4 py-3">
                     {outlet.isAcceptingOrders ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#E8F2ED] text-[#205641] border border-[#205641]">
-                        <Radio className="w-2.5 h-2.5 animate-pulse text-[#205641]" /> ACCEPTING
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#E8F2ED] text-[#24533F] border border-[#24533F]">
+                        <Radio className="w-2.5 h-2.5 animate-pulse text-[#24533F]" /> ACCEPTING
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#9A431F]/15 text-[#9A431F] border border-[#9A431F]/30">
@@ -155,12 +155,12 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                         className="px-2.5 py-1 rounded bg-[#F5F6F8] hover:bg-black/60 text-[11px] font-semibold text-slate-600 border border-[#E3E7EC] transition-colors cursor-pointer inline-flex items-center gap-1"
                         title="Configure Delivery Radius & Location"
                       >
-                        <Settings className="w-3 h-3 text-[#205641]" />
+                        <Settings className="w-3 h-3 text-[#24533F]" />
                         <span>Delivery</span>
                       </button>
                       <button
                         onClick={() => handleOpenOverride(outlet)}
-                        className="px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#205641] text-[11px] font-semibold text-[#205641] border border-[#205641] transition-colors cursor-pointer"
+                        className="px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#24533F] text-[11px] font-semibold text-[#24533F] border border-[#24533F] transition-colors cursor-pointer"
                       >
                         Override
                       </button>
@@ -186,13 +186,13 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
       {/* Super Admin Operational Override Modal */}
       {overrideModalOutlet && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E3E7EC] pb-3">
               <div>
                 <h3 className="text-sm font-bold text-[#171A21]">
                   Super Admin Operational Override
                 </h3>
-                <p className="text-[11px] tabular-nums text-[#205641] mt-0.5">
+                <p className="text-[11px] tabular-nums text-[#24533F] mt-0.5">
                   {overrideModalOutlet.name}
                 </p>
               </div>
@@ -217,7 +217,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                   className="cursor-pointer"
                 >
                   {targetIsActive ? (
-                    <ToggleRight className="w-7 h-7 text-[#205641]" />
+                    <ToggleRight className="w-7 h-7 text-[#24533F]" />
                   ) : (
                     <ToggleLeft className="w-7 h-7 text-slate-600" />
                   )}
@@ -237,7 +237,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                   className="cursor-pointer disabled:opacity-30"
                 >
                   {targetIsAccepting ? (
-                    <ToggleRight className="w-7 h-7 text-[#205641]" />
+                    <ToggleRight className="w-7 h-7 text-[#24533F]" />
                   ) : (
                     <ToggleLeft className="w-7 h-7 text-slate-600" />
                   )}
@@ -254,7 +254,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                   onChange={(e) => setOverrideReason(e.target.value)}
                   placeholder="Reason for changing live outlet operations (e.g. food safety audit, power outage, owner request)..."
                   rows={2}
-                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+                  className="w-full text-xs p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
                 />
               </div>
             </div>
@@ -275,7 +275,7 @@ export const OutletManagementTable: React.FC<OutletManagementTableProps> = ({
                     isAcceptingOrders: targetIsAccepting,
                   })
                 }
-                className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
               >
                 {updateOperationsMutation.isPending ? 'Applying...' : 'Apply Live Override'}
               </button>

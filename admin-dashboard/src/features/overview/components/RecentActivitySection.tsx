@@ -30,7 +30,7 @@ export const RecentActivitySection: React.FC<RecentActivitySectionProps> = ({
           </h2>
           <button
             onClick={onRetry}
-            className="text-xs font-semibold text-[#205641] hover:underline cursor-pointer"
+            className="text-xs font-semibold text-[#24533F] hover:underline cursor-pointer"
           >
             Retry
           </button>
@@ -48,11 +48,11 @@ export const RecentActivitySection: React.FC<RecentActivitySectionProps> = ({
   const getSourceIcon = (source: string) => {
     switch (source) {
       case 'order':
-        return <ShoppingBag className="w-4 h-4 text-[#205641]" />;
+        return <ShoppingBag className="w-4 h-4 text-[#24533F]" />;
       case 'refund':
         return <RotateCcw className="w-4 h-4 text-[#9A431F]" />;
       case 'rider':
-        return <Bike className="w-4 h-4 text-[#205641]" />;
+        return <Bike className="w-4 h-4 text-[#24533F]" />;
       default:
         return <Clock className="w-4 h-4 text-slate-600" />;
     }

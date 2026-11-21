@@ -184,14 +184,14 @@ export function TransactionsScreen({ mode }: { mode: 'payments' | 'refunds' }) {
                       <td>{row.restaurant}<br /><span className="text-slate-600">{row.outlet}</span></td>
                       <td>{money(row.amount, row.currency)}</td><td>{row.currency}</td>
                       <td><OrderStatusBadge type="payment" status={row.status} /></td><td>{ist(row.paidAt)}</td>
-                      <td><Link className="text-[#205641] underline" to={paymentLink(row.id)}>Details</Link></td>
+                      <td><Link className="text-[#24533F] underline" to={paymentLink(row.id)}>Details</Link></td>
                     </tr>
                   )) : refundQuery.data?.data.map((row) => (
                     <tr key={row.id} className="[&>td]:px-3">
                       <td>{row.orderNumber}</td><td>{money(row.amount, row.currency)}</td><td><RefundBadge status={row.status} /></td>
                       <td className="max-w-64 break-words">{row.reason}</td><td>{ist(row.createdAt)}</td>
                       <td className="break-all">{row.providerRefundId || '—'}</td><td>{row.isManualReviewRequired ? 'Needs review' : '—'}</td>
-                      <td><Link className="text-[#205641] underline" to={refundLink(row.id)}>Details</Link></td>
+                      <td><Link className="text-[#24533F] underline" to={refundLink(row.id)}>Details</Link></td>
                     </tr>
                   ))}
                 </tbody>

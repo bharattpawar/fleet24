@@ -66,10 +66,10 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-[#FFFFFF] border border-[#205641] rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+      <div className="bg-[#FFFFFF] border border-[#24533F] rounded-2xl max-w-lg w-full p-6 shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#E3E7EC] pb-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-[#E8F2ED] border border-[#E3E7EC] text-[#205641]">
+            <div className="p-2 rounded-lg bg-[#E8F2ED] border border-[#E3E7EC] text-[#24533F]">
               <Store className="w-5 h-5" />
             </div>
             <div>
@@ -103,7 +103,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Sector 62 Branch"
-              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -117,7 +117,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+91 98xxxxxxxx"
-              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -136,7 +136,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Ground Floor, Tower A, Tech Park..."
-              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] focus:outline-none focus:border-[#205641]"
+              className="w-full p-2.5 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] focus:outline-none focus:border-[#24533F]"
             />
           </div>
 
@@ -149,7 +149,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
                 type="text"
                 value={latitude}
                 onChange={(e) => setLatitude(e.target.value)}
-                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#205641]"
+                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#24533F]"
               />
             </div>
             <div>
@@ -160,7 +160,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
                 type="text"
                 value={longitude}
                 onChange={(e) => setLongitude(e.target.value)}
-                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#205641]"
+                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#24533F]"
               />
             </div>
             <div>
@@ -172,7 +172,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
                 required
                 value={deliveryRadiusKm}
                 onChange={(e) => setDeliveryRadiusKm(e.target.value)}
-                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#205641] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#205641]"
+                className="w-full p-2 rounded-lg bg-[#F5F6F8] border border-[#24533F] text-[#171A21] text-center tabular-nums focus:outline-none focus:border-[#24533F]"
               />
             </div>
           </div>
@@ -188,7 +188,7 @@ export const AddOutletModal: React.FC<AddOutletModalProps> = ({
             <button
               type="submit"
               disabled={createOutletMutation.isPending}
-              className="px-4 py-2 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 disabled:opacity-50 cursor-pointer"
             >
               {createOutletMutation.isPending ? 'Creating Outlet...' : 'Create Outlet'}
             </button>

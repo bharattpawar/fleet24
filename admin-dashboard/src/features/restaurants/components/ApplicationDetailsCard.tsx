@@ -23,7 +23,7 @@ export function ApplicationDetailsCard({ application }: { application: Restauran
     <div className="p-5 rounded-xl bg-[#F5F6F8] border border-[#E3E7EC] space-y-4" aria-label="Registration details">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <FileCheck2 className="w-4 h-4 text-[#205641]" />
+          <FileCheck2 className="w-4 h-4 text-[#24533F]" />
           <h3 className="text-xs font-bold text-slate-600">Registration details to verify</h3>
         </div>
         {!Number.isNaN(submitted.getTime()) && (

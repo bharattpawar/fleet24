@@ -53,7 +53,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
     switch (status) {
       case 'verified':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#205641] text-white">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] tabular-nums font-semibold bg-[#24533F] text-white">
             <CheckCircle2 className="w-3 h-3" /> VERIFIED
           </span>
         );
@@ -123,7 +123,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                     href={doc.documentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-[#205641] hover:underline"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#24533F] hover:underline"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Inspect Document Storage URL</span>
@@ -184,7 +184,7 @@ export const KycDocumentReview: React.FC<KycDocumentReviewProps> = ({
                           notes: 'Verified by Super Admin',
                         })
                       }
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#205641] hover:bg-[#205641]/80 text-xs font-semibold text-[#205641] disabled:opacity-40 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#24533F] hover:bg-[#24533F]/80 text-xs font-semibold text-[#24533F] disabled:opacity-40 cursor-pointer"
                     >
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>{doc.verificationStatus === 'verified' ? 'Verified' : 'Verify Document'}</span>

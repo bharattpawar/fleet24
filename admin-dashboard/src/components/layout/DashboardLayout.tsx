@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { Sidebar, pageTitles } from './Sidebar';
+import { Sidebar } from './Sidebar';
+import { pageDescriptions, pageTitles } from './navigation';
 import { Header } from './Header';
 
 export function DashboardLayout() {
@@ -26,7 +27,7 @@ export function DashboardLayout() {
         <Sidebar onNavigate={() => drawer.current?.close()} />
       </dialog>
       <div className="admin-workspace">
-        <Header title={pageTitles[pathname] || 'Fleet24'} onOpenNavigation={() => drawer.current?.showModal()} />
+        <Header title={pageTitles[pathname] || 'Fleet24'} description={pageDescriptions[pathname]} onOpenNavigation={() => drawer.current?.showModal()} />
         <main className="admin-content" ref={content}><Outlet /></main>
       </div>
     </div>

@@ -71,7 +71,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#205641] text-xs font-medium text-[#205641] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#E8F2ED] border border-[#24533F] text-xs font-medium text-[#24533F] hover:bg-[#E8F2ED] transition-colors disabled:opacity-50 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           <span>Refresh Orders</span>
@@ -92,7 +92,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                 selectedStatus === tab.value
-                  ? 'bg-[#205641] text-white shadow-sm font-semibold'
+                  ? 'bg-[#24533F] text-white shadow-sm font-semibold'
                   : 'text-slate-600 hover:text-[#171A21] hover:bg-slate-100'
               }`}
             >
@@ -112,7 +112,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
               setPage(1);
             }}
             placeholder="Search order #, customer, outlet..."
-            className="w-full bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#205641]"
+            className="w-full bg-[#FFFFFF] border border-[#E3E7EC] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#171A21] placeholder-slate-600 focus:outline-none focus:border-[#24533F]"
           />
         </div>
       </div>
@@ -126,7 +126,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-1.5 rounded-lg bg-[#205641] text-white text-xs font-bold hover:bg-[#205641]/80 transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-[#24533F] text-white text-xs font-bold hover:bg-[#24533F]/80 transition-colors cursor-pointer"
           >
             Retry Query
           </button>
@@ -183,7 +183,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
                       className="hover:bg-slate-50 transition-colors cursor-pointer group"
                     >
                       <td className="px-5 py-3.5 space-y-0.5">
-                        <div className="font-bold text-[#171A21] group-hover:text-[#205641] transition-colors tabular-nums">
+                        <div className="font-bold text-[#171A21] group-hover:text-[#24533F] transition-colors tabular-nums">
                           #{ord.orderNumber}
                         </div>
                         <div className="text-[10px] text-slate-600 tabular-nums">
@@ -193,7 +193,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
 
                       <td className="px-5 py-3.5 space-y-0.5">
                         <div className="font-semibold text-[#171A21] flex items-center gap-1">
-                          <User className="w-3 h-3 text-[#205641]" />
+                          <User className="w-3 h-3 text-[#24533F]" />
                           <span>{customerName}</span>
                         </div>
                         <div className="text-[10px] tabular-nums text-slate-600">
@@ -203,7 +203,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
 
                       <td className="px-5 py-3.5 space-y-0.5">
                         <div className="font-semibold text-[#171A21] flex items-center gap-1">
-                          <Store className="w-3 h-3 text-[#205641]" />
+                          <Store className="w-3 h-3 text-[#24533F]" />
                           <span>{restaurantName}</span>
                         </div>
                         <div className="text-[10px] text-slate-600">
@@ -211,7 +211,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
                         </div>
                       </td>
 
-                      <td className="px-5 py-3.5 tabular-nums text-[11px] font-bold text-[#205641]">
+                      <td className="px-5 py-3.5 tabular-nums text-[11px] font-bold text-[#24533F]">
                         {formatCurrency(ord.totalPayable)}
                       </td>
 
@@ -246,7 +246,7 @@ function OrdersList({ customerId }: { customerId?: string }) {
                             e.stopPropagation();
                             setSelectedOrderId(orderId);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#205641] text-[11px] font-semibold text-[#205641] border border-[#205641] transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#E8F2ED] hover:bg-[#24533F] text-[11px] font-semibold text-[#24533F] border border-[#24533F] transition-colors cursor-pointer"
                         >
                           <span>Manage</span>
                           <ChevronRight className="w-3 h-3" />
