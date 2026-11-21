@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AppState } from 'react-native';
 import { authStorage } from '../api/storage';
-import { apiRequest } from '../api/client';
+import { apiRequest, setAuthFailureListener } from '../api/client';
+import { isSessionEnded } from '../auth/sessionErrors';
 import { USE_MOCK_DATA, MOCK_USER_PROFILE } from '../api/mockData';
 
 export interface UserProfile {
@@ -46,11 +48,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const profile = await apiRequest<UserProfile>('/auth/me');
       setUser(profile);
-    } catch {
-      setUser(null);
-      await authStorage.clearTokens();
+    } catch (err) {
+      // Offline or server trouble at launch must not delete a valid session.
+      if (isSessionEnded(err)) {
+        setUser(null);
+        await authStorage.clearTokens();
+      }
     }
   };
+
+  useEffect(() => {
+    if (USE_MOCK_DATA) return;
+    setAuthFailureListener(() => setUser(null));
+    return () => setAuthFailureListener(null);
+  }, []);
+
+  // A launch without network keeps the saved tokens; try again when the app comes back.
+  useEffect(() => {
+    if (USE_MOCK_DATA || user || isLoading) return;
+    const subscription = AppState.addEventListener('change', async (state) => {
+      if (state === 'active' && (await authStorage.getAccessToken())) await refreshProfile();
+    });
+    return () => subscription.remove();
+  }, [user, isLoading]);
 
   useEffect(() => {
     const init = async () => {
